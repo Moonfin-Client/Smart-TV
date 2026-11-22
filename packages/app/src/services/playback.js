@@ -16,6 +16,7 @@ import {withPlexToken} from '../utils/plexUrls';
 import {parseSubtitleText} from '../utils/subtitleText';
 import {corsFreeFetch} from './secureFetch';
 import {isTizen} from '../platform';
+import {siloEndedOnServer} from './siloPlayback';
 
 export const PlayMethod = {
 	DirectPlay: 'DirectPlay',
@@ -68,6 +69,70 @@ let currentSession = null;
 let progressInterval = null;
 let healthMonitor = null;
 
+// An admin ending a Silo session from the dashboard closes the player. From then until the player that played the
+// item closes, or a minute passes, the item is held: no reopen, fallback, retry or Next starts it again in a new
+// session. Held per item, so a close that never finishes holds nothing else back.
+const ENDED_HOLD_MS = 60000;
+const endedOnServer = new Map();
+// Bumped when the player closes, so a stop or replan sent before then that hears the end afterwards holds nothing.
+let endedHoldGeneration = 0;
+const endedListeners = new Set();
+// A stop on its way can find the admin's end before anything else does, so a start of the same item waits for it.
+const stopsOnTheirWay = new Map();
+const STOP_WAIT_MS = 5000;
+
+export const isEndedOnServer = (err) => err?.siloRefused === true && err.reason === 'playback_session_ended';
+
+const heldEndedOnServer = (itemId) => {
+	const at = endedOnServer.get(itemId);
+	if (at != null && Date.now() - at < ENDED_HOLD_MS) return true;
+	endedOnServer.delete(itemId);
+	return false;
+};
+
+const tellEndedOnServer = (itemId) => endedListeners.forEach((listener) => listener(itemId));
+
+const holdEndedOnServer = (itemId, generation) => {
+	if (generation !== endedHoldGeneration) return false;
+	endedOnServer.set(itemId, Date.now());
+	return true;
+};
+
+// Waits a few seconds at most for a stop of the item that's on its way. How that stop went is its own business.
+const stopOnItsWay = (itemId) => {
+	const stopping = stopsOnTheirWay.get(itemId);
+	if (!stopping) return null;
+	let timer;
+	return Promise.race([
+		stopping.catch(() => null),
+		new Promise((resolve) => {
+			timer = setTimeout(resolve, STOP_WAIT_MS);
+		})
+	]).finally(() => clearTimeout(timer));
+};
+
+// A refusal heard outside this service (a track list asked again for a downloaded subtitle) holds the item and tells
+// the player, like one heard here. `generation` is `endedOnServerGeneration()` from when the request went out, so a
+// reply that comes back after its player closed holds nothing.
+export const endedOnServerGeneration = () => endedHoldGeneration;
+
+export const heardEndedOnServer = (err, generation = endedHoldGeneration) => {
+	if (isEndedOnServer(err) && holdEndedOnServer(err.itemId, generation)) tellEndedOnServer(err.itemId);
+};
+
+// `listener(itemId)` hears each time the end of an item's session reaches the app (the player acts on the first).
+// Returns the unsubscribe.
+export const onEndedOnServer = (listener) => {
+	endedListeners.add(listener);
+	return () => endedListeners.delete(listener);
+};
+
+// The player closed: what it held can be played again.
+export const releaseEndedOnServer = () => {
+	endedHoldGeneration++;
+	endedOnServer.clear();
+};
+
 const apiForSession = (session) => (session.serverCredentials
 	? jellyfinApi.createApiForServer(
 		session.serverCredentials.serverUrl,
@@ -119,8 +184,7 @@ const DEFAULT_PASSTHROUGH_SETTINGS = {
 	eac3Passthrough: true,
 	dtsPassthrough: true,
 	dtshdPassthrough: true,
-	truehdPassthrough: true,
-	forceTruehdPassthrough: false
+	truehdPassthrough: true
 };
 
 // Which of the three passthrough modes applies. Settings saved before the mode
@@ -157,8 +221,7 @@ const getPlaybackAudioSettings = async (options = {}, preloadedSettings = null) 
 		eac3Passthrough: claim(options.eac3Passthrough, stored.eac3Passthrough, DEFAULT_PASSTHROUGH_SETTINGS.eac3Passthrough),
 		dtsPassthrough: claim(options.dtsPassthrough, stored.dtsPassthrough, DEFAULT_PASSTHROUGH_SETTINGS.dtsPassthrough),
 		dtshdPassthrough: claim(options.dtshdPassthrough, stored.dtshdPassthrough, DEFAULT_PASSTHROUGH_SETTINGS.dtshdPassthrough),
-		truehdPassthrough: claim(options.truehdPassthrough, stored.truehdPassthrough, DEFAULT_PASSTHROUGH_SETTINGS.truehdPassthrough),
-		forceTruehdPassthrough: off ? false : (options.forceTruehdPassthrough ?? stored.forceTruehdPassthrough ?? DEFAULT_PASSTHROUGH_SETTINGS.forceTruehdPassthrough)
+		truehdPassthrough: claim(options.truehdPassthrough, stored.truehdPassthrough, DEFAULT_PASSTHROUGH_SETTINGS.truehdPassthrough)
 	};
 };
 
@@ -548,7 +611,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	// it fits the stream to the link itself, and a capability ceiling below a file's bitrate rules out a remux
 	// (a Dolby Vision strip to HDR10 among them) for a tone-mapped transcode.
 	const userMaxBitrate = options.maxBitrate > 0 ? options.maxBitrate : null;
-	const maxBitrate = userMaxBitrate || (serverType === 'silo' ? null : await autoMaxBitrate(capabilities, creds, !currentSession, api));
+	const autoBitrate = !userMaxBitrate && serverType !== 'silo';
 
 	const requestedStartTime = isLiveTV ? 0 : (options.startPositionTicks || 0);
 	const hasExplicitSubtitle = options.subtitleStreamIndex != null;
@@ -578,6 +641,12 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	const plexBurnsSubtitle = serverType === 'plex' && !options.forceDirectPlay && !!requestedSubStream && requestedSubStream.Codec !== 'none' &&
 		!plexReadsFromFile(requestedSubStream, sourceContainer, storedSettings.enablePgsRendering === false);
 	const enableDirectPlay = allowDirectPlay && options.enableDirectPlay !== false && !plexBurnsSubtitle;
+	// Auto starts on the link's last measurement, so direct play never waits on a test. Only a start that has to
+	// transcode, or a live one that can't be asked for again, measures first. The rest measure once the server
+	// answers with a transcode, further down.
+	const maxBitrate = userMaxBitrate || (autoBitrate
+		? options.linkCappedBitrate || await autoMaxBitrate(capabilities, creds, !currentSession && (isLiveTV || !enableDirectPlay), api)
+		: null);
 	// When the user hasn't explicitly picked a subtitle, omit the index entirely so
 	// the server applies their preferred-subtitle-language / SubtitleMode default.
 	const sentSubtitleStreamIndex = hasExplicitSubtitle ? subtitleStreamIndex : undefined;
@@ -898,6 +967,12 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 		console.log('[playback] After forcing transcode - TranscodingUrl:', mediaSource.TranscodingUrl ? 'present' : 'none');
 	}
 
+	// An opened live stream is left as it is, since asking again would open a second one.
+	if (autoBitrate && !options.linkCappedBitrate && playMethod === PlayMethod.Transcode && !mediaSource.LiveStreamId) {
+		const measured = await autoMaxBitrate(capabilities, creds, !currentSession, api);
+		if (measured !== maxBitrate) return getPlaybackInfo(itemId, {...options, linkCappedBitrate: measured});
+	}
+
 	const itemAudio = options.item?.MediaType === 'Audio' || options.item?.Type === 'Audio';
 	const hasVideoStream = (mediaSource.MediaStreams || []).some((s) => s.Type === 'Video');
 	const hasAudioStream = (mediaSource.MediaStreams || []).some((s) => s.Type === 'Audio');
@@ -993,17 +1068,42 @@ const siloPlaybackResult = async ({
 	itemId, options, api, creds, deviceProfile, maxBitrate, capabilities, storedSettings, allowDirectPlay, allowDirectStream,
 	startPositionTicks, subtitleStreamIndex, requestedSubtitleStreamIndex
 }) => {
-	const playbackInfo = await api.getPlaybackInfo(itemId, {
-		DeviceProfile: deviceProfile,
-		StartTimeTicks: startPositionTicks,
-		AudioStreamIndex: options.audioStreamIndex,
-		SubtitleStreamIndex: subtitleStreamIndex,
-		MaxStreamingBitrate: maxBitrate,
-		MediaSourceId: options.mediaSourceId,
-		// Asked again with direct play off, the original file failed here, and Silo is told so.
-		EnableDirectPlay: allowDirectPlay && options.enableDirectPlay !== false
-	}, options.item);
+	const generation = endedHoldGeneration;
+	await stopOnItsWay(itemId);
+	if (heldEndedOnServer(itemId)) {
+		tellEndedOnServer(itemId);
+		throw siloEndedOnServer(itemId);
+	}
+	let playbackInfo;
+	try {
+		playbackInfo = await api.getPlaybackInfo(itemId, {
+			DeviceProfile: deviceProfile,
+			StartTimeTicks: startPositionTicks,
+			AudioStreamIndex: options.audioStreamIndex,
+			SubtitleStreamIndex: subtitleStreamIndex,
+			MaxStreamingBitrate: maxBitrate,
+			MediaSourceId: options.mediaSourceId,
+			// Asked again with direct play off, the original file failed here, and Silo is told so.
+			EnableDirectPlay: allowDirectPlay && options.enableDirectPlay !== false
+		}, options.item);
+	} catch (err) {
+		heardEndedOnServer(err, generation);
+		throw err;
+	}
 	const mediaSource = playbackInfo.MediaSources[0];
+	// A stop that outlasted the wait above found the admin's end while this plan was on its way: the new session
+	// is stopped again and the item stays turned away.
+	if (heldEndedOnServer(itemId)) {
+		if (currentSession?.playSessionId === playbackInfo.PlaySessionId) discardCurrentSession(); // eslint-disable-line no-use-before-define
+		api.reportPlaybackStopped({
+			ItemId: itemId,
+			PlaySessionId: playbackInfo.PlaySessionId,
+			MediaSourceId: mediaSource?.Id,
+			PositionTicks: 0
+		}).catch((e) => console.warn('[playback] Failed to stop the turned-away session:', e.message));
+		tellEndedOnServer(itemId);
+		throw siloEndedOnServer(itemId);
+	}
 	let playMethod = PlayMethod.Transcode;
 	if (mediaSource.SupportsDirectPlay) playMethod = PlayMethod.DirectPlay;
 	else if (mediaSource.SupportsDirectStream) playMethod = PlayMethod.DirectStream;
@@ -1480,6 +1580,8 @@ export const reportStart = async (positionTicks = 0) => {
 
 export const reportProgress = async (positionTicks, options = {}) => {
 	if (!currentSession) return;
+	const reporting = currentSession.playSessionId;
+	const generation = endedHoldGeneration;
 
 	try {
 		const api = apiForSession(currentSession);
@@ -1503,7 +1605,15 @@ export const reportProgress = async (positionTicks, options = {}) => {
 
 		shareStopWithShell(positionTicks);
 		await api.reportPlaybackProgress(info);
-	} catch (e) { void e; }
+	} catch (e) {
+		// Only the session still playing closes the player: a report the viewer retired (a stop, another item)
+		// closes nothing. A replan keeps Silo's session id, so a report sent before one still counts. Backgrounding
+		// sends Silo no stop, so its session still plays.
+		if (!isEndedOnServer(e) || currentSession?.playSessionId !== reporting) return;
+		if (!holdEndedOnServer(e.itemId, generation)) return;
+		stopProgressReporting(); // eslint-disable-line no-use-before-define
+		tellEndedOnServer(e.itemId);
+	}
 };
 
 const sendStopRequest = ({endpoint, json}) => {
@@ -1611,19 +1721,35 @@ export const reportStop = async (positionTicks) => {
 
 	// A beacon already sent this exact stop.
 	if (stopKey(session, positionTicks) !== session.lastStopBeaconKey) {
+		const generation = endedHoldGeneration;
+		let stopping = null;
 		try {
-			await apiForSession(session).reportPlaybackStopped({
+			stopping = apiForSession(session).reportPlaybackStopped({
 				ItemId: session.itemId,
 				PlaySessionId: session.playSessionId,
 				MediaSourceId: session.mediaSourceId,
 				PositionTicks: positionTicks
 			});
+			stopsOnTheirWay.set(session.itemId, stopping);
+			// Silo found an admin had already ended it: a fallback or reload starting the item again is turned away.
+			// A start that gave up waiting for this stop already plays the item again, so its player is told.
+			if ((await stopping)?.endedOnServer && holdEndedOnServer(session.itemId, generation) &&
+				currentSession?.itemId === session.itemId) tellEndedOnServer(session.itemId);
 		} catch (e) {
 			console.warn('[playback] Failed to report stop:', e.message);
+		} finally {
+			if (stopping && stopsOnTheirWay.get(session.itemId) === stopping) stopsOnTheirWay.delete(session.itemId);
 		}
 	}
 
 	await closeLiveStreamOnce(session);
+};
+
+// Moving on from Next Up in the credits counts the item as watched, even where the credits start under the
+// server's own threshold: the stop goes in at its end, then it's marked played.
+export const reportFinished = async (item, runTimeTicks, fallbackTicks) => {
+	await reportStop(runTimeTicks > 0 ? runTimeTicks : fallbackTicks);
+	getApiForItem(item).setWatched(item.Id, true).catch(() => {});
 };
 
 export const startProgressReporting = (getPositionTicks, intervalMs = 10000, getPlayState) => {
@@ -1654,11 +1780,11 @@ class PlaybackHealthMonitor {
 		this.isPaused = false;
 	}
 
+	// Resuming starts a fresh stall window too, or a pause longer than the limit reads as a stall
+	// before the first progress comes in.
 	setPaused(paused) {
 		this.isPaused = paused;
-		if (paused) {
-			this.lastProgressTime = Date.now();
-		}
+		this.lastProgressTime = Date.now();
 	}
 
 	recordBuffer() {

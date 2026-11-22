@@ -5,6 +5,7 @@ import {activeSyncProfile, defaultSettings, localToProfile, profileToLocal} from
 import {deleteMoonfinProfile, getMoonfinResolvedProfile, saveMoonfinProfile} from '../../services/seerrApi';
 import {homeRowsFromProfile} from '../../utils/homeLayout';
 import {seedLanguagePreferences} from '../../utils/languagePrefSeed';
+import {seedHideWatched} from '../../utils/hideWatchedRecentRows';
 
 const resolvedToLocal = (resolved) => {
 	const local = profileToLocal(resolved);
@@ -41,7 +42,8 @@ const useProfileSync = ({
 		const merged = {...base, ...values};
 		return {
 			...values,
-			...seedLanguagePreferences(merged, user?.Configuration || {}, merged.uiLanguage, window.navigator?.language)
+			...seedLanguagePreferences(merged, user?.Configuration || {}, merged.uiLanguage, window.navigator?.language),
+			...seedHideWatched(merged, user?.Configuration)
 		};
 	}, [user]);
 

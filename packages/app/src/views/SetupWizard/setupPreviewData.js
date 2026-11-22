@@ -6,6 +6,8 @@
 
 import {getImageUrl, getBackdropId, getPrimaryImageId, getLogoUrl} from '../../utils/helpers';
 import * as jellyfinApi from '../../services/jellyfinApi';
+import {showsWatchedCheck} from '../../utils/playedState';
+import {getEpisodeLabels} from '../../components/MediaCard/modernCardLayout';
 
 let items = [];
 let loading = false;
@@ -36,6 +38,9 @@ export const adaptItem = (item) => {
 	const posterId = getPrimaryImageId(item);
 	return {
 		title: item.Name || '',
+		// A Carousel panel leads an episode with its series, its number and name under it.
+		seriesName: item.Type === 'Episode' ? item.SeriesName || null : null,
+		episodeLine: item.Type === 'Episode' ? getEpisodeLabels(item)?.full || null : null,
 		type: item.Type || null,
 		year: item.ProductionYear || null,
 		officialRating: item.OfficialRating || null,
@@ -43,9 +48,14 @@ export const adaptItem = (item) => {
 		genres: Array.isArray(item.Genres) ? item.Genres : [],
 		overview: item.Overview || null,
 		communityRating: typeof item.CommunityRating === 'number' ? item.CommunityRating : null,
-		posterUrl: posterId ? getImageUrl(serverUrl, posterId, 'Primary', {maxWidth: 400, quality: 85}) : null,
+		// The mocks never draw a poster bigger than this, and old TVs decode it far faster than a larger one.
+		posterUrl: posterId ? getImageUrl(serverUrl, posterId, 'Primary', {maxHeight: 360, quality: 80}) : null,
 		backdropUrl: backdropId ? getImageUrl(serverUrl, backdropId, 'Backdrop', {maxWidth: 1280, quality: 85}) : null,
-		logoUrl: getLogoUrl(serverUrl, item, {maxWidth: 800, quality: 90})
+		logoUrl: getLogoUrl(serverUrl, item, {maxWidth: 800, quality: 90}),
+		// What a card's watched indicators read.
+		played: showsWatchedCheck(item),
+		playedPercentage: item.UserData?.PlayedPercentage || 0,
+		unplayedCount: item.UserData?.UnplayedItemCount || 0
 	};
 };
 

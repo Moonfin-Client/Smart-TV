@@ -1,6 +1,8 @@
 import $L from '@enact/i18n/$L';
+import {SUBTITLE_FONTS} from '../../services/subtitleFonts';
 
 import {PLAYBACK_TIME_DISPLAYS, PLAYBACK_TIME_SLOTS} from '../../utils/playbackTimeLabels';
+import {NEW_EPISODES, NEW_MOVIE, NEW_SEASON, NEW_SERIES} from '../../utils/mediaBarNewRelease';
 
 // Every list is a function so $L runs when the settings screen opens rather than when
 // this module is imported, which is before i18n has loaded its bundle.
@@ -26,7 +28,7 @@ export const getMediaBarSourceOptions = () => [
 	{ value: 'random', label: $L('Random') },
 	{ value: 'recentlyAdded', label: $L('Recently Added') },
 	{ value: 'recentlyReleased', label: $L('Recently Released') },
-	{ value: 'newReleases', label: $L('New Seasons & Episodes') }
+	{ value: 'newReleases', label: $L('New Releases') }
 ];
 
 export const getDateFormatOptions = () => [
@@ -41,6 +43,22 @@ export const getNewReleaseDaysOptions = () => [
 	{ value: 30, label: $L('30 days') },
 	{ value: 60, label: $L('60 days') },
 	{ value: 90, label: $L('90 days') }
+];
+
+export const getNewMovieDaysOptions = () => [
+	{ value: 30, label: $L('30 days') },
+	{ value: 60, label: $L('60 days') },
+	{ value: 90, label: $L('90 days') },
+	{ value: 120, label: $L('120 days') },
+	{ value: 180, label: $L('180 days') },
+	{ value: 365, label: $L('365 days') }
+];
+
+export const getNewReleaseKindOptions = () => [
+	{ value: NEW_SERIES, label: $L('New Series') },
+	{ value: NEW_SEASON, label: $L('New Season') },
+	{ value: NEW_EPISODES, label: $L('New Episodes') },
+	{ value: NEW_MOVIE, label: $L('New Movie') }
 ];
 
 export const getFeaturedBarStyleOptions = () => [
@@ -114,6 +132,17 @@ export const getSubtitlePositionOptions = () => [
 	{ value: 'middle', label: $L('Middle'), offset: 30 },
 	{ value: 'higher', label: $L('Higher'), offset: 40 },
 	{ value: 'absolute', label: $L('Absolute'), offset: 0 }
+];
+
+export const getSubtitleStrokeWidthOptions = () => [
+	{ value: 100, label: $L('Default') },
+	{ value: 150, label: $L('Medium') },
+	{ value: 200, label: $L('Large') }
+];
+
+export const getSubtitleFontOptions = () => [
+	{ value: '', label: $L('Default') },
+	...SUBTITLE_FONTS.map(({family}) => ({ value: family, label: family }))
 ];
 
 export {getSubtitleColorOptions, getSubtitleShadowColorOptions, getSubtitleBackgroundColorOptions} from '../../utils/subtitleConstants';
@@ -215,6 +244,11 @@ export const getScreensaverDimmingOptions = () => [
 	{ value: 100, label: $L('100%') }
 ];
 
+export const getSleepAfterIdleOptions = () => [
+	{ value: 0, label: $L('Off') },
+	...[15, 30, 60, 120].map((minutes) => ({ value: minutes, label: $L('{minutes} min').replace('{minutes}', minutes) }))
+];
+
 export const getWatchPartyServiceOptions = () => [
 	{ value: 'moonbase', label: $L('Watch Party') },
 	{ value: 'syncplay', label: $L('SyncPlay') }
@@ -250,7 +284,8 @@ export const getImageTypeOptions = () => [
 
 export const getHomeRowsStyleOptions = () => [
 	{ value: 'v2', label: $L('Modern') },
-	{ value: 'v1', label: $L('Classic') }
+	{ value: 'v1', label: $L('Classic') },
+	{ value: 'carousel', label: $L('Carousel') }
 ];
 
 export const getHomeBackdropStyleOptions = () => [
@@ -276,13 +311,6 @@ export const getBookLibraryStyleOptions = () => [
 	{ value: 'classic', label: $L('Classic') },
 	{ value: 'readingRoom', label: $L('Reading Room') },
 	{ value: 'bookstore', label: $L('Bookstore') }
-];
-
-export const getKeyboardStyleOptions = () => [
-	{ value: 'native', label: $L('Native') },
-	{ value: 'classic', label: $L('Classic') },
-	{ value: 'glass', label: $L('Glass') },
-	{ value: 'docked', label: $L('Docked') }
 ];
 
 export const getMusicLibraryStyleOptions = () => [
@@ -328,6 +356,12 @@ export const getHomeRowSortOptions = () => [
 	{ value: 'CommunityRating', label: $L('Community Rating') }
 ];
 
+// Jellyfin lists studios by name only, so these are the orders the Studios row can give.
+export const getStudioSortOptions = () => [
+	{ value: 'SortName', label: $L('Name') },
+	{ value: 'Random', label: $L('Random') }
+];
+
 // Playlist and collection rows can also follow the curated arrangement
 export const getPlaylistCollectionSortOptions = () => [
 	{ value: 'PlaylistOrder', label: $L('Playlist Order') },
@@ -342,7 +376,7 @@ export const getGenresRowItemFilterOptions = () => [
 
 export const getRecommendationSystemSourceOptions = () => [
 	{ value: 'local', label: $L('Moonfin Recommends') },
-	{ value: 'server', label: $L('Jellyfin Recommends') },
+	{ value: 'server', label: $L('Server Recommends') },
 	{ value: 'online', label: $L('TMDb Similarity') },
 	{ value: 'hybrid', label: $L('Hybrid') }
 ];
@@ -526,6 +560,12 @@ export const getSkipLengthOptions = () => [
 	{ value: 30000, label: $L('30 seconds') },
 	{ value: 45000, label: $L('45 seconds') },
 	{ value: 60000, label: $L('60 seconds') }
+];
+
+export const getControlsHideDelayOptions = () => [
+	{ value: 1000, label: $L('1 second') },
+	{ value: 3000, label: $L('3 seconds') },
+	{ value: 5000, label: $L('5 seconds') }
 ];
 
 export const getMaxResolutionOptions = () => [

@@ -1,11 +1,19 @@
-import {buildLoaderContext, loadDeferredSections, loadSinceYouWatched, withStudioLogos} from './browseRowLoaders';
+import {buildLoaderContext, loadDeferredSections, loadGenres, loadLatestAndRecentlyReleased, loadSinceYouWatched, withStudioLogos} from './browseRowLoaders';
 import {makePickedRow} from '../../utils/pickedRows';
 import {loadSinceYouWatchedRows} from '../../services/homeRecommendations';
+import {getServerType} from '../../services/jellyfinApi';
+import {getRecentGames} from '../../services/gamesApi';
 
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
-jest.mock('../../services/jellyfinApi', () => ({HOME_ROW_ITEM_FIELDS: 'Fields', createApiForServer: jest.fn(), getServerType: () => 'jellyfin', getTokenParam: () => 'ApiKey', getApiKey: () => 'tok'}));
+jest.mock('../../services/jellyfinApi', () => ({HOME_ROW_ITEM_FIELDS: 'Fields', createApiForServer: jest.fn(), getServerType: jest.fn(() => 'jellyfin'), getTokenParam: () => 'ApiKey', getApiKey: () => 'tok'}));
 jest.mock('../../services/multiServerManager', () => ({getAllServersArray: async () => []}));
 jest.mock('../../services/homeRecommendations', () => ({loadSinceYouWatchedRows: jest.fn(), loadRewatchItems: jest.fn()}));
+jest.mock('../../services/gamesApi', () => ({getRecentGames: jest.fn()}));
+jest.mock('../../utils/gameLibrary', () => ({
+	refreshGameLibraries: async () => {},
+	isGameLibrary: (id) => id === 'games',
+	resolveGameLibraryId: (lib) => `plugin-${lib.Id}`
+}));
 
 const SERVER = 'http://server';
 const genreRow = (i) => makePickedRow({source: 'genres', serverUrl: SERVER, itemId: `g${i}`, name: `Genre ${i}`}, true, i);
@@ -36,6 +44,37 @@ describe('picked rows far down Home', () => {
 		await loadDeferredSections(ctx, ctx.deferredPluginSections, done);
 		expect(ctx.appendRows.mock.calls.map(([rows]) => rows.map((row) => row.title))).toEqual([['Genre 7'], ['Genre 8']]);
 		expect(done.mock.calls.map(([id]) => id)).toEqual(ctx.deferredPluginSections.map((row) => row.id));
+	});
+
+	test('carry the collection a picked collection row opens from its See All card', async () => {
+		const collection = makePickedRow({source: 'collections', serverUrl: SERVER, itemId: 'c1', name: 'Heists'}, true, 0);
+		const ctx = contextFor([collection, genreRow(0)]);
+		await loadDeferredSections(ctx, [collection, genreRow(0)], () => {});
+		const rows = ctx.appendRows.mock.calls.map(([[row]]) => row);
+		expect(rows.find((row) => row.id === collection.id).collection).toEqual({Id: 'c1', Name: 'Heists', Type: 'BoxSet'});
+		expect(rows.find((row) => row.id === genreRow(0).id).collection).toBeUndefined();
+	});
+});
+
+describe('Silo home sections', () => {
+	afterEach(() => getServerType.mockReturnValue('jellyfin'));
+
+	test('land as rows, and page past the first read', async () => {
+		getServerType.mockReturnValue('silo');
+		const cards = Array.from({length: 50}, (_, i) => ({Id: `card-${i}`}));
+		const getServerHomeSectionItems = jest.fn(async (id, limit) => ({Items: cards.slice(0, limit), TotalRecordCount: cards.length}));
+		const row = makePickedRow({source: 'server', serverUrl: '', itemId: 'type:hidden_gems', name: 'Hidden gems'}, true, 0);
+		const ctx = contextFor([row], {api: {getServerHomeSectionItems}});
+		expect(ctx.enabledPluginSections).toEqual([row]);
+		await loadDeferredSections(ctx, ctx.enabledPluginSections, jest.fn());
+
+		const [[[landed]]] = ctx.appendRows.mock.calls;
+		expect(landed.title).toBe('Hidden gems');
+		expect(getServerHomeSectionItems).toHaveBeenCalledWith('type:hidden_gems', 40);
+		expect(landed.items).toHaveLength(40);
+		expect(landed.hasMore).toBe(true);
+		expect((await landed.readHead(55)).Items).toHaveLength(50);
+		expect(getServerHomeSectionItems).toHaveBeenLastCalledWith('type:hidden_gems', 55);
 	});
 });
 
@@ -85,5 +124,88 @@ describe('withStudioLogos', () => {
 	test('hands the studios back untouched when the plugin has no list', () => {
 		const studios = [{Id: 'a', Name: 'HBO'}];
 		expect(withStudioLogos(studios, null, SERVER, 'tok')).toBe(studios);
+	});
+});
+
+describe('loadGenres', () => {
+	const genres = ['Action', 'War', 'Drama'].map((Name) => ({Id: Name, Name}));
+	const loadWith = async (genresRowSortOrder) => {
+		const ctx = buildLoaderContext({
+			api: {getGenres: jest.fn(async () => ({Items: genres})), getItems: jest.fn(async () => ({Items: []}))},
+			serverUrl: SERVER,
+			settings: {displayGenresRows: true, genresRowSortBy: 'SortName', genresRowSortOrder},
+			homeRowsConfig: [{id: 'genres', enabled: true}],
+			eligibleLibraries: [],
+			appendRows: jest.fn()
+		});
+		await loadGenres(ctx);
+		expect(ctx.api.getGenres).toHaveBeenCalledWith(undefined, 'Movie,Series', 'SortName', genresRowSortOrder === 'Descending' ? 'Descending' : 'Ascending');
+		return ctx.appendRows.mock.calls[0][0][0].items.map((genre) => genre.Name);
+	};
+
+	test('keeps a name sort in the chosen order', async () => {
+		expect(await loadWith('Descending')).toEqual(['War', 'Drama', 'Action']);
+		expect(await loadWith('Ascending')).toEqual(['Action', 'Drama', 'War']);
+		expect(await loadWith('auto')).toEqual(['Action', 'Drama', 'War']);
+	});
+});
+
+describe('Recently Added with watched titles hidden', () => {
+	const lib = {Id: 'films', Name: 'Films', CollectionType: 'movies'};
+	const movies = Array.from({length: 200}, (_, i) => ({Id: `m${i}`, Type: 'Movie', UserData: {Played: i < 150}}));
+	const load = async (settingsFor) => {
+		const getLatest = jest.fn(async (id, limit) => movies.slice(0, limit));
+		const getRecentlyReleased = jest.fn(async () => ({Items: []}));
+		const appendRows = jest.fn();
+		await loadLatestAndRecentlyReleased({api: {getLatest, getRecentlyReleased}, appendRows, eligibleLibraries: [lib], settings: settingsFor});
+		return {getLatest, getRecentlyReleased, rows: appendRows.mock.calls[0]?.[0] || []};
+	};
+
+	test('a full read that leaves the row short is read again further', async () => {
+		const {getLatest, getRecentlyReleased, rows} = await load({hideWatchedInRecentRows: true});
+		expect(getLatest.mock.calls.map(([, limit]) => limit)).toEqual([64, 500]);
+		expect(getRecentlyReleased).toHaveBeenCalledWith('films', 16, 'Movie,Series', true);
+		expect(rows[0].items.map((item) => item.Id)).toEqual(Array.from({length: 16}, (_, i) => `m${150 + i}`));
+	});
+
+	test('with nothing hidden the library is read once, as before', async () => {
+		const {getLatest, rows} = await load({});
+		expect(getLatest.mock.calls.map(([, limit]) => limit)).toEqual([16]);
+		expect(rows[0].items[0].Id).toBe('m0');
+	});
+});
+
+describe('a game library\'s recent rows', () => {
+	const games = {Id: 'games', Name: 'Games', CollectionType: null};
+	const films = {Id: 'films', Name: 'Films', CollectionType: 'movies'};
+	const load = async (extra = {}) => {
+		getRecentGames.mockImplementation(async (id, released) => (released
+			? [{id: 'old', title: 'Old', system: 'NES', year: 1985}]
+			: [{id: 'wide', title: 'Wide', system: 'SNES', boxart: {width: 512, height: 357}}, {id: 'plain', title: 'Plain', system: 'GBA'}]));
+		const getLatest = jest.fn(async () => [{Id: 'm1', Type: 'Movie'}]);
+		const getRecentlyReleased = jest.fn(async () => ({Items: [{Id: 'm2', Type: 'Movie'}]}));
+		const appendRows = jest.fn();
+		await loadLatestAndRecentlyReleased({api: {getLatest, getRecentlyReleased}, appendRows, eligibleLibraries: [games, films], settings: extra});
+		return {getLatest, rows: appendRows.mock.calls[0]?.[0] || []};
+	};
+
+	test('come from Moonbase as game cards, in library order', async () => {
+		const {getLatest, rows} = await load();
+		expect(getLatest.mock.calls.map(([id]) => id)).toEqual(['films']);
+		expect(getRecentGames.mock.calls).toEqual([['plugin-games', false], ['plugin-games', true]]);
+		expect(rows.map((row) => row.id)).toEqual(['latest-games', 'latest-films', 'recently-released-games', 'recently-released-films']);
+		const [added] = rows;
+		expect(added).toMatchObject({type: 'game', isGameRow: true, isLatestRow: true, library: games});
+		expect(added.items.map((item) => [item.Id, item.isGame, item._library.Id])).toEqual([['wide', true, 'plugin-games'], ['plain', true, 'plugin-games']]);
+		expect(added.items[0]._aspect).toBeCloseTo(1.434, 3);
+		expect(added.items[1]._aspect).toBeNull();
+		expect(added.items[0]).toMatchObject({Name: 'Wide', title: 'Wide'});
+		expect(rows[2]).toMatchObject({isRecentlyReleasedRow: true, isLatestRow: false});
+	});
+
+	test('stay out of merged rows', async () => {
+		const {rows} = await load({mergeRecentRowsByType: true});
+		expect(rows.filter((row) => row.isGameRow).map((row) => row.id)).toEqual(['latest-games', 'recently-released-games']);
+		expect(rows.filter((row) => !row.isGameRow).every((row) => row.items.every((item) => !item.isGame))).toBe(true);
 	});
 });

@@ -14,11 +14,11 @@ const VARIANTS = {
 
 // Core's round Seerr status marker for a poster corner: an outlined check when available, a
 // filled dash when partly there, and an outlined clock in its own color while on its way.
-const SeerrStatusDot = ({status}) => {
+const SeerrStatusDot = ({status, left, style}) => {
 	const variant = VARIANTS[status];
 	if (!variant) return null;
 	return (
-		<div className={`${css.dot} ${css[variant[0]]}`}>
+		<div className={`${css.dot} ${css[variant[0]]} ${left ? css.left : ''}`} style={style}>
 			<MaterialIcon name={variant[1]} className={css.icon} />
 		</div>
 	);

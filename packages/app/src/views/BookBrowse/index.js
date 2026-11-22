@@ -18,7 +18,7 @@ const STYLES = ['bookstore', 'classic', 'readingRoom'];
 const BookBrowse = ({screen, onOpenScreen, ...props}) => {
 	const {settings} = useSettings();
 	const style = STYLES.includes(settings.bookLibraryStyle) ? settings.bookLibraryStyle : 'bookstore';
-	const data = useBookLibrary({api: props.api, library: props.library});
+	const data = useBookLibrary({api: props.api, library: props.library, bookFoldersAsSeries: settings.bookFoldersAsSeries});
 
 	if (data.loading) {
 		return (
@@ -29,7 +29,7 @@ const BookBrowse = ({screen, onOpenScreen, ...props}) => {
 	}
 
 	let overview = null;
-	if (style === 'classic') overview = <ClassicBooks {...props} data={data} onOpenScreen={onOpenScreen} />;
+	if (style === 'classic') overview = <ClassicBooks {...props} data={data} onOpenScreen={onOpenScreen} bookFoldersAsSeries={settings.bookFoldersAsSeries} />;
 	else if (style === 'readingRoom') overview = <ReadingRoomBooks {...props} data={data} onOpenScreen={onOpenScreen} />;
 
 	return (

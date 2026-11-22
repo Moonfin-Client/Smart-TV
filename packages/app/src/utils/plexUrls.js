@@ -20,8 +20,13 @@ export const registerPlexServer = (serverUrl, token) => {
 
 export const isPlexServer = (serverUrl) => Object.prototype.hasOwnProperty.call(plexServers, trimSlash(serverUrl));
 
-// Whether an address is on a Plex server the app knows, path prefix and all.
-export const isPlexUrl = (url) => Object.keys(plexServers).some((base) => url === base || String(url).startsWith(`${base}/`));
+// The Plex server the app knows that an address is on, path prefix and all, with its token.
+export const plexServerOf = (url) => {
+	const base = Object.keys(plexServers).find((known) => url === known || String(url).startsWith(`${known}/`));
+	return base ? {base, token: plexServers[base]} : null;
+};
+
+export const isPlexUrl = (url) => Boolean(plexServerOf(url));
 
 const plexTokenFor = (serverUrl) => plexServers[trimSlash(serverUrl)] || null;
 

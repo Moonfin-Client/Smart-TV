@@ -204,7 +204,7 @@ export const fetchUpcomingEpisode = async ({item, settings, serverUrl, serverTok
 		if (settings?.useMoonfinPlugin && serverUrl && serverToken) {
 			try {
 				const endpoint = await moonbaseEndpoint(serverUrl, serverToken);
-				const res = endpoint && await fetchWithTimeout(
+				const res = endpoint && await (endpoint.fetch || fetchWithTimeout)(
 					`${endpoint.base}/Moonfin/Tmdb/NextEpisode?tmdbId=${encodeURIComponent(tmdbId)}`,
 					{headers: endpoint.headers},
 					5000

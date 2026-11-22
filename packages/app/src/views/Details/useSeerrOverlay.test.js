@@ -4,6 +4,7 @@ import useSeerrOverlay from './useSeerrOverlay';
 import useSeerrDetailsData from './useSeerrDetailsData';
 
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (text) => text}));
+jest.mock('@enact/spotlight', () => ({__esModule: true, default: {focus: jest.fn()}}));
 jest.mock('../../context/SeerrContext', () => ({
 	useSeerr: () => ({isEnabled: true, isAuthenticated: true, user: null, displayName: 'Seerr'})
 }));
@@ -51,5 +52,90 @@ describe('useSeerrOverlay on a season or episode', () => {
 
 		await waitFor(() => expect(api.getItem).toHaveBeenCalled());
 		expect(result.current.isActive).toBe(false);
+	});
+});
+
+describe('Get a different release', () => {
+	const release = {service: 'sonarr', id: 7, release: 'Lupin.S03'};
+	beforeEach(() => {
+		useSeerrDetailsData.mockImplementation(({mediaId}) => ({
+			details: mediaId ? seriesDetails : null,
+			similar: [],
+			recommendations: [],
+			loading: false,
+			removableRelease: release
+		}));
+	});
+
+	test('is offered on the series\' own page, in the Manage Requests slot', async () => {
+		const series = {Id: 's1', Type: 'Series', Name: 'Lupin', ProviderIds: {Tmdb: '96677'}};
+		const {result} = renderHook(() => useSeerrOverlay({item: series, seerrOnly: false, showsSection: () => true, api: {}}));
+		await waitFor(() => expect(result.current.isActive).toBe(true));
+		expect(result.current.showsSwapRelease).toBe(true);
+		expect(result.current.showsManageSlot).toBe(true);
+	});
+
+	test('is not offered on a season or episode page, which shows the whole series\' bar', async () => {
+		const api = {getItem: jest.fn().mockResolvedValue({Name: 'Lupin', ProviderIds: {Tmdb: '96677'}})};
+		const {result} = renderHook(() => useSeerrOverlay({item: episode, seerrOnly: false, showsSection: () => true, api}));
+		await waitFor(() => expect(result.current.isActive).toBe(true));
+		expect(result.current.showsSwapRelease).toBe(false);
+		expect(result.current.showsManageSlot).toBe(false);
+	});
+});
+
+describe('Seerr Similar row', () => {
+	const movie = {Id: 'm1', Type: 'Movie', Name: 'Gladiator', ProviderIds: {Tmdb: '98'}};
+	const film = (id, title) => ({id, mediaType: 'movie', title});
+	const show = (id, name) => ({id, mediaType: 'tv', name});
+	const withLists = (recommendations, similar) => useSeerrDetailsData.mockImplementation(({mediaId}) => ({
+		details: mediaId ? {title: 'Gladiator'} : null,
+		recommendations,
+		similar,
+		loading: false
+	}));
+	const openTitle = async (showsSection = () => true) => {
+		const {result} = renderHook(() => useSeerrOverlay({item: movie, seerrOnly: false, showsSection, api: {}}));
+		await waitFor(() => expect(result.current.isActive).toBe(true));
+		return result.current;
+	};
+	const titles = cards => cards.map(card => card.Name);
+
+	test('leaves out the titles Recommendations shows', async () => {
+		withLists([film(1, 'Troy'), film(2, 'Immortals')], [film(2, 'Immortals'), film(3, 'Spartacus')]);
+		const seerr = await openTitle();
+		expect(titles(seerr.recommendationCards)).toEqual(['Troy', 'Immortals']);
+		expect(titles(seerr.similarCards)).toEqual(['Spartacus']);
+		expect(seerr.pieces.similar).toBe(true);
+	});
+
+	test('is not drawn when it only repeats Recommendations', async () => {
+		const list = [film(1, 'Troy'), film(2, 'Immortals')];
+		withLists(list, list);
+		const seerr = await openTitle();
+		expect(seerr.similarCards).toEqual([]);
+		expect(seerr.pieces.similar).toBe(false);
+		expect(seerr.pieces.recommendations).toBe(true);
+	});
+
+	test('fills up to 20 from past the titles it leaves out', async () => {
+		const similar = Array.from({length: 30}, (_, n) => film(n + 1, `Film ${n + 1}`));
+		withLists(similar.slice(0, 5), similar);
+		const seerr = await openTitle();
+		expect(titles(seerr.similarCards)).toEqual(similar.slice(5, 25).map(item => item.title));
+	});
+
+	test('keeps everything with Recommendations switched off', async () => {
+		const list = [film(1, 'Troy'), film(2, 'Immortals')];
+		withLists(list, list);
+		const seerr = await openTitle(section => section !== 'seerrRecommendations');
+		expect(seerr.recommendationCards).toEqual([]);
+		expect(titles(seerr.similarCards)).toEqual(['Troy', 'Immortals']);
+	});
+
+	test('keeps a film and a series with the same id apart, and titles without an id', async () => {
+		withLists([film(1, 'Troy'), {mediaType: 'movie', title: 'No id'}], [show(1, 'Troy (series)'), {mediaType: 'movie', title: 'Also no id'}]);
+		const seerr = await openTitle();
+		expect(titles(seerr.similarCards)).toEqual(['Troy (series)', 'Also no id']);
 	});
 });

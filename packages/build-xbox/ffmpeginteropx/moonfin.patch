@@ -1,0 +1,136 @@
+diff --git a/Source/AudioConfig.h b/Source/AudioConfig.h
+index cdec82b..ebab2fb 100644
+--- a/Source/AudioConfig.h
++++ b/Source/AudioConfig.h
+@@ -16,6 +16,10 @@ namespace winrt::FFmpegInteropX::implementation
+         ///<remarks>This could allow hardware decoding on some platforms (e.g. Hololens). Not recommended for PC.</remarks>
+         PROPERTY(SystemDecoderAAC, bool, false);
+ 
++        ///<summary>Use system decoder for AC-3, E-AC-3, TrueHD and DTS audio.</summary>
++        ///<remarks>The platform then decodes them, or passes them to a receiver as they are where it allows that.</remarks>
++        PROPERTY(SystemDecoderSurround, bool, false);
++
+         ///<summary>The maximum number of audio decoding threads. Setting to 0 means using the number of logical CPU cores.</summary>
+         PROPERTY(MaxDecoderThreads, int32_t, 2);
+ 
+diff --git a/Source/FFmpegInteropX.idl b/Source/FFmpegInteropX.idl
+index 52d0427..eedd29a 100644
+--- a/Source/FFmpegInteropX.idl
++++ b/Source/FFmpegInteropX.idl
+@@ -688,6 +688,10 @@ namespace FFmpegInteropX
+          ///<remarks>This could allow hardware decoding on some platforms (e.g. Hololens). Not recommended for PC.</remarks>
+          Boolean SystemDecoderAAC{ get; set; };
+ 
++         ///<summary>Use system decoder for AC-3, E-AC-3, TrueHD and DTS audio.</summary>
++         ///<remarks>The platform then decodes them, or passes them to a receiver as they are where it allows that.</remarks>
++         Boolean SystemDecoderSurround{ get; set; };
++
+          ///<summary>The maximum number of audio decoding threads. Setting to 0 means using the number of logical CPU cores.</summary>
+          UInt32 MaxDecoderThreads{ get; set; };
+ 
+@@ -745,6 +749,9 @@ namespace FFmpegInteropX
+         ///<summary>Initial FFmpeg video filters. Might be changed later through FFmpegMediaSource.SetFFmpegVideoFilters().</summary>
+         ///<remarks>Using FFmpeg video filters will degrade playback performance, since they run on the CPU and not on the GPU.</remarks>
+         String FFmpegVideoFilters{ get; set; };
++
++        ///<summary>The renderer extension profile, such as "dvhe.05", set on HEVC streams with Dolby Vision metadata when they go to the system decoder. Windows then loads the Dolby Vision renderer effect that lists this profile. Default is empty, which leaves such streams untagged.</summary>
++        String DolbyVisionRendererProfile{ get; set; };
+     };
+ 
+     runtimeclass SubtitlesConfig
+diff --git a/Source/FFmpegMediaSource.cpp b/Source/FFmpegMediaSource.cpp
+index be2235b..da1f9d9 100644
+--- a/Source/FFmpegMediaSource.cpp
++++ b/Source/FFmpegMediaSource.cpp
+@@ -2024,10 +2024,24 @@ namespace winrt::FFmpegInteropX::implementation
+     }
+ 
+ 
++    // The subtypes the system's own MKV and MP4 sources give these formats
++    static winrt::hstring SurroundSubtype(AVCodecID codecId)
++    {
++        switch (codecId)
++        {
++        case AV_CODEC_ID_AC3: return MediaEncodingSubtypes::Ac3();
++        case AV_CODEC_ID_EAC3: return MediaEncodingSubtypes::Eac3();
++        case AV_CODEC_ID_TRUEHD: return L"{EB27CEC4-163E-4CA3-8B74-8E25F91B517E}";
++        case AV_CODEC_ID_DTS: return L"{A2E58EB7-0FA9-48BB-A40C-FA0E156D0645}";
++        default: return {};
++        }
++    }
++
+     std::shared_ptr<MediaSampleProvider> FFmpegMediaSource::CreateAudioSampleProvider(AVStream* avStream, AVCodecContext* avAudioCodecCtx, int index)
+     {
+         UNREFERENCED_PARAMETER(avStream);
+         std::shared_ptr<MediaSampleProvider> audioSampleProvider = nullptr;
++        auto surroundSubtype = config->Audio().SystemDecoderSurround() ? SurroundSubtype(avAudioCodecCtx->codec_id) : winrt::hstring();
+         if (avAudioCodecCtx->codec_id == AV_CODEC_ID_AAC && config->Audio().SystemDecoderAAC())
+         {
+             AudioEncodingProperties encodingProperties;
+@@ -2046,6 +2060,18 @@ namespace winrt::FFmpegInteropX::implementation
+             AudioEncodingProperties encodingProperties = AudioEncodingProperties::CreateMp3(avAudioCodecCtx->sample_rate, avAudioCodecCtx->ch_layout.nb_channels, (unsigned int)avAudioCodecCtx->bit_rate);
+             audioSampleProvider = std::shared_ptr<MediaSampleProvider>(new CompressedSampleProvider(m_pReader, avFormatCtx, avAudioCodecCtx, config.as<winrt::FFmpegInteropX::MediaSourceConfig>(), index, encodingProperties, HardwareDecoderStatus::Unknown));
+         }
++        else if (!surroundSubtype.empty())
++        {
++            AudioEncodingProperties encodingProperties;
++            encodingProperties.Subtype(surroundSubtype);
++            encodingProperties.SampleRate(avAudioCodecCtx->sample_rate);
++            encodingProperties.ChannelCount(avAudioCodecCtx->ch_layout.nb_channels);
++            if (avAudioCodecCtx->bit_rate > 0)
++            {
++                encodingProperties.Bitrate((unsigned int)avAudioCodecCtx->bit_rate);
++            }
++            audioSampleProvider = std::shared_ptr<MediaSampleProvider>(new CompressedSampleProvider(m_pReader, avFormatCtx, avAudioCodecCtx, config.as<winrt::FFmpegInteropX::MediaSourceConfig>(), index, encodingProperties, HardwareDecoderStatus::Unknown));
++        }
+         else
+         {
+             audioSampleProvider = std::shared_ptr<MediaSampleProvider>(new UncompressedAudioSampleProvider(m_pReader, avFormatCtx, avAudioCodecCtx, config.as<winrt::FFmpegInteropX::MediaSourceConfig>(), index));
+diff --git a/Source/MediaSampleProvider.cpp b/Source/MediaSampleProvider.cpp
+index bc89cae..a214df4 100644
+--- a/Source/MediaSampleProvider.cpp
++++ b/Source/MediaSampleProvider.cpp
+@@ -28,6 +28,7 @@
+ extern "C"
+ {
+ #include "libavutil/display.h"
++#include "libavutil/dovi_meta.h"
+ }
+ 
+ using namespace winrt::Windows::Media::MediaProperties;
+@@ -411,6 +412,22 @@ void MediaSampleProvider::SetCommonVideoEncodingProperties(VideoEncodingProperti
+         {
+             videoProperties.Bitrate((unsigned int)m_pAvCodecCtx->bit_rate);
+         }
++
++        // Tags a Dolby Vision stream so the system decoder forwards each frame's RPU (NAL unit
++        // type 62) and Windows loads the Dolby Vision renderer effect that lists the profile.
++        auto dolbyVisionProfile = m_config.Video().DolbyVisionRendererProfile();
++        if (m_pAvCodecCtx->codec_id == AV_CODEC_ID_HEVC && !dolbyVisionProfile.empty())
++        {
++            auto doviConf = av_packet_side_data_get(m_pAvStream->codecpar->coded_side_data, m_pAvStream->codecpar->nb_coded_side_data, AV_PKT_DATA_DOVI_CONF);
++            if (doviConf && doviConf->size >= sizeof(AVDOVIDecoderConfigurationRecord) &&
++                ((const AVDOVIDecoderConfigurationRecord*)doviConf->data)->rpu_present_flag)
++            {
++                videoProperties.Properties().Insert(MF_MT_VIDEO_RENDERER_EXTENSION_PROFILE, winrt::box_value(dolbyVisionProfile));
++                videoProperties.Properties().Insert(MF_MT_FORWARD_CUSTOM_NALU, winrt::box_value((UINT32)62));
++                videoProperties.Properties().Insert(MF_DECODER_FWD_CUSTOM_SEI_DECODE_ORDER, winrt::box_value((UINT32)TRUE));
++                videoProperties.Properties().Insert(MF_MT_DECODER_USE_MAX_RESOLUTION, winrt::box_value((UINT32)TRUE));
++            }
++        }
+     }
+ 
+     // prefer stream SAR if it has a proper value, otherwise take codec SAR
+diff --git a/Source/VideoConfig.h b/Source/VideoConfig.h
+index c55b200..9514781 100644
+--- a/Source/VideoConfig.h
++++ b/Source/VideoConfig.h
+@@ -52,5 +52,8 @@ namespace winrt::FFmpegInteropX::implementation
+         ///<remarks>Using FFmpeg video filters will degrade playback performance, since they run on the CPU and not on the GPU.</remarks>
+         PROPERTY_CONST(FFmpegVideoFilters, hstring, {});
+ 
++        ///<summary>The renderer extension profile, such as "dvhe.05", set on HEVC streams with Dolby Vision metadata when they go to the system decoder. Default is empty, which leaves such streams untagged.</summary>
++        PROPERTY_CONST(DolbyVisionRendererProfile, hstring, {});
++
+     };
+ }

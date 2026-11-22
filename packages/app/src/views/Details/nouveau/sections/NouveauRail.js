@@ -1,9 +1,9 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import Spotlight from '@enact/spotlight';
+import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 
-import {RowContainer} from '../../detailsSpottables';
 import {KEYS} from '../../../../utils/keys';
-import {expandedCardCount, initialCardCount} from '../../../../utils/rowWindow';
+import {INITIAL_CARD_WINDOW, expandedCardCount, initialCardCount} from '../../../../utils/rowWindow';
 import useItemMenuHold from '../../../../hooks/useItemMenuHold';
 
 import css from './NouveauSections.module.less';
@@ -19,6 +19,12 @@ const SCROLL_CLEARANCE = 50;
 // that the cards have landed by the time they are reached.
 const NEAR_END_CARDS = 8;
 
+// Entered where focus last left it, and otherwise on the card the rail starts on.
+const RailContainer = SpotlightContainerDecorator({enterTo: 'last-focused', defaultElement: '[data-rail-start] .spottable'}, 'div');
+
+// Enough mounted to show the start card with a screen of cards after it.
+const openingCount = (itemCount, startIndex) => Math.max(initialCardCount(itemCount), Math.min(itemCount, startIndex + INITIAL_CARD_WINDOW));
+
 // One rail: a heading and a row of whatever the caller draws. The heading sits inside the rail so
 // that bringing the rail's top into view necessarily brings its heading with it.
 //
@@ -31,9 +37,12 @@ const NEAR_END_CARDS = 8;
 // Cards that grow on focus need room on every side, since the track clips whatever spills out of
 // it. `clearance` is the room above and below, and `bleed` widens the track into the page margin
 // on both sides without moving the cards. `bleedRight` sets the right side on its own.
+//
+// `startIndex` is the card a rail opens scrolled to and is entered on, such as an episode's own place
+// in its season.
 const NouveauRail = ({
 	title, items = [], spotlightId, renderItem, gap = 32, clearance = FOCUS_CLEARANCE, bleed = 0, bleedRight = bleed,
-	navbarPosition, onNavigateUp, onNavigateDown, onNearEnd, onLeftEdge, itemMenu
+	navbarPosition, onNavigateUp, onNavigateDown, onNearEnd, onLeftEdge, itemMenu, startIndex = 0
 }) => {
 	const trackRef = useRef(null);
 	const rectRef = useRef(null);
@@ -58,6 +67,14 @@ const NouveauRail = ({
 	useEffect(() => {
 		setVisibleCount(initialCardCount(items.length));
 	}, [items.length]);
+
+	// Placed once per start card, so a watched mark that rebuilds the list leaves the scroll alone.
+	const startKey = items[startIndex]?.Id;
+	useLayoutEffect(() => {
+		const track = trackRef.current;
+		const cell = startIndex > 0 && track && track.querySelector(`[data-card-index="${startIndex}"]`);
+		if (cell) track.scrollLeft += cell.getBoundingClientRect().left - track.getBoundingClientRect().left - SCROLL_CLEARANCE;
+	}, [startKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Measured once and kept, since reading it per focus would force a layout on every card.
 	useEffect(() => {
@@ -147,7 +164,7 @@ const NouveauRail = ({
 	if (!items.length) return null;
 
 	return (
-		<RowContainer className={css.rail} spotlightId={spotlightId} onKeyDown={handleKeyDown}>
+		<RailContainer className={css.rail} spotlightId={spotlightId} onKeyDown={handleKeyDown}>
 			{title && <h2 className={css.railTitle}>{title}</h2>}
 			<div
 				className={css.track}
@@ -160,11 +177,12 @@ const NouveauRail = ({
 					className={css.trackInner}
 					style={{paddingTop: clearance, paddingBottom: clearance, paddingLeft: bleed || undefined, paddingRight: bleedRight || undefined}}
 				>
-					{items.slice(0, visibleCount).map((item, index) => (
+					{items.slice(0, Math.max(visibleCount, openingCount(items.length, startIndex))).map((item, index) => (
 						<div
 							key={item?.cardKey || item?.Id || `item-${index}`}
 							className={css.cell}
 							data-card-index={index}
+							data-rail-start={index === startIndex ? 'true' : undefined}
 							style={index ? {marginLeft: `${gap}px`} : undefined}
 						>
 							{renderItem(item, index)}
@@ -172,7 +190,7 @@ const NouveauRail = ({
 					))}
 				</div>
 			</div>
-		</RowContainer>
+		</RailContainer>
 	);
 };
 

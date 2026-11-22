@@ -1,0 +1,45 @@
+@import '../../styles/mixins.less';
+
+// The badge on a card whose title several servers hold, saying how many.
+.badge {
+	position: absolute;
+	left: 6px;
+	bottom: 8px;
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	// The old TV engines have no flex gap.
+	.flex-row-gap(4px);
+	height: 30px;
+	padding: 0 9px;
+	box-sizing: border-box;
+	border-radius: 15px;
+	border: 1.5px solid var(--theme-text-primary, #ffffff);
+	background: rgba(var(--theme-scrim-rgb, 0, 0, 0), 0.75);
+	color: var(--theme-text-primary, #ffffff);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+	font-size: 18px;
+	font-weight: 700;
+	line-height: 1;
+	pointer-events: none;
+}
+
+// Clear of a card's progress bar.
+.aboveProgress {
+	bottom: 26px;
+}
+
+// Stacked above a card's anime pill, which is 24px high.
+[data-card-overlay='anime'] ~ .badge {
+	bottom: 38px;
+}
+
+[data-card-overlay='anime'] ~ .badge.aboveProgress {
+	bottom: 56px;
+}
+
+.icon {
+	width: 18px;
+	height: 18px;
+	flex: none;
+}

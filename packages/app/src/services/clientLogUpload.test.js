@@ -13,8 +13,11 @@ describe('acceptsReports', () => {
 		expect(acceptsReports('emby', undefined)).toBe(false);
 	});
 
-	test('Plex never takes them', () => {
-		expect(acceptsReports('plex', true)).toBe(false);
+	test('Plex and Silo need Moonbase to say it takes them', () => {
+		expect(acceptsReports('plex', true)).toBe(true);
+		expect(acceptsReports('plex', false)).toBe(false);
+		expect(acceptsReports('silo', true)).toBe(true);
+		expect(acceptsReports('silo', undefined)).toBe(false);
 	});
 });
 
@@ -27,6 +30,22 @@ describe('clientLogRequest', () => {
 			method: 'POST',
 			headers: {'Content-Type': 'text/plain', 'Authorization': 'MediaBrowser Token="t"'},
 			body: 'report'
+		});
+	});
+
+	test('sends a Plex report to Moonbase for Plex, the way the companion is reached', () => {
+		const send = jest.fn();
+		const moonbase = {base: 'http://plex:32500', headers: {'X-Plex-Token': 't'}, fetch: send};
+		const request = clientLogRequest({serverUrl: 'http://plex:32400', accessToken: 't', serverType: 'plex', authHeader: 'MediaBrowser Client="Moonfin", Token="t"'}, 'moonfin-tizen-log', 'report', moonbase);
+
+		expect(request).toEqual({
+			url: 'http://plex:32500/Moonfin/ClientLog/Document',
+			init: {
+				method: 'POST',
+				headers: {'Content-Type': 'text/plain; charset=utf-8', 'Authorization': 'MediaBrowser Client="Moonfin", Token="t"', 'X-Plex-Token': 't'},
+				body: 'report'
+			},
+			send
 		});
 	});
 

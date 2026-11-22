@@ -7,10 +7,12 @@ import {useCallback, useEffect} from 'react';
 import $L from '@enact/i18n/$L';
 import {useSettings} from '../../context/SettingsContext';
 import {isBackKey} from '../../utils/keys';
+import {retrySubtitleFont, subtitleFontFailed} from '../../services/subtitleFonts';
 import {
 	getSubtitleBackgroundColorOptions, getSubtitleColorOptions, getSubtitleShadowColorOptions,
 	resolveSubtitleStyleSettings, subtitleStyleKey
 } from '../../utils/subtitleConstants';
+import {getSubtitleFontOptions, getSubtitleStrokeWidthOptions} from '../Settings/settingsOptions';
 
 import css from './Player.module.less';
 
@@ -64,6 +66,8 @@ const SubtitleSettingsOverlay = ({visible, onClose, isHdr = false}) => {
 	const SUBTITLE_POSITION_OPTIONS = getSubtitlePositionOptions();
 	const SUBTITLE_SHADOW_COLOR_OPTIONS = getSubtitleShadowColorOptions();
 	const SUBTITLE_BACKGROUND_COLOR_OPTIONS = getSubtitleBackgroundColorOptions();
+	const SUBTITLE_STROKE_WIDTH_OPTIONS = getSubtitleStrokeWidthOptions();
+	const SUBTITLE_FONT_OPTIONS = getSubtitleFontOptions();
 
 	useEffect(() => {
 		if (visible) {
@@ -108,6 +112,25 @@ const SubtitleSettingsOverlay = ({visible, onClose, isHdr = false}) => {
 		cycleOption(getSubtitleBackgroundColorOptions(), style.subtitleBackgroundColor, updateSetting, keyFor('subtitleBackgroundColor'));
 	}, [style.subtitleBackgroundColor, updateSetting, keyFor]);
 
+	const handleCycleStrokeWidth = useCallback(() => {
+		cycleOption(getSubtitleStrokeWidthOptions(), style.subtitleStrokeWidth, updateSetting, 'subtitleStrokeWidth');
+	}, [style.subtitleStrokeWidth, updateSetting]);
+
+	const handleCycleFont = useCallback(() => {
+		cycleOption(getSubtitleFontOptions(), style.subtitleFont, (key, family) => {
+			retrySubtitleFont(family);
+			updateSetting(key, family);
+		}, 'subtitleFont');
+	}, [style.subtitleFont, updateSetting]);
+
+	const handleToggleBold = useCallback(() => {
+		updateSetting(keyFor('subtitleBold'), !style.subtitleBold);
+	}, [style.subtitleBold, updateSetting, keyFor]);
+
+	const handleToggleDropShadow = useCallback(() => {
+		updateSetting('subtitleDropShadow', !style.subtitleDropShadow);
+	}, [style.subtitleDropShadow, updateSetting]);
+
 	const handlePositionAbsoluteChange = useCallback((e) => {
 		updateSetting(keyFor('subtitlePositionAbsolute'), e.value);
 	}, [updateSetting, keyFor]);
@@ -127,6 +150,18 @@ const SubtitleSettingsOverlay = ({visible, onClose, isHdr = false}) => {
 	const handleBackgroundChange = useCallback((e) => {
 		updateSetting(keyFor('subtitleBackground'), e.value);
 	}, [updateSetting, keyFor]);
+
+	const handleDropShadowIntensityChange = useCallback((e) => {
+		updateSetting('subtitleDropShadowIntensity', e.value);
+	}, [updateSetting]);
+
+	const handleDropShadowOffsetChange = useCallback((e) => {
+		updateSetting('subtitleDropShadowOffset', e.value);
+	}, [updateSetting]);
+
+	const handleDropShadowBlurChange = useCallback((e) => {
+		updateSetting('subtitleDropShadowBlur', e.value);
+	}, [updateSetting]);
 
 	if (!visible) return null;
 
@@ -221,24 +256,44 @@ const SubtitleSettingsOverlay = ({visible, onClose, isHdr = false}) => {
 						</span>
 					</SpottableButton>
 
+					<SpottableButton
+						className={css.settingItem}
+						onClick={handleToggleBold}
+						spotlightId="sub-setting-bold"
+					>
+						<span className={css.settingLabel}>{$L('Bold Text')}</span>
+						<span className={css.settingValue}>{style.subtitleBold ? $L('On') : $L('Off')}</span>
+					</SpottableButton>
+
+					<SpottableButton
+						className={css.settingItem}
+						onClick={handleCycleFont}
+						spotlightId="sub-setting-font"
+					>
+						<span className={css.settingLabel}>{$L('Font')}</span>
+						<span className={css.settingValue}>
+							{subtitleFontFailed(style.subtitleFont)
+								? $L("Couldn't download {font}").replace('{font}', style.subtitleFont)
+								: getLabel(SUBTITLE_FONT_OPTIONS, style.subtitleFont, $L('Default'))}
+						</span>
+					</SpottableButton>
+
 					<div className={css.divider} />
 
-					{/* Shadow Color */}
 					<SpottableButton
 						className={css.settingItem}
 						onClick={handleCycleShadowColor}
 						spotlightId="sub-setting-shadowColor"
 					>
-						<span className={css.settingLabel}>{$L('Shadow Color')}</span>
+						<span className={css.settingLabel}>{$L('Text Stroke Color')}</span>
 						<span className={css.settingValue}>
 							{getLabel(SUBTITLE_SHADOW_COLOR_OPTIONS, style.subtitleShadowColor, $L('Black'))}
 						</span>
 					</SpottableButton>
 
-					{/* Shadow Opacity */}
 					<div className={css.sliderItem}>
 						<div className={css.sliderLabel}>
-							<span>{$L('Shadow Opacity')}</span>
+							<span>{$L('Text Stroke Opacity')}</span>
 							<span className={css.sliderValue}>{style.subtitleShadowOpacity}%</span>
 						</div>
 						<Slider
@@ -253,10 +308,9 @@ const SubtitleSettingsOverlay = ({visible, onClose, isHdr = false}) => {
 						/>
 					</div>
 
-					{/* Shadow Blur */}
 					<div className={css.sliderItem}>
 						<div className={css.sliderLabel}>
-							<span>{$L('Shadow Size (Blur)')}</span>
+							<span>{$L('Text Stroke Blur')}</span>
 							<span className={css.sliderValue}>
 								{style.subtitleShadowBlur ? style.subtitleShadowBlur.toFixed(1) : '0.1'}
 							</span>
@@ -272,6 +326,83 @@ const SubtitleSettingsOverlay = ({visible, onClose, isHdr = false}) => {
 							spotlightId="sub-setting-shadowBlur"
 						/>
 					</div>
+
+					<SpottableButton
+						className={css.settingItem}
+						onClick={handleCycleStrokeWidth}
+						spotlightId="sub-setting-strokeWidth"
+					>
+						<span className={css.settingLabel}>{$L('Text Stroke Width')}</span>
+						<span className={css.settingValue}>
+							{getLabel(SUBTITLE_STROKE_WIDTH_OPTIONS, style.subtitleStrokeWidth, $L('Default'))}
+						</span>
+					</SpottableButton>
+
+					<div className={css.divider} />
+
+					<SpottableButton
+						className={css.settingItem}
+						onClick={handleToggleDropShadow}
+						spotlightId="sub-setting-dropShadow"
+					>
+						<span className={css.settingLabel}>{$L('Text Shadow')}</span>
+						<span className={css.settingValue}>{style.subtitleDropShadow ? $L('On') : $L('Off')}</span>
+					</SpottableButton>
+
+					{style.subtitleDropShadow && (
+						<>
+							<div className={css.sliderItem}>
+								<div className={css.sliderLabel}>
+									<span>{$L('Shadow Intensity')}</span>
+									<span className={css.sliderValue}>{style.subtitleDropShadowIntensity}%</span>
+								</div>
+								<Slider
+									min={10}
+									max={100}
+									step={10}
+									value={style.subtitleDropShadowIntensity}
+									onChange={handleDropShadowIntensityChange}
+									className={css.settingsSlider}
+									tooltip={false}
+									spotlightId="sub-setting-dropShadowIntensity"
+								/>
+							</div>
+
+							<div className={css.sliderItem}>
+								<div className={css.sliderLabel}>
+									<span>{$L('Shadow Offset')}</span>
+									<span className={css.sliderValue}>{style.subtitleDropShadowOffset}</span>
+								</div>
+								<Slider
+									min={0}
+									max={8}
+									step={1}
+									value={style.subtitleDropShadowOffset}
+									onChange={handleDropShadowOffsetChange}
+									className={css.settingsSlider}
+									tooltip={false}
+									spotlightId="sub-setting-dropShadowOffset"
+								/>
+							</div>
+
+							<div className={css.sliderItem}>
+								<div className={css.sliderLabel}>
+									<span>{$L('Shadow Blur')}</span>
+									<span className={css.sliderValue}>{style.subtitleDropShadowBlur}</span>
+								</div>
+								<Slider
+									min={0}
+									max={8}
+									step={1}
+									value={style.subtitleDropShadowBlur}
+									onChange={handleDropShadowBlurChange}
+									className={css.settingsSlider}
+									tooltip={false}
+									spotlightId="sub-setting-dropShadowBlur"
+								/>
+							</div>
+						</>
+					)}
 
 					<div className={css.divider} />
 

@@ -57,4 +57,58 @@
 	}
 }
 
+// The theme's colors reach these through themeOverrides on a TV.
+.stalled .fill {
+	background: var(--theme-status-pending, #eab308);
+}
+
+.failed .fill {
+	background: var(--theme-status-error, #ef4444);
+}
+
+.dimmed .fill {
+	opacity: 0.4;
+}
+
 .container { .flex-col-gap(6px); }
+
+// The arr's own words for why the download is stuck. Release names have no spaces,
+// so they break anywhere rather than run out of the box. max-height stands in for
+// the line clamp on engines without it.
+.reason {
+	font-size: 20px;
+	line-height: 1.25;
+	color: rgba(255, 255, 255, 0.6);
+	word-wrap: break-word;
+	overflow-wrap: break-word;
+	overflow: hidden;
+	max-height: 3.75em;
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+}
+
+.notFound {
+	display: flex;
+	align-items: center;
+	font-size: 22px;
+	color: rgba(255, 255, 255, 0.6);
+	white-space: nowrap;
+}
+
+.notFoundIcon {
+	width: 1.1em;
+	height: 1.1em;
+	flex-shrink: 0;
+	margin-right: 0.35em;
+}
+
+.notFoundLabel {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.notFound.compact {
+	font-size: 17px;
+}

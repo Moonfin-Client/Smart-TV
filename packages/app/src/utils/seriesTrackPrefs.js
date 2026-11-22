@@ -39,7 +39,8 @@ export const toSeriesTrackPref = (stored) => {
 	return {
 		language: typeof stored.language === 'string' ? stored.language : '',
 		title: typeof stored.title === 'string' ? stored.title : '',
-		relativeIndex: Number.isInteger(stored.relativeIndex) ? stored.relativeIndex : 0
+		relativeIndex: Number.isInteger(stored.relativeIndex) ? stored.relativeIndex : 0,
+		...(stored.forced === true ? {forced: true} : {})
 	};
 };
 
@@ -58,7 +59,8 @@ export const createSeriesTrackPref = (streams, selectedIndex) => {
 	if (!selected) return null;
 
 	const language = realLanguage(selected.language);
-	const selectedForced = titleSaysForced(streamTitle(selected));
+	// Plenty of forced tracks carry the flag and a plain name, so the pick says which kind it was.
+	const selectedForced = isForcedTrack(selected);
 	let relativeIndex = 0;
 	for (const stream of streams) {
 		if (stream.index === selectedIndex) break;
@@ -66,7 +68,7 @@ export const createSeriesTrackPref = (streams, selectedIndex) => {
 		if (language && languageMatches(stream.language, language)) relativeIndex += 1;
 	}
 
-	return {language, title: streamTitle(selected), relativeIndex};
+	return {language, title: streamTitle(selected), relativeIndex, ...(selectedForced ? {forced: true} : {})};
 };
 
 // Every stream whose name reads as the wanted one. A loose match also accepts one
@@ -114,7 +116,7 @@ export const matchSeriesTrackIndex = (streams, pref) => {
 
 	// Position only counts tracks of the same kind as the remembered one, so a
 	// forced track listed first can't stand in for the full one.
-	const prefForced = titleSaysForced(target);
+	const prefForced = pref.forced === true || titleSaysForced(target);
 	const sameKind = matching.filter((stream) => isForcedTrack(stream) === prefForced);
 	const positional = sameKind.length ? sameKind : matching;
 
@@ -133,5 +135,6 @@ export const fromServerStream = (stream) => ({
 	index: stream?.Index,
 	language: stream?.Language || '',
 	title: stream?.Title || '',
-	displayTitle: stream?.DisplayTitle || ''
+	displayTitle: stream?.DisplayTitle || '',
+	isForced: stream?.IsForced === true
 });

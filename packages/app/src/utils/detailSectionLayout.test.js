@@ -46,27 +46,28 @@ describe('detailSectionLayout', () => {
 	it('lists for Minimalist whatever Spotlight draws for the pages it hands over', () => {
 		const ids = (style) => new Set(offeredSections(style, true).map((section) => section.id));
 		const minimalist = ids('v5');
-		ids('v3').forEach((id) => expect(minimalist.has(id)).toBe(true));
+		[...ids('v3')].filter((id) => id !== 'playlistOrder').forEach((id) => expect(minimalist.has(id)).toBe(true));
+		expect(minimalist.has('playlistOrder')).toBe(false);
 		expect(minimalist.has('logo')).toBe(true);
 		expect(minimalist.has('poster')).toBe(false);
 	});
 
-	it.each([['Stage', 'v6'], ['Premiere', 'v7']])('lists for %s what it draws, plus what Modern draws on the person and collection pages', (name, style) => {
+	it.each([['Stage', 'v6'], ['Premiere', 'v7']])('lists for %s what it draws, plus what Modern draws on the person pages', (name, style) => {
 		const offered = new Set(offeredSections(style, true).map((section) => section.id));
 		['logo', 'tagline', 'cast', 'crew', 'studios', 'extras', 'collections', 'moreLikeThis', 'moreEpisodes', 'seerrSimilar']
 			.forEach((id) => expect(offered.has(id)).toBe(true));
-		['biography', 'playlistOrder', 'seerrPersonCrew'].forEach((id) => expect(offered.has(id)).toBe(true));
-		['poster', 'chapters', 'reviews', 'mediaInfo', 'upNext', 'seerrCollection'].forEach((id) => expect(offered.has(id)).toBe(false));
+		['biography', 'seerrPersonCrew'].forEach((id) => expect(offered.has(id)).toBe(true));
+		['poster', 'chapters', 'reviews', 'mediaInfo', 'upNext', 'seerrCollection', 'playlistOrder'].forEach((id) => expect(offered.has(id)).toBe(false));
 	});
 
-	it('lists for Frost what its tabs draw, plus what Modern draws on the person and collection pages', () => {
+	it('lists for Frost what its tabs draw, plus what Modern draws on the person pages', () => {
 		const offered = new Set(offeredSections('v9', true).map((section) => section.id));
 		[
 			'cast', 'crew', 'studios', 'extras', 'moreLikeThis', 'moreEpisodes', 'mediaInfo',
 			'seerrRecommendations', 'seerrSimilar', 'seerrStats', 'seerrStreaming', 'seerrGenresTags'
 		].forEach((id) => expect(offered.has(id)).toBe(true));
-		['biography', 'playlistOrder', 'seerrPersonCrew'].forEach((id) => expect(offered.has(id)).toBe(true));
-		['logo', 'tagline', 'poster', 'chapters', 'reviews', 'collections', 'upNext', 'seerrCollection']
+		['biography', 'seerrPersonCrew'].forEach((id) => expect(offered.has(id)).toBe(true));
+		['logo', 'tagline', 'poster', 'chapters', 'reviews', 'collections', 'upNext', 'seerrCollection', 'playlistOrder']
 			.forEach((id) => expect(offered.has(id)).toBe(false));
 	});
 

@@ -64,6 +64,24 @@
 	font-display: swap;
 }
 
+// The MakD media bar's info line, genres and Play button, as in makd's Jellyfin Media Bar.
+@font-face {
+	font-family: 'Archivo Narrow';
+	src: url('../../resources/fonts/ArchivoNarrow-Latin.woff2') format('woff2');
+	font-weight: 400 700;
+	font-display: swap;
+}
+
+// Japanese subtitles are set in this, since the TV's own fallback draws kanji in their Chinese
+// forms (#652). The range keeps it to kana and kanji, and it's only fetched once a line needs it.
+@font-face {
+	font-family: 'NotoSansJP';
+	src: url('../../resources/fonts/NotoSansJP-Regular.woff2') format('woff2');
+	font-weight: 400;
+	font-display: swap;
+	unicode-range: U+3000-30FF, U+4E00-9FFF, U+FF00-FFEF;
+}
+
 // The serif the Reading Room book library sets its headings in.
 @font-face {
 	font-family: 'Literata';
@@ -185,6 +203,18 @@
 // The keyboard opens over the bottom of the screen, so the card moves up out of its way.
 .pinGateKeyboard {
 	align-items: flex-start;
+
+	// Above the keyboard's dimmed backdrop, so the field being typed into stays lit.
+	.pinCard {
+		position: relative;
+		z-index: 10000;
+	}
+
+	// The keyboard's own Done key submits, so the buttons step aside until it closes.
+	.pinRemember,
+	.pinActions {
+		display: none;
+	}
 }
 
 .pinCard {

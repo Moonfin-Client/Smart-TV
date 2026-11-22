@@ -515,5 +515,5 @@ export default function useTrailerPreview({currentItem, isVisible, enabled, pref
 		return () => stopTrailer();
 	}, [stopTrailer]);
 
-	return {trailerActive, trailerHolding, trailerContainerRef};
+	return {trailerActive, trailerHolding, trailerContainerRef, stopTrailer};
 }

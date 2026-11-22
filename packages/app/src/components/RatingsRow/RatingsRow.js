@@ -12,11 +12,11 @@ import css from './RatingsRow.module.less';
 // A screen with no room for the sources' names turns labels off.
 // columns is Frost's strip, a column per source with its name over its score. The names show there
 // whatever the label setting says, since the strip is nothing without them.
-const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEnabled = true, surface, inline = false, sampleRatings, labels = true, columns = false}) => {
+const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEnabled = true, surface, inline = false, sampleRatings, labels = true, badges = true, columns = false}) => {
 	const settings = ratingSettingsFor(useSettings().settings, surface);
 	const showLabels = labels && settings.showRatingLabels !== false;
 	// Badges only choose the chip chrome around each rating. Off means plain, not hidden.
-	const showBadges = settings.showRatingBadges !== false;
+	const showBadges = badges && settings.showRatingBadges !== false;
 	const enabledSources = settings.mdblistRatingSources;
 	const [allRatings, setAllRatings] = useState([]);
 	const mountedRef = useRef(true);

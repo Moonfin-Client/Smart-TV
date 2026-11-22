@@ -3,11 +3,11 @@ import {isMdblistEnabled} from '../../services/mdblistApi';
 import Spottable from '@enact/spotlight/Spottable';
 import $L from '@enact/i18n/$L';
 import RatingsRow from '../RatingsRow';
-import {getImageUrl, toAbsoluteImageUrl} from '../../utils/helpers';
 import {useSettings} from '../../context/SettingsContext';
 import {getPlatform} from '../../platform';
 import {getPerfTier} from '../../utils/perfTier';
 import {cubicBezier} from '../../utils/focusScroll';
+import {rem} from '../../utils/rootScale';
 import {isStaticLibraryCard, modernCardMetrics, getEpisodeLabels, getCardDisplayTitle} from './modernCardLayout';
 import SeerrIcon from '../icons/SeerrIcon';
 import SeerrStatusBanner, {seerrBadgeStyle, seerrTitleStatus} from '../seerr/SeerrStatusBanner';
@@ -21,6 +21,9 @@ import {isUnownedSeerrTitle, seerrThumbUrl, seerrWideArtUrl, useTmdbThumbsAvaila
 import useItemMenuHold from '../../hooks/useItemMenuHold';
 import useImageReveal, {markDecoded, pendingArtStyle} from '../../hooks/useImageReveal';
 import {useMediaPreviewSlot} from './MediaPreviewContext';
+import {modernCardImageUrl} from './cardArtwork';
+import {serverNameCorner} from './serverNameCorner';
+import MergedServerBadge from '../MergedServerBadge';
 
 import css from './ModernMediaCard.module.less';
 
@@ -94,143 +97,6 @@ const loadArt = (url, onReady, onFail) => {
 	art.src = url;
 };
 
-// The art a card shows, at rest or focused.
-const cardImageUrl = (item, focused, {itemServerUrl, isStaticMyMedia, seerrWide, useSeriesThumbnails}) => {
-	if (!item) return null;
-
-	if (seerrWide) return toAbsoluteImageUrl(seerrWide, itemServerUrl);
-
-	const providerIds = item.ProviderIds || {};
-	const externalPoster = item._externalPosterUrl ||
-		providerIds.SeerrPoster ||
-		providerIds.SonarrPoster ||
-		providerIds.RadarrPoster ||
-		providerIds.LidarrPoster ||
-		providerIds.ReadarrPoster;
-
-	// A title the server owns shows the library's own art, with the outside poster as the
-	// last resort further down.
-	if ((item._external || externalPoster) && !item._resolvedFromExternal) {
-		if (focused && item._externalBackdropUrl) {
-			return toAbsoluteImageUrl(item._externalBackdropUrl, itemServerUrl);
-		}
-		if (externalPoster) {
-			return toAbsoluteImageUrl(externalPoster, itemServerUrl);
-		}
-	}
-
-	if (item.Type === 'Episode') {
-		// An episode at rest wears its series poster. The image tag only names the
-		// exact version when the server sent one, so a missing tag still asks the
-		// series itself rather than letting a cropped episode still stand in.
-		const seriesPosterId = (item.SeriesPrimaryImageTag && item.SeriesId) || item.ParentPrimaryImageItemId || item.SeriesId;
-		const seriesPoster = seriesPosterId
-			? getImageUrl(itemServerUrl, seriesPosterId, 'Primary', {maxHeight: 360, quality: 80})
-			: null;
-		const seriesThumb = item.ParentThumbItemId
-			? getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 600, quality: 80})
-			: null;
-		const episodeThumb = item.ImageTags?.Primary
-			? getImageUrl(itemServerUrl, item.Id, 'Primary', {maxWidth: 600, quality: 80})
-			: item.ImageTags?.Thumb
-				? getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80})
-				: item.BackdropImageTags?.length > 0
-					? getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80})
-					: item.ParentBackdropItemId
-						? getImageUrl(itemServerUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 600, quality: 80})
-						: null;
-
-		if (focused) {
-			return (useSeriesThumbnails ? (seriesThumb || episodeThumb) : (episodeThumb || seriesThumb)) || seriesPoster;
-		} else {
-			return seriesPoster || episodeThumb || seriesThumb;
-		}
-	}
-
-	if (item.Type === 'Genre' && item._representative) {
-		const rep = item._representative;
-		const repServerUrl = itemServerUrl;
-		if (focused) {
-			if (rep.ImageTags?.Thumb) {
-				return getImageUrl(repServerUrl, rep.Id, 'Thumb', {maxWidth: 600, quality: 80});
-			}
-			if (rep.BackdropImageTags?.length > 0) {
-				return getImageUrl(repServerUrl, rep.Id, 'Backdrop', {maxWidth: 600, quality: 80});
-			}
-		}
-		if (rep.ImageTags?.Primary) {
-			return getImageUrl(repServerUrl, rep.Id, 'Primary', {maxHeight: 360, quality: 80});
-		}
-	}
-
-	if (item.Type === 'Movie' || item.Type === 'Series' || item.Type === 'BoxSet') {
-		if (focused) {
-			if (item.ImageTags?.Thumb) {
-				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {tag: item.ImageTags.Thumb, maxWidth: 600, quality: 80});
-			}
-			if (item.ParentThumbItemId) {
-				return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 600, quality: 80});
-			}
-			if (item.BackdropImageTags?.length > 0) {
-				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {tag: item.BackdropImageTags[0], maxWidth: 600, quality: 80});
-			}
-			if (item._externalBackdropUrl) {
-				return toAbsoluteImageUrl(item._externalBackdropUrl, itemServerUrl);
-			}
-		}
-		if (item.ImageTags?.Primary) {
-			return getImageUrl(itemServerUrl, item.Id, 'Primary', {tag: item.ImageTags.Primary, maxHeight: 360, quality: 80});
-		}
-	}
-
-	if (item.Type === 'CollectionFolder' || item.isLibraryTile) {
-		if (isStaticMyMedia || focused) {
-			if (item.ImageTags?.Thumb) {
-				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
-			}
-			if (item.BackdropImageTags?.length > 0) {
-				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80});
-			}
-		}
-
-		if (!isStaticMyMedia && item.ImageTags?.Primary) {
-			return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 360, quality: 80});
-		}
-		if (item.ImageTags?.Thumb) {
-			return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
-		}
-		if (item.ImageTags?.Primary) {
-			return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxWidth: 600, quality: 80});
-		}
-	}
-
-	if (item.Type === 'Audio' && item.AlbumId && item.AlbumPrimaryImageTag) {
-		return getImageUrl(itemServerUrl, item.AlbumId, 'Primary', {maxHeight: 360, quality: 80});
-	}
-
-	if (focused) {
-		if (item.ImageTags?.Thumb) {
-			return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
-		}
-		if (item.ParentThumbItemId) {
-			return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 600, quality: 80});
-		}
-		if (item.BackdropImageTags?.length > 0) {
-			return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80});
-		}
-	}
-
-	if (item.ImageTags?.Primary) {
-		return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 360, quality: 80});
-	}
-
-	if (externalPoster) {
-		return toAbsoluteImageUrl(externalPoster, itemServerUrl);
-	}
-
-	return null;
-};
-
 const ModernMediaCard = ({
 	item,
 	serverUrl,
@@ -251,7 +117,10 @@ const ModernMediaCard = ({
 	ratingsSurface,
 	hideOverview = false,
 	coreLook = false,
-	posterLabels = false
+	posterLabels = false,
+	hideWatchProgress = false,
+	hideUnwatchedCount = false,
+	carousel = false
 }) => {
 	const {settings} = useSettings();
 	const focusTimeoutRef = useRef(null);
@@ -279,9 +148,9 @@ const ModernMediaCard = ({
 	const seerrWide = wantsSeerrWide ? seerrWideArtUrl(item, failedThumb) : null;
 
 	const useSeriesThumbnails = settings.useSeriesThumbnails;
-	const restingUrl = useMemo(() => cardImageUrl(item, false, {itemServerUrl, isStaticMyMedia, useSeriesThumbnails}),
+	const restingUrl = useMemo(() => modernCardImageUrl(item, false, {itemServerUrl, isStaticMyMedia, useSeriesThumbnails}),
 		[item, itemServerUrl, isStaticMyMedia, useSeriesThumbnails]);
-	const focusUrl = useMemo(() => cardImageUrl(item, true, {itemServerUrl, isStaticMyMedia, seerrWide, useSeriesThumbnails}),
+	const focusUrl = useMemo(() => modernCardImageUrl(item, true, {itemServerUrl, isStaticMyMedia, seerrWide, useSeriesThumbnails}),
 		[item, itemServerUrl, isStaticMyMedia, seerrWide, useSeriesThumbnails]);
 
 	const {
@@ -317,13 +186,15 @@ const ModernMediaCard = ({
 		onPreviewBlur();
 	}, [onMenuMouseLeave, onPreviewBlur]);
 
-	const progress = item?.UserData?.PlayedPercentage || 0;
+	const progress = hideWatchProgress ? 0 : item?.UserData?.PlayedPercentage || 0;
 	const watchedBehavior = settings.watchedIndicatorBehavior || 'always';
 	const showIndicators = watchedBehavior === 'always' || watchedBehavior === 'hideCount' || (watchedBehavior === 'episodesOnly' && item?.Type === 'Episode');
-	const unplayedCount = item?.UserData?.UnplayedItemCount;
+	const unplayedCount = hideUnwatchedCount ? 0 : item?.UserData?.UnplayedItemCount;
 	const showUnplayedCount = showIndicators && watchedBehavior !== 'hideCount' && !item?.UserData?.Played && unplayedCount > 0;
 	const seerrStyle = seerrBadgeStyle(settings);
 	const bannerStatus = seerrStyle === 'banner' ? seerrTitleStatus(item) : null;
+	// What the top right corner holds when the server's name takes it. The Seerr banner along the top pushes it down.
+	const corner = serverNameCorner({css, item, showServerBadge, showIndicators, showUnplayedCount, bannerOffset: bannerStatus ? 35 : 0});
 
 	const displayTitle = useMemo(() => getCardDisplayTitle(item), [item]);
 
@@ -339,6 +210,8 @@ const ModernMediaCard = ({
 	}, [item?.Overview, shouldShowOverview, item?._external]);
 
 	const isSquareItem = item?.Type === 'MusicAlbum' || item?.Type === 'Audio';
+	// A genre card is its name, so it shows it in every row style.
+	const isGenre = item?.Type === 'Genre' || item?.Type === 'MusicGenre';
 	const {imageHeight, expandedWidth, cardWidth} = modernCardMetrics({
 		posterSize: settings.homeRowsPosterSize,
 		isSquareItem,
@@ -420,7 +293,7 @@ const ModernMediaCard = ({
 	}, [imageUrl, seerrThumb]);
 
 	const extendedSectionWidth = Math.max(detailsWidth || 0, expandedWidth);
-	const artStyle = coreLook ? {...CORE_ART, height: `${imageHeight}px`} : {height: `${imageHeight}px`};
+	const artStyle = coreLook ? {...CORE_ART, height: rem(imageHeight)} : {height: rem(imageHeight)};
 
 	const cardClassName = [
 		css.card,
@@ -443,10 +316,10 @@ const ModernMediaCard = ({
 			onMouseEnter={onPreviewFocus}
 			onMouseLeave={handleMouseLeave}
 			style={{
-				width: `${expanded ? expandedWidth : cardWidth}px`,
+				width: rem(expanded ? expandedWidth : cardWidth),
 				transition: openMs ? `width ${openMs}ms ${EXPAND_CURVE}` : 'none',
-				'--modern-card-image-height': `${imageHeight}px`,
-				'--modern-card-expanded-width': `${expandedWidth}px`
+				'--modern-card-image-height': rem(imageHeight),
+				'--modern-card-expanded-width': rem(expandedWidth)
 			}}
 			spotlightId={spotlightId}
 			onSpotlightLeft={onSpotlightLeft}
@@ -476,13 +349,13 @@ const ModernMediaCard = ({
 								height={imageHeight}
 								style={{
 									...artStyle,
-									width: `${cardWidth}px`,
+									width: rem(cardWidth),
 									opacity: expanded && artShown ? 0 : 1,
 									transition: `opacity ${openMs}ms ${EXPAND_CURVE}`
 								}}
 							/>
 						)}
-						{(item?.Type === 'Genre' || item?.Type === 'MusicGenre') && (
+						{isGenre && (
 							<>
 								<div className={css.genreOverlay} />
 								<div className={css.genreTitle}>{item?.Name?.toUpperCase()}</div>
@@ -495,7 +368,7 @@ const ModernMediaCard = ({
 							<svg className={css.placeholderIcon} viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true">
 								<path d="M480-480q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47ZM160-160v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v112H160Z"/>
 							</svg>
-						) : (
+						) : carousel && !isGenre ? null : (
 							<span className={css.placeholderTitle}>{item?.Name}</span>
 						)}
 					</div>
@@ -514,16 +387,16 @@ const ModernMediaCard = ({
 					</div>
 				)}
 
-				{(showServerBadge || item?._external) && item?._serverName && (
-					<div className={css.serverBadge}>{item._serverName}</div>
+				{corner.showsServerName && (
+					<div className={corner.nameClass}>{item._serverName}</div>
 				)}
 
 				{item?._seerr && item?._seerrMissing ? (
-					<div className={`${css.seerrBadge} ${css.seerrMissing}`}>
+					<div className={`${css.seerrBadge} ${css.seerrMissing}${corner.belowNameClass}`}>
 						<SeerrIcon />
 					</div>
 				) : seerrStyle === 'badge' && item?._seerr ? (
-					<SeerrStatusDot status={item?.mediaInfo?.status} />
+					<SeerrStatusDot status={item?.mediaInfo?.status} style={corner.movedTop ? {top: rem(corner.movedTop)} : undefined} />
 				) : null}
 				{bannerStatus && <SeerrStatusBanner status={bannerStatus} className={coreLook ? css.seerrBannerFlush : css.seerrBanner} />}
 				{coreLook && isUnownedSeerrTitle(item) && (
@@ -531,13 +404,13 @@ const ModernMediaCard = ({
 				)}
 
 				{showIndicators && showsWatchedCheck(item) && (
-					<div className={css.watchedBadge}>
-						<svg viewBox="0 0 24 24"><path fill="white" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+					<div className={`${css.watchedBadge}${corner.belowNameClass}`}>
+						<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
 					</div>
 				)}
 
 				{showUnplayedCount && (
-					<div className={css.unplayedCount}>{unplayedCount}</div>
+					<div className={`${css.unplayedCount}${corner.belowNameClass}`}>{unplayedCount}</div>
 				)}
 
 				{item?.UserData?.IsFavorite && (
@@ -548,22 +421,24 @@ const ModernMediaCard = ({
 
 				<IncompleteBadge itemId={item.Id} belowFavorite={item.UserData?.IsFavorite} belowBanner={Boolean(bannerStatus)} />
 				<AnimeCardPill item={item} serverUrl={itemServerUrl} hasProgressBar={showIndicators && progress > 0} />
+				{/* A title several servers hold says how many instead of naming one. */}
+				<MergedServerBadge item={item} aboveProgress={showIndicators && progress > 0} />
 				{posterLabels && (
 					<PosterLabels
 						item={item}
 						serverUrl={itemServerUrl}
 						top={item.UserData?.IsFavorite ? 40 : 8}
-						topRight={(showIndicators && showsWatchedCheck(item)) || ((showServerBadge || item._external) && item._serverName) ? 40 : 8}
+						topRight={corner.labelsTopRight}
 						bottom={showIndicators && progress > 0 ? 26 : 8}
 					/>
 				)}
 			</div>
 			{coreLook && (
-				<div className={css.focusRing} style={{height: `${imageHeight + 16}px`}} />
+				<div className={css.focusRing} style={{height: rem(imageHeight + 16)}} />
 			)}
 
-			<div className={css.title}>{displayTitle}</div>
-			{coreLook ? (
+			{!carousel && <div className={css.title}>{displayTitle}</div>}
+			{carousel ? null : coreLook ? (
 				metadata ? <div className={css.secondaryTitle}>{metadata}</div> : null
 			) : isFocused ? (
 				episodeLabels ? (
@@ -578,8 +453,8 @@ const ModernMediaCard = ({
 				<div className={css.secondaryTitle}>{episodeLabels ? episodeLabels.short : item.Subtitle}</div>
 			) : null}
 
-			{expanded && (
-				<div className={css.extendedSection} style={{width: `${extendedSectionWidth}px`}}>
+			{expanded && !carousel && (
+				<div className={css.extendedSection} style={{width: rem(extendedSectionWidth)}}>
 					<RatingsRow
 						item={item}
 						serverUrl={itemServerUrl}

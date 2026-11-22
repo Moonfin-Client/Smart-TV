@@ -11,8 +11,9 @@ export const QUICK_LOOK_ID = 'quick-look';
 // count can lower that but never lift it.
 export const QUICK_LOOK_BUTTON_CAP = 6;
 
-// Where a press leaves a row of the drawer for. Down from the buttons runs the tracks, the seasons
-// and Open full page in that order, Up walks back to the buttons, and Up from the buttons stays.
+// Where a press leaves a row of the drawer for. Down from the buttons runs the tracks, the seasons or
+// a collection's rows, and Open full page in that order, Up walks back to the buttons, and Up from
+// the buttons stays.
 export const quickLookNeighbour = (stops, from, direction) => premiereNeighbour(stops, from, direction, false);
 
 // Core's drawer surface, the page's background with 3% of its text color over it. Both are rgb

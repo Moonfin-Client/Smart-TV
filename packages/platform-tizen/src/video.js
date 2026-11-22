@@ -269,7 +269,10 @@ export const getPlayMethod = (mediaSource, capabilities, _options, passthroughOp
 	const videoRangeType = videoRangeTypeOf(videoStream);
 	if (videoRangeType) {
 		const rangeType = videoRangeType.toUpperCase();
-		if (rangeType.includes('DOVIWITHEL')) {
+		if (rangeType === 'DOVIINVALID') {
+			// the profile only offers DOVIInvalid with HDR10, so this has to agree with it
+			hdrOk = capabilities.hdr10;
+		} else if (rangeType.includes('DOVIWITHEL')) {
 			// profile 7 carries an enhancement layer that freezes the picture on a
 			// panel without Dolby Vision, so it goes through the server's remux
 			hdrOk = capabilities.dolbyVision;
@@ -480,20 +483,19 @@ export const avplayOpen = (url) => {
 /**
  * Set hardware buffering thresholds. Must be called in IDLE, between open and prepare.
  * Falls back through the older byte based APIs on firmware that lacks setBufferingParam.
- * Never throws so it cant abort an open sequence.
+ * Never throws so it cant abort an open sequence. Returns what was set, or null.
  */
 export const avplaySetBufferingParams = (opts = {}) => {
-	if (!isAVPlayAvailable) return false;
+	if (!isAVPlayAvailable) return null;
 	// Samsung docs set 4 seconds as the minimum accepted value
 	const initialSeconds = Math.max(4, opts.initialSeconds ?? 6);
 	const resumeSeconds = Math.max(4, opts.resumeSeconds ?? 4);
-	let applied = false;
+	let applied = null;
 
 	try {
 		webapis.avplay.setBufferingParam('PLAYER_BUFFER_FOR_PLAY', 'PLAYER_BUFFER_SIZE_IN_SECOND', initialSeconds);
 		webapis.avplay.setBufferingParam('PLAYER_BUFFER_FOR_RESUME', 'PLAYER_BUFFER_SIZE_IN_SECOND', resumeSeconds);
-		applied = true;
-		console.log(`[tizenVideo] Buffering params set: play=${initialSeconds}s resume=${resumeSeconds}s`);
+		applied = `${initialSeconds} s to play, ${resumeSeconds} s to resume`;
 	} catch (e) {
 		console.warn('[tizenVideo] setBufferingParam unavailable:', e.message);
 	}
@@ -502,12 +504,11 @@ export const avplaySetBufferingParams = (opts = {}) => {
 		const bytes = Math.max(15 * 1024 * 1024, Math.floor(((opts.bitrate || 0) / 8) * initialSeconds));
 		try {
 			webapis.avplay.setBufferSize(bytes);
-			applied = true;
-			console.log(`[tizenVideo] Buffer size set: ${bytes} bytes`);
+			applied = `${bytes} bytes`;
 		} catch (e) {
 			try {
 				webapis.avplay.setStreamingProperty('SET_BUFFER_SIZE', String(initialSeconds));
-				applied = true;
+				applied = `${initialSeconds} s`;
 			} catch (e2) {
 				console.warn('[tizenVideo] No buffering configuration supported on this firmware');
 			}
@@ -993,6 +994,15 @@ export const avplayGetLiveRange = () => {
 	}
 };
 
+export const avplayGetBandwidth = () => {
+	if (!isAVPlayAvailable) return null;
+	try {
+		return webapis.avplay.getStreamingProperty('CURRENT_BANDWIDTH') || null;
+	} catch (e) {
+		return null;
+	}
+};
+
 export const avplaySetStreamingProperty = (property, value) => {
 	if (!isAVPlayAvailable) return;
 	try {
@@ -1177,6 +1187,7 @@ export default {
 	avplayGetCurrentTime,
 	avplayGetDuration,
 	avplayGetLiveRange,
+	avplayGetBandwidth,
 	avplayGetState,
 	avplaySetListener,
 	avplaySetSpeed,

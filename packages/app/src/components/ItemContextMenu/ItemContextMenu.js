@@ -7,6 +7,8 @@ import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDeco
 import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import {getApiForItem} from '../../services/connectionPool';
+import {findEveryCopy} from '../../services/mergedTitleReads';
+import {copiesOf, mergesLibraries} from '../../utils/mergedCopies';
 import {api as activeApi, getServerType} from '../../services/jellyfinApi';
 import {parseHiddenMap} from '../../views/Browse/browseFilters';
 import {
@@ -84,7 +86,7 @@ const canManageCollectionsOf = (item, user, serverUrl) => {
 // A card asks for it through useItemMenu. `backRef` is how the app's back key reaches whatever
 // is open here before it reaches the screen underneath.
 export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
-	const {user, serverUrl} = useAuth();
+	const {user, serverUrl, hasMultipleServers} = useAuth();
 	const {settings, updateSetting, updateSettings} = useSettings();
 	const [menu, setMenu] = useState(null);
 	const [dialog, setDialog] = useState(null);
@@ -133,6 +135,23 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 	}, []);
 
 	const showToast = useCallback((message) => setToast({message, key: Date.now()}), []);
+
+	// Marks a title watched or a favorite on every server that holds it, for a merged library's card, and names the
+	// servers that refused. A title only one server holds fails quietly, the way it always has.
+	const mergeLibraries = mergesLibraries(settings, hasMultipleServers);
+	const changeEveryCopy = useCallback(async (item, change) => {
+		const write = (copy) => Promise.resolve()
+			.then(() => change(getApiForItem(copy) || activeApi, copy))
+			.then(() => null, () => copy._serverName || $L('Server'));
+		// The card's own copy changes right away, while its account is still signed in. The other servers' copies wait for
+		// the lookup, since a Home row only holds each server's newest titles.
+		const own = write(item);
+		const others = mergeLibraries ? copiesOf(await findEveryCopy(item, null)).slice(1) : [];
+		const refused = (await Promise.all([own, ...others.map(write)])).filter(Boolean);
+		if (others.length > 0 && refused.length > 0) {
+			showToast($L('Not changed on {servers}').replace('{servers}', refused.join(', ')));
+		}
+	}, [showToast, mergeLibraries]);
 	const clearToast = useCallback(() => setToast(null), []);
 
 	const closeDialog = useCallback(() => {
@@ -258,7 +277,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 				onOpenItem(item);
 				break;
 			case 'watched':
-				await api.setWatched(item.Id, !userData.Played).catch(() => {});
+				await changeEveryCopy(item, (copyApi, copy) => copyApi.setWatched(copy.Id, !userData.Played));
 				break;
 			case 'hideContinueWatching':
 				updateSetting('hiddenContinueWatchingItems', hiddenMapWith(settings.hiddenContinueWatchingItems, item.SeriesId || item.Id));
@@ -272,7 +291,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 				await hideFromNextUp(api, item, item._serverType || getServerType());
 				break;
 			case 'favorite':
-				await api.setFavorite(item.Id, !userData.IsFavorite).catch(() => {});
+				await changeEveryCopy(item, (copyApi, copy) => copyApi.setFavorite(copy.Id, !userData.IsFavorite));
 				break;
 			case 'addToCollection':
 				setDialog({kind: 'collection', item, api});
@@ -326,7 +345,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 			default:
 				break;
 		}
-	}, [onPlay, onOpenItem, settings.hiddenContinueWatchingItems, settings.hiddenNextUpSeries, updateSetting, updateSettings, serverUrl, user?.Id, showToast]);
+	}, [onPlay, onOpenItem, settings.hiddenContinueWatchingItems, settings.hiddenNextUpSeries, updateSetting, updateSettings, serverUrl, user?.Id, showToast, changeEveryCopy]);
 
 	const handleSelect = useCallback((ev) => {
 		const id = ev.currentTarget.dataset.action;

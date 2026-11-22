@@ -15,6 +15,7 @@ export const SECTION_DISCOVERY = 'discovery';
 export const SECTION_REVIEWS = 'reviews';
 export const SECTION_PEOPLE = 'people';
 export const SECTION_DETAILS = 'details';
+export const SECTION_BOOKS = 'books';
 
 // Only the two types that can carry a recommendation list of their own.
 export const supportsDiscovery = (type) => type === 'Movie' || type === 'Series';
@@ -65,7 +66,8 @@ export const nouveauSectionOrder = (state = {}) => {
 		actorCount = 0,
 		directorCount = 0,
 		reviewCount = 0,
-		parentCollectionCount = 0
+		parentCollectionCount = 0,
+		isBookSeries = false
 	} = state;
 
 	const sections = [];
@@ -73,11 +75,12 @@ export const nouveauSectionOrder = (state = {}) => {
 	if (shouldIncludeCollection(type)) sections.push(SECTION_COLLECTION);
 	if (shouldIncludeChapters(chapterCount)) sections.push(SECTION_CHAPTERS);
 	if (partCount > 0) sections.push(SECTION_PARTS);
+	if (isBookSeries) sections.push(SECTION_BOOKS);
 	if (shouldIncludeExtras(extraCount)) sections.push(SECTION_EXTRAS);
 	if (parentCollectionCount > 0 && !shouldIncludeCollection(type)) sections.push(SECTION_PARENT_COLLECTIONS);
 	if (shouldIncludeDiscovery(state)) sections.push(SECTION_DISCOVERY);
 	if (reviewCount > 0) sections.push(SECTION_REVIEWS);
 	if (shouldIncludePeople({actorCount, directorCount})) sections.push(SECTION_PEOPLE);
-	sections.push(SECTION_DETAILS);
+	if (!isBookSeries) sections.push(SECTION_DETAILS);
 	return sections;
 };

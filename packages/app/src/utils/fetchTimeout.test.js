@@ -72,3 +72,29 @@ describe('fetchWithTimeout', () => {
 		expect(jest.getTimerCount()).toBe(0);
 	});
 });
+
+describe('a caller that cancels', () => {
+	beforeEach(() => {
+		global.fetch = jest.fn((url, {signal}) => new Promise((resolve, reject) => {
+			signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), {name: 'AbortError'})));
+		}));
+	});
+
+	afterEach(() => {
+		delete global.fetch;
+	});
+
+	test('stops the request with its own signal', async () => {
+		const caller = new AbortController();
+		const request = fetchWithTimeout('http://x', {signal: caller.signal}, 5000);
+		caller.abort();
+		await expect(request).rejects.toMatchObject({name: 'AbortError'});
+	});
+
+	test('never sends a request it gave up on before its turn', async () => {
+		const caller = new AbortController();
+		caller.abort();
+		await expect(fetchWithTimeout('http://x', {signal: caller.signal}, 5000)).rejects.toMatchObject({name: 'AbortError'});
+		expect(global.fetch).not.toHaveBeenCalled();
+	});
+});

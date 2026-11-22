@@ -1,5 +1,5 @@
 import {corsFreeFetch} from './secureFetch';
-import {createSiloApi, probeSilo} from './siloApi';
+import {createSiloApi, probeSilo, probeSiloOrNull} from './siloApi';
 import {openSiloSession, profileProof, resetSiloSessions, setProfileProof, tokensFrom} from './siloSession';
 
 jest.mock('./secureFetch', () => ({corsFreeFetch: jest.fn()}));
@@ -72,6 +72,19 @@ describe('probe', () => {
 		answer({'/api/v2/system/info': () => reply(410, {type: 'x/client_upgrade_required', title: 'Gone', status: 410})});
 		await expect(probeSilo(SERVER)).rejects.toMatchObject({siloApiUnsupported: true, serverIsNewer: true});
 	});
+
+	test('a request the server refuses outright, as Emby\'s CORS headers do, is not Silo when adding a server', async () => {
+		answer({'/api/v2/system/info': () => Promise.reject(new TypeError('Failed to fetch'))});
+		await expect(probeSiloOrNull(SERVER)).resolves.toBe(null);
+		await expect(probeSilo(SERVER)).rejects.toMatchObject({connectionType: 'network'});
+	});
+
+	test('adding a server still stops on a timeout or a Silo API this build cant speak', async () => {
+		answer({'/api/v2/system/info': () => Promise.reject(Object.assign(new Error('aborted'), {name: 'AbortError'}))});
+		await expect(probeSiloOrNull(SERVER)).rejects.toMatchObject({connectionType: 'timeout'});
+		answer({'/api/v2/system/info': {server_version: 'x', api_major: 3}});
+		await expect(probeSiloOrNull(SERVER)).rejects.toMatchObject({siloApiUnsupported: true});
+	});
 });
 
 describe('sign-in', () => {
@@ -135,6 +148,22 @@ describe('the signed-in profile', () => {
 		expect(accountCall[1].headers['X-Profile-Id']).toBeUndefined();
 	});
 
+	test('Hide watched on Home reads and writes as HidePlayedInLatest', async () => {
+		await signIn();
+		answer({
+			'/api/v2/account/me': account,
+			'/api/v2/profiles': profiles,
+			'/api/v2/settings/values/effective': {items: [{key: 'home.hide_watched_items', value: true}]},
+			'PUT /api/v2/settings/values/home.hide_watched_items': {}
+		});
+		const user = await silo.getUserConfiguration();
+		expect(user.Configuration.HidePlayedInLatest).toBe(true);
+		await silo.updateUserConfiguration({...user.Configuration, HidePlayedInLatest: false});
+		const put = corsFreeFetch.mock.calls.find(([, init]) => init?.method === 'PUT');
+		expect(put[0]).toContain('/api/v2/settings/values/home.hide_watched_items');
+		expect(JSON.parse(put[1].body)).toEqual({value: false});
+	});
+
 	test('an update writes only the settings that changed', async () => {
 		await signIn();
 		answer({
@@ -144,7 +173,7 @@ describe('the signed-in profile', () => {
 		await silo.updateUserConfiguration({OrderedViews: ['1', '3'], SubtitleMode: 'Default', EnableNextEpisodeAutoPlay: true});
 		expect(calls()).toEqual([
 			'GET /api/v2/settings/values/effective?keys=ui.library_order&keys=ui.disabled_library_ids&keys=playback.audio_language' +
-				'&keys=playback.subtitle_language&keys=playback.subtitle_mode&keys=playback.show_forced_subtitles&keys=playback.auto_play_next',
+				'&keys=playback.subtitle_language&keys=playback.subtitle_mode&keys=playback.show_forced_subtitles&keys=playback.auto_play_next&keys=home.hide_watched_items',
 			'PUT /api/v2/settings/values/ui.library_order?scope=profile'
 		]);
 		expect(JSON.parse(corsFreeFetch.mock.calls[1][1].body)).toEqual({value: [1, 3]});

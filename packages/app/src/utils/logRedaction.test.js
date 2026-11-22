@@ -19,6 +19,28 @@ describe('redact', () => {
 			.toBe('Authorization: [REDACTED]');
 	});
 
+	it('drops refresh tokens, passwords, secrets and url signatures', () => {
+		expect(redact('POST /token grant_type=refresh_token&refresh_token=abc123'))
+			.toBe('POST /token grant_type=refresh_token&refresh_token=[REDACTED]');
+		expect(redact('login password=hunter2 pass=x passwd: y'))
+			.toBe('login password=[REDACTED] pass=[REDACTED] passwd: [REDACTED]');
+		expect(redact('GET /QuickConnect/Connect?Secret=abc&client_secret=def'))
+			.toBe('GET /QuickConnect/Connect?Secret=[REDACTED]&client_secret=[REDACTED]');
+		expect(redact('GET https://cdn.example.com/v.mp4?expire=1&sig=AbC&signature=XyZ'))
+			.toBe('GET https://[REDACTED]/v.mp4?expire=1&sig=[REDACTED]&signature=[REDACTED]');
+	});
+
+	it('drops email addresses', () => {
+		expect(redact('Invite sent to jane.doe+tv@example.co.uk for user 3'))
+			.toBe('Invite sent to [REDACTED] for user 3');
+	});
+
+	// A credential name only counts as a whole word in front of a separator.
+	it('leaves words that only contain those names alone', () => {
+		const line = 'Audio passthrough: true, signal: ok, bypass=1, @enact/core';
+		expect(redact(line)).toBe(line);
+	});
+
 	// networkLogSink masks the query before the entry is built, and that masked value is
 	// still a value, so it reads the same as everything else by the time it is written out.
 	it('normalises a value the network sink already masked', () => {

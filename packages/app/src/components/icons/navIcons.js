@@ -1,4 +1,4 @@
-import {CORE_ICON_PATHS} from '../../views/Settings/settingsCoreIcons';
+import {HOME_CORE_ICON_PATHS} from './homeIconPaths';
 import {libraryOrderIcon} from '../../views/Settings/libraryOrder';
 
 // The nav icons drawn by both the top bar and the sidebar. Keeping the path
@@ -35,7 +35,7 @@ export const ChevronDownIcon = (props) => <NavIcon {...props} path={PATHS.chevro
 export const MessagesIcon = (props) => <NavIcon {...props} path={PATHS.messages} />;
 export const FriendsIcon = (props) => <NavIcon {...props} path={PATHS.friends} />;
 export const LiveTvIcon = (props) => <NavIcon {...props} path={PATHS.liveTv} />;
-export const CalendarIcon = (props) => <NavIcon {...props} path={CORE_ICON_PATHS.calendar_month_rounded} />;
+export const CalendarIcon = (props) => <NavIcon {...props} path={HOME_CORE_ICON_PATHS.calendar_month_rounded} />;
 
 const libraryIcons = {};
 
@@ -43,6 +43,6 @@ const libraryIcons = {};
 // nav redraw never remounts it.
 export const libraryNavIcon = (library) => {
 	const name = libraryOrderIcon(library);
-	if (!libraryIcons[name]) libraryIcons[name] = (props) => <NavIcon {...props} path={CORE_ICON_PATHS[name]} />;
+	if (!libraryIcons[name]) libraryIcons[name] = (props) => <NavIcon {...props} path={HOME_CORE_ICON_PATHS[name]} />;
 	return libraryIcons[name];
 };

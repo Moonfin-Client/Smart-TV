@@ -230,7 +230,10 @@ const writeProbe = (dir, {assets = '', clips = true} = {}) => {
 	const chosen = chosenClips();
 	const missing = chosen.filter((name) => !fs.existsSync(path.join(mediaSource, name)));
 	if (missing.length) throw new Error(`--clips names clips that are not in probe/media: ${missing.join(', ')}. Make them with node probe/make-clips.js`);
-	const names = clips && fs.existsSync(mediaSource) ? fs.readdirSync(mediaSource).filter((name) => !chosen.length || chosen.includes(name)).sort() : [];
+	// Dolby Vision clips are sample media put there by hand for local tests, so they never go to testers
+	const names = clips && fs.existsSync(mediaSource)
+		? fs.readdirSync(mediaSource).filter((name) => (!chosen.length || chosen.includes(name)) && !(flag('--tester') && /^dv-/.test(name))).sort()
+		: [];
 	const bundled = names.filter((name) => MEDIA_FILE.test(name));
 	// An HLS stream is a folder of its playlist and segments
 	const streams = names.filter((name) => fs.existsSync(path.join(mediaSource, name, 'index.m3u8')));
@@ -285,13 +288,19 @@ const nextRevision = () => {
 	return next;
 };
 
+// The desktop app's x64 MSIX goes in the same Store product with the plain app version,
+// and the Store refuses two packages of one name and version, so the Store build moves
+// the third part up by 1000.
+const storeVersion = (version) => version.replace(/\.(\d+)$/, (_, patch) => `.${Number(patch) + 1000}`);
+
 // The package is built from a copy of the manifest written fresh each build and never
 // committed, which carries the version the build is given, a probe build's other name
 // and a Store build's identity. Writing it every time keeps MSBuild from reusing the
 // manifest of the build before.
 const writeBuildManifest = (version) => {
 	let manifest = fs.readFileSync(MANIFEST_PATH, 'utf8');
-	manifest = manifest.replace(/(<Identity[^>]*?Version=")[^"]*(")/, `$1${version}.${countsVersionUp() ? nextRevision() : 0}$2`);
+	const packageVersion = flag('--store') ? storeVersion(version) : version;
+	manifest = manifest.replace(/(<Identity[^>]*?Version=")[^"]*(")/, `$1${packageVersion}.${countsVersionUp() ? nextRevision() : 0}$2`);
 	if (flag('--store')) {
 		manifest = manifest
 			.replace(/(<Identity[^>]*?Name=")[^"]*(")/, `$1${STORE_IDENTITY.name}$2`)

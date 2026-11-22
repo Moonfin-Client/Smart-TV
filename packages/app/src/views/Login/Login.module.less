@@ -26,6 +26,14 @@
 	bottom: 0;
 	overflow-y: auto;
 	overflow-x: hidden;
+	// Scrolling only makes room above a keyboard, so it shouldn't show a bar
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+
 	// Corner to corner, which on a 16:9 screen is this angle
 	background: linear-gradient(
 		119deg,

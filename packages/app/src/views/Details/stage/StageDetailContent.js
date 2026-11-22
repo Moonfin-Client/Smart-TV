@@ -145,10 +145,11 @@ const StageScreen = (props) => {
 	else if (item.Type === 'Series' || item.Type === 'Season') showStop = page.episodesStop({onLeftEdge: toActions});
 	const beside = [page.tracksStop(), isShow ? null : page.factsStop(), showStop].filter(Boolean);
 
-	// The full width rows under the poster: an episode's run of episodes, then the rows every page
-	// shares.
+	// The full width rows under the poster: an episode's run of episodes or a collection's titles,
+	// then the rows every page shares.
 	const below = [
 		item.Type === 'Episode' && !seerrOnly && showsSection('moreEpisodes') ? page.episodesStop() : null,
+		...page.collectionStops(),
 		...page.rowStops()
 	].filter(Boolean);
 
@@ -247,8 +248,8 @@ const StageScreen = (props) => {
 	);
 };
 
-// Everything that isn't a film, a show or a video goes to Modern, decided before any of Stage's own
-// hooks run.
+// Everything that isn't a film, a show, a video or a collection goes to Modern, decided before any of
+// Stage's own hooks run.
 const StageDetailContent = (props) => (
 	drawsStage(props.item.Type) ? <StageScreen {...props} /> : <ModernDetailContent {...props} />
 );

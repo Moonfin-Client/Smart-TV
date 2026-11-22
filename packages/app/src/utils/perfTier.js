@@ -19,6 +19,10 @@ export const getDetectedPerfTier = () => {
 
 export const getPerfTier = () => overrideTier || getDetectedPerfTier();
 
+// Someone's own choice wins. Otherwise only the High tier glides rows, since a glide
+// on a TV that rasters in software costs more frames than it saves.
+export const smoothScrollingFor = (choice) => (typeof choice === 'boolean' ? choice : getPerfTier() === 'high');
+
 export const applyPerfTier = (mode) => {
 	overrideTier = (mode === 'low' || mode === 'mid' || mode === 'high') ? mode : null;
 	if (typeof document === 'undefined') return;

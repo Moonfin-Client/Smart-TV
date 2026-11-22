@@ -3,7 +3,9 @@ import Spotlight from '@enact/spotlight';
 
 import {defaultSettings} from '../../../context/defaultSettings';
 import {memoryCache} from '../../Browse/browseCache';
+import {followerSpot} from '../../../components/SeasonalTheme/followerPlacement';
 import {FALL_COUNTS} from '../../../components/SeasonalTheme/seasonalParticles';
+import {seekBackIcon, seekForwardIcon} from '../../Player/PlayerConstants';
 import {getPerfTier} from '../../../utils/perfTier';
 import {describeRow} from './previewRows';
 import SettingsLivePreview from './SettingsLivePreview';
@@ -39,6 +41,7 @@ jest.mock('../../../context/SettingsContext', () => {
 	return {
 		useSettings: () => ({
 			settings: {...mockSettings, ...React.useContext(Overrides)},
+			activeThemeId: 'moonfin',
 			activeTheme: require('../../../theme/themeRegistry').resolveThemeById('moonfin')
 		}),
 		SettingsOverride: ({overrides, children}) => React.createElement(Overrides.Provider, {value: overrides}, children)
@@ -59,15 +62,25 @@ jest.mock('../../../services/calendarApi', () => ({
 }));
 jest.mock('../../../context/AchievementsContext', () => ({useAchievements: () => ({socialAvailable: false})}));
 jest.mock('../../../components/RatingsRow', () => () => null);
+// The server gives the film Heat a 4K label, and nothing else any.
+jest.mock('../../../services/posterBadgesApi', () => ({
+	...jest.requireActual('../../../services/posterBadgesApi'),
+	usePosterBadges: (id) => (id === 'm1'
+		? [{label: '4K', color: '#2563EB', textColor: '', style: 'solid', opacity: 100, size: 'medium', corner: 'topLeft', shape: 'rounded', icon: ''}]
+		: [])
+}));
 let mockParentalFilter = require('../../../utils/parentalFilter').parentalFilterFromRatings([]);
 jest.mock('../../../hooks/useParentalFilter', () => () => ({parentalFilter: mockParentalFilter}));
-// Home's card pulls in the context menu and its Sandstone screens, and the preview only reads its size.
-jest.mock('../../../components/MediaCard/MediaCard', () => ({classicCardSize: () => ({width: 0, height: 0})}));
+// Home's card pulls in the context menu and its Sandstone screens, and the preview only reads its size,
+// so this hands back the Default sizes.
+jest.mock('../../../components/MediaCard/MediaCard', () => ({
+	classicCardSize: (shape) => ({portrait: {width: 240, height: 360}, landscape: {width: 384, height: 216}, square: {width: 240, height: 240}, banner: {width: 1168, height: 216}}[shape])
+}));
 jest.mock('../../../components/LoadingSpinner', () => () => null);
 // The real layer fades its picture in once it loads, so here it only says what it was handed.
 jest.mock('../../../components/BackdropLayer', () => {
 	const React = require('react');
-	return ({targetUrl, placement}) => React.createElement('div', {className: 'homeBackdrop', 'data-url': targetUrl, 'data-placement': placement});
+	return ({targetUrl, placement, blurAmount}) => React.createElement('div', {className: 'homeBackdrop', 'data-url': targetUrl, 'data-placement': placement, 'data-blur': blurAmount});
 });
 // The library screen is tested on its own, so here it only says what it was handed.
 jest.mock('../../Library', () => {
@@ -92,7 +105,8 @@ jest.mock('../../SetupWizard/setupPreviewData', () => ({
 	subscribePreviewItems: () => () => {},
 	adaptItem: (item) => ({
 		title: item.Name, type: item.Type, year: item.ProductionYear || null, officialRating: null, runtimeMinutes: null, genres: [],
-		overview: null, communityRating: null, posterUrl: null, backdropUrl: item.backdropUrl || null, logoUrl: null
+		overview: null, communityRating: null, posterUrl: null, backdropUrl: item.backdropUrl || null, logoUrl: null,
+		played: Boolean(item.UserData?.Played), playedPercentage: item.UserData?.PlayedPercentage || 0, unplayedCount: item.UserData?.UnplayedItemCount || 0
 	})
 }));
 
@@ -139,13 +153,17 @@ describe('SettingsLivePreview', () => {
 		expect(screen.getByText('Language, clock, input, and performance')).toBeTruthy();
 	});
 
-	test('expanded rows keep the next row off the screen', () => {
+	test('rows sit as far apart as Home spaces them, and expanded rows keep the next row off the screen', () => {
 		const spacerAbove = (title) => screen.getByText(title).parentElement.previousSibling.style.height;
-		const {unmount} = draw({fullScreenRows: false}, 'setting-fullScreenRows', 'home');
-		expect(spacerAbove('Recently Added')).toBe('24px');
-		unmount();
-		draw({fullScreenRows: true}, 'setting-fullScreenRows', 'home');
-		expect(spacerAbove('Recently Added')).toBe('540px');
+		// Half of Home's space below each row, since the design screen is half of 1920.
+		for (const [settings, gap] of [
+			[{}, '0px'], [{modernHomeRowsPadding: 560}, '80px'], [{homeRowsStyle: 'v1'}, '10px'],
+			[{homeRowsStyle: 'v1', classicHomeRowsPadding: 130}, '60px'], [{fullScreenRows: true}, '540px']
+		]) {
+			draw(settings, 'setting-fullScreenRows', 'home');
+			expect(spacerAbove('Recently Added')).toBe(gap);
+			cleanup();
+		}
 	});
 
 	test('modern rows hold their first card in focus on every home tile, and classic rows hold none', () => {
@@ -157,6 +175,15 @@ describe('SettingsLivePreview', () => {
 		}
 		draw({homeRowsStyle: 'v1'}, 'setting-homeRowsStyle', 'home');
 		expect(rings()).toBe(0);
+	});
+
+	test('Focus Border Color rings the first card in its color, in every row style', () => {
+		const rings = () => Array.from(document.querySelectorAll('.frame div')).filter((node) => node.style.border.indexOf('3px solid') === 0);
+		for (const homeRowsStyle of ['v2', 'v1', 'carousel']) {
+			const {unmount} = draw({homeRowsStyle, focusBorderColor: '#FF0000'}, 'setting-focusBorderColor', 'home');
+			expect(rings().map((ring) => ring.style.borderColor)).toEqual(['rgb(255, 0, 0)']);
+			unmount();
+		}
 	});
 
 	test('a focused modern film grows with no year, rating or description, as on Home', () => {
@@ -183,6 +210,38 @@ describe('SettingsLivePreview', () => {
 		}
 	});
 
+	test('Carousel rows leave the cards bare and show each row\'s first title in a panel under them', () => {
+		const shown = (text) => screen.queryAllByText(text).length;
+		draw({homeRowsStyle: 'v2'}, 'setting-homeRowsStyle', 'home');
+		// Eight cards a row cycle the four sample films, across three rows.
+		expect(shown('Film 0')).toBe(6);
+		cleanup();
+		draw({homeRowsStyle: 'carousel'}, 'setting-homeRowsStyle', 'home');
+		// Only the first row's panel names Film 0, the next two lead with Film 3 and Film 2.
+		expect(shown('Film 0')).toBe(1);
+		expect(shown('Film 3')).toBe(1);
+		expect(shown('A story.')).toBe(3);
+		cleanup();
+		draw({homeRowsStyle: 'carousel', hideHomeMediaDescription: true}, 'setting-hideHomeMediaDescription', 'home');
+		expect(shown('A story.')).toBe(0);
+	});
+
+	test('a Carousel panel shows media pills for a film or an episode, and none for a show', () => {
+		const pills = () => screen.queryAllByText('HDR10').length;
+		const saved = mockItems[0].type;
+		try {
+			// Only the first row's panel shows Film 0.
+			for (const [type, count] of [['Movie', 1], ['Episode', 1], ['Series', 0]]) {
+				mockItems[0].type = type;
+				draw({homeRowsStyle: 'carousel'}, 'setting-homeRowsStyle', 'home');
+				expect(pills()).toBe(count);
+				cleanup();
+			}
+		} finally {
+			mockItems[0].type = saved;
+		}
+	});
+
 	test('the media bars that show a description drop it while Hide Media Description is on', () => {
 		const descriptions = () => screen.queryAllByText('A story.').length;
 		for (const featuredBarStyle of ['moonfin', 'makd', 'gallery', 'off']) {
@@ -191,6 +250,23 @@ describe('SettingsLivePreview', () => {
 			cleanup();
 			draw({featuredBarStyle, hideHomeMediaDescription: true}, 'setting-featuredBarStyle', 'home');
 			expect(descriptions()).toBe(0);
+			cleanup();
+		}
+	});
+
+	test('Item Count gives the bar a page mark for each item being tried, the Banner bar seven at most and MakD five', () => {
+		// Each bar spaces its marks its own way, which tells them apart from the rest of the bar.
+		const marks = (gap) => Array.from(document.querySelectorAll('.frame div'))
+			.filter((node) => node.style.marginLeft === gap && node.style.marginRight === gap).length;
+		for (const [featuredBarStyle, gap, most] of [['moonfin', '4px', Infinity], ['makd', '2.5px', 5], ['aya', '2.5px', Infinity], ['banner', '2px', 7]]) {
+			const {rerender} = draw({featuredBarStyle, featuredItemCount: 10}, 'setting-featuredItemCount', 'home');
+			expect(screen.getByText('Shows on the Home preview')).toBeTruthy();
+			expect(marks(gap)).toBe(Math.min(10, most));
+			const row = describeRow('setting-featuredItemCount', mockSettings);
+			for (const value of [5, 20]) {
+				rerender(<SettingsLivePreview scene='home' row={row} trying={{key: 'featuredItemCount', value, index: 0}} onPickScene={() => {}} onLeaveChips={() => {}} />);
+				expect(marks(gap)).toBe(Math.min(value, most));
+			}
 			cleanup();
 		}
 	});
@@ -281,6 +357,38 @@ describe('SettingsLivePreview', () => {
 		}
 	});
 
+	test('OLED Mode takes the preview\'s backgrounds toward black in the mode being tried', () => {
+		const background = () => find('.frame .screenInner').style.backgroundColor;
+		const {rerender} = draw({oledMode: 'off'}, 'setting-oledMode', 'home');
+		expect(screen.getByText('Shows on the Home preview')).toBeTruthy();
+		expect(background()).toBe('rgb(16, 16, 16)');
+		const row = describeRow('setting-oledMode', mockSettings);
+		for (const [value, color] of [['vivid', 'rgb(0, 0, 0)'], ['subtle', 'rgb(3, 3, 3)'], ['off', 'rgb(16, 16, 16)']]) {
+			rerender(<SettingsLivePreview scene='home' row={row} trying={{key: 'oledMode', value, index: 0}} onPickScene={() => {}} onLeaveChips={() => {}} />);
+			expect(background()).toBe(color);
+		}
+		cleanup();
+		draw({oledMode: 'vivid'}, 'setting-oledMode', 'home');
+		expect(background()).toBe('rgb(0, 0, 0)');
+	});
+
+	test('Browsing Background Blur blurs Home\'s backdrop by the amount being tried', () => {
+		const blur = () => find('.frame .homeBackdrop').getAttribute('data-blur');
+		mockItems[0].backdropUrl = 'backdrop0.jpg';
+		try {
+			const {rerender} = draw({homeRowsStyle: 'v1', showHomeBackdrop: true, homeBackdropStyle: 'fullScreen', backdropBlurHome: 20}, 'setting-backdropBlurHome', 'home');
+			expect(screen.getByText('Shows on the Home preview')).toBeTruthy();
+			expect(blur()).toBe('20');
+			const row = describeRow('setting-backdropBlurHome', mockSettings);
+			for (const value of [40, 0]) {
+				rerender(<SettingsLivePreview scene='home' row={row} trying={{key: 'backdropBlurHome', value, index: 0}} onPickScene={() => {}} onLeaveChips={() => {}} />);
+				expect(blur()).toBe(String(value));
+			}
+		} finally {
+			mockItems[0].backdropUrl = null;
+		}
+	});
+
 	test('Details Screen Backdrop takes the backdrop off every detail style and keeps the page', () => {
 		const art = () => document.querySelectorAll('.frame img[src="backdrop0.jpg"]').length;
 		Object.assign(mockItems[0], {backdropUrl: 'backdrop0.jpg', posterUrl: 'poster0.jpg'});
@@ -350,6 +458,31 @@ describe('SettingsLivePreview', () => {
 		expect(document.querySelectorAll('.chapterMark').length).toBe(0);
 	});
 
+	test('the seek buttons wear the skip length being tried, as the player\'s do', () => {
+		const iconOf = (label) => Array.from(document.querySelectorAll('.transportButtons .focusTooltip'))
+			.find((tip) => tip.textContent === label).previousSibling.innerHTML;
+		const markup = (Icon) => {
+			const {container, unmount} = render(<Icon />);
+			const html = container.innerHTML;
+			unmount();
+			return html;
+		};
+		expect(markup(seekBackIcon(5))).not.toBe(markup(seekBackIcon(10)));
+		const {rerender} = draw({skipBackLength: 10000, skipForwardLength: 30000}, 'setting-skipBackLength', 'player');
+		expect(screen.getByText('Shows on the Player preview')).toBeTruthy();
+		expect(iconOf('Seek back')).toBe(markup(seekBackIcon(10)));
+		expect(iconOf('Seek forward')).toBe(markup(seekForwardIcon(30)));
+		for (const [key, value, label, icon] of [
+			['skipBackLength', 5000, 'Seek back', seekBackIcon(5)],
+			['skipBackLength', 15000, 'Seek back', seekBackIcon(15)],
+			['skipForwardLength', 10000, 'Seek forward', seekForwardIcon(10)],
+			['skipForwardLength', 45000, 'Seek forward', seekForwardIcon(45)]
+		]) {
+			rerender(<SettingsLivePreview scene='player' row={describeRow(`setting-${key}`, mockSettings)} trying={{key, value, index: 0}} onPickScene={() => {}} onLeaveChips={() => {}} />);
+			expect(iconOf(label)).toBe(markup(icon));
+		}
+	});
+
 	test('a subtitle appearance tile draws the line the player would, with the controls away', () => {
 		const line = () => find('.subtitleText');
 		const {unmount} = draw({subtitleColor: '#ffff00', subtitleSize: 'large', subtitleBackground: 50, subtitlePosition: 'higher'}, 'setting-subtitleColor', 'player');
@@ -409,6 +542,170 @@ describe('SettingsLivePreview', () => {
 		expect(color()).toBe('rgb(255, 255, 255)');
 	});
 
+	describe('the skip prompt and the next episode card', () => {
+		// The card asks for the remote a frame after it draws, so that frame runs here and not in a later test.
+		beforeEach(() => jest.spyOn(window, 'requestAnimationFrame').mockImplementation((step) => {
+			step();
+			return 0;
+		}));
+		afterEach(() => window.requestAnimationFrame.mockRestore());
+		const skipPrompt = () => find('[data-spotlight-id="preview-skip-segment-btn"]');
+		const nextCard = () => {
+			const close = find('[data-spotlight-id="next-up-dismiss-btn"]');
+			return close && close.closest('.card');
+		};
+		const tryOn = (rerender, key, value) => rerender(
+			<SettingsLivePreview scene='player' row={describeRow(`setting-${key}`, mockSettings)} trying={{key, value, index: 0}} onPickScene={() => {}} onLeaveChips={() => {}} />
+		);
+		// What a countdown draws: the ring, the number in it, and the timer line.
+		const countdownOf = (node) => ({
+			ring: Boolean(node.querySelector('.ring')),
+			number: node.querySelector('.ringNumber') ? node.querySelector('.ringNumber').textContent : null,
+			timer: node.querySelector('.timer') ? node.querySelector('.timer').textContent : null
+		});
+
+		test('Media Segment Countdown draws the intro\'s skip prompt in the style being tried, whatever the intro action', () => {
+			const {rerender} = draw({introAction: 'auto'}, 'setting-nextUpCountdownStyle', 'player');
+			expect(within(skipPrompt()).getByText('Skip Intro')).toBeTruthy();
+			// The prompt is the player's own, kept off the remote.
+			expect(skipPrompt().closest('[data-spotlight-container-disabled="true"]')).not.toBeNull();
+			const expected = {
+				both: {ring: true, number: '45', timer: null},
+				progressBar: {ring: true, number: null, timer: null},
+				timer: {ring: false, number: null, timer: 'Ends in :45'},
+				none: {ring: false, number: null, timer: null}
+			};
+			Object.keys(expected).forEach((value) => {
+				tryOn(rerender, 'nextUpCountdownStyle', value);
+				expect(within(skipPrompt()).getByText('Skip Intro')).toBeTruthy();
+				expect(countdownOf(skipPrompt())).toEqual(expected[value]);
+			});
+			// The intro action's own tile only draws the prompt while it asks.
+			cleanup();
+			draw({introAction: 'auto'}, 'setting-introAction', 'player');
+			expect(skipPrompt()).toBeNull();
+			cleanup();
+			draw({introAction: 'ask'}, 'setting-introAction', 'player');
+			expect(within(skipPrompt()).getByText('Skip Intro')).toBeTruthy();
+		});
+
+		test('Next Up Timeout holds the card\'s countdown at the timeout being tried, in the countdown style', () => {
+			const {rerender} = draw({autoPlay: true, nextUpCountdownStyle: 'both'}, 'setting-nextUpTimeout', 'player');
+			expect(within(nextCard()).getByText('Up Next')).toBeTruthy();
+			expect(within(nextCard()).getByText('S1:E2')).toBeTruthy();
+			expect(within(nextCard()).getByText('Film 1')).toBeTruthy();
+			expect(countdownOf(nextCard())).toEqual({ring: true, number: null, timer: 'Ends in :07'});
+			// The card only comes up with the controls away.
+			expect(find('.playerControls')).toBeNull();
+			tryOn(rerender, 'nextUpTimeout', 25);
+			expect(countdownOf(nextCard()).timer).toBe('Ends in :25');
+			expect(nextCard().querySelector('.ringValue').getAttribute('stroke-dashoffset')).toBe('0');
+			// At Instant the next episode starts with no card.
+			tryOn(rerender, 'nextUpTimeout', 0);
+			expect(nextCard()).toBeNull();
+			expect(find('.playerControls')).not.toBeNull();
+			cleanup();
+			// The countdown follows the style, and without autoplay the card doesn't count at all.
+			draw({autoPlay: true, nextUpCountdownStyle: 'progressBar', nextUpTimeout: 12}, 'setting-nextUpTimeout', 'player');
+			expect(countdownOf(nextCard())).toEqual({ring: true, number: null, timer: null});
+			cleanup();
+			draw({autoPlay: false, nextUpTimeout: 12}, 'setting-nextUpTimeout', 'player');
+			expect(countdownOf(nextCard())).toEqual({ring: false, number: null, timer: null});
+			expect(find('[data-spotlight-id="next-up-play-btn"]')).not.toBeNull();
+		});
+
+		test('Next air date at the end draws the air date card while it\'s on, and nothing once Next Up is disabled', () => {
+			const {rerender} = draw({showNextAirDate: true}, 'setting-showNextAirDate', 'player');
+			expect(within(nextCard()).getByText('S1:E2')).toBeTruthy();
+			expect(within(nextCard()).getByText(/^In 3 days \(/)).toBeTruthy();
+			// It only says when the episode airs, with no picture, countdown or Play Next.
+			expect(nextCard().querySelector('img')).toBeNull();
+			expect(countdownOf(nextCard())).toEqual({ring: false, number: null, timer: null});
+			expect(find('[data-spotlight-id="next-up-play-btn"]')).toBeNull();
+			expect(find('.playerControls')).toBeNull();
+			tryOn(rerender, 'showNextAirDate', false);
+			expect(nextCard()).toBeNull();
+			tryOn(rerender, 'showNextAirDate', true);
+			expect(nextCard()).not.toBeNull();
+			cleanup();
+			draw({showNextAirDate: true, nextUpBehavior: 'minimal'}, 'setting-showNextAirDate', 'player');
+			expect(nextCard().closest('.minimal')).not.toBeNull();
+			cleanup();
+			draw({showNextAirDate: true, nextUpBehavior: 'disabled'}, 'setting-nextUpBehavior', 'player');
+			expect(nextCard()).toBeNull();
+		});
+
+		test('Replace Skip Outro swaps the credits\' skip prompt for the next episode card', () => {
+			const {rerender} = draw({outroAction: 'ask', replaceSkipOutroWithNextUp: false, nextUpCountdownStyle: 'both'}, 'setting-replaceSkipOutroWithNextUp', 'player');
+			expect(within(skipPrompt()).getByText('Skip Outro')).toBeTruthy();
+			// Past a minute the number leaves the ring for the timer line.
+			expect(countdownOf(skipPrompt())).toEqual({ring: true, number: null, timer: 'Ends in 1:20'});
+			expect(nextCard()).toBeNull();
+			tryOn(rerender, 'replaceSkipOutroWithNextUp', true);
+			expect(skipPrompt()).toBeNull();
+			expect(within(nextCard()).getByText('Up Next')).toBeTruthy();
+			expect(find('[data-spotlight-id="next-up-play-btn"]')).not.toBeNull();
+			// The credits come before the countdown starts.
+			expect(countdownOf(nextCard())).toEqual({ring: false, number: null, timer: null});
+			cleanup();
+			// With Next Up disabled the credits keep their prompt, and an outro skipped by itself has none.
+			draw({outroAction: 'ask', replaceSkipOutroWithNextUp: true, nextUpBehavior: 'disabled'}, 'setting-replaceSkipOutroWithNextUp', 'player');
+			expect(within(skipPrompt()).getByText('Skip Outro')).toBeTruthy();
+			expect(nextCard()).toBeNull();
+			cleanup();
+			draw({outroAction: 'auto', replaceSkipOutroWithNextUp: false}, 'setting-replaceSkipOutroWithNextUp', 'player');
+			expect(skipPrompt()).toBeNull();
+			expect(nextCard()).toBeNull();
+		});
+
+		test('Outro Segments shows the credits with the Skip Outro prompt only while the one being tried asks', () => {
+			const {rerender} = draw({outroAction: 'ask', replaceSkipOutroWithNextUp: false}, 'setting-outroAction', 'player');
+			expect(screen.getByText('Shows on the Player preview')).toBeTruthy();
+			expect(within(skipPrompt()).getByText('Skip Outro')).toBeTruthy();
+			for (const value of ['auto', 'none']) {
+				tryOn(rerender, 'outroAction', value);
+				expect(skipPrompt()).toBeNull();
+				expect(nextCard()).toBeNull();
+				expect(find('.playerControls')).not.toBeNull();
+			}
+			tryOn(rerender, 'outroAction', 'ask');
+			expect(within(skipPrompt()).getByText('Skip Outro')).toBeTruthy();
+			cleanup();
+			// Replace Skip Outro brings the next episode card in place of the prompt.
+			draw({outroAction: 'ask', replaceSkipOutroWithNextUp: true}, 'setting-outroAction', 'player');
+			expect(skipPrompt()).toBeNull();
+			expect(within(nextCard()).getByText('Up Next')).toBeTruthy();
+		});
+
+		test('Date Format writes the next air date in the order being tried', () => {
+			const airs = () => within(nextCard()).getByText(/^In 3 days \(/).textContent;
+			const {rerender} = draw({showNextAirDate: true, dateFormat: 'monthDay'}, 'setting-dateFormat', 'player');
+			expect(screen.getByText('Shows on the Player preview')).toBeTruthy();
+			expect(airs()).toMatch(/^In 3 days \([A-Za-z]+\.? \d+\)$/);
+			tryOn(rerender, 'dateFormat', 'dayMonth');
+			expect(airs()).toMatch(/^In 3 days \(\d+ [A-Za-z]+\.?\)$/);
+		});
+	});
+
+	test('Pause While Scrubbing pauses the scrub while trick play is on', () => {
+		const playPause = () => Array.from(document.querySelectorAll('.transportButtons .focusTooltip')).map((tip) => tip.textContent)
+			.find((label) => label === 'Play' || label === 'Pause');
+		const {rerender} = draw({trickPlayMode: 'single', trickPlayPauseWhileScrubbing: true}, 'setting-trickPlayPauseWhileScrubbing', 'player');
+		const tryScrub = (value) => rerender(
+			<SettingsLivePreview scene='player' row={describeRow('setting-trickPlayPauseWhileScrubbing', mockSettings)} trying={{key: 'trickPlayPauseWhileScrubbing', value, index: 0}} onPickScene={() => {}} onLeaveChips={() => {}} />
+		);
+		expect(find('.seekIndicator').style.backgroundColor).toBe('rgb(255, 255, 255)');
+		expect(playPause()).toBe('Play');
+		tryScrub(false);
+		expect(playPause()).toBe('Pause');
+		tryScrub(true);
+		expect(playPause()).toBe('Play');
+		cleanup();
+		// Without thumbnails the player doesn't hold the scrub.
+		draw({trickPlayMode: 'disabled', trickPlayPauseWhileScrubbing: true}, 'setting-trickPlayMode', 'player');
+		expect(playPause()).toBe('Pause');
+	});
+
 	test('the Calendar chip only shows while the server offers the calendar', () => {
 		const chips = () => Array.from(find('.chips').children).map((chip) => chip.textContent);
 		const {unmount} = draw({}, 'setting-clockDisplay', 'home');
@@ -433,13 +730,53 @@ describe('SettingsLivePreview', () => {
 			expect(await screen.findByText('Starts in')).toBeTruthy();
 			expect(screen.queryByText('Upcoming')).toBeNull();
 			cleanup();
-			// Its other settings wait until they're saved, or My shows would empty the list here.
+			// The scope being tried filters it too, and the user follows nothing here.
 			draw({}, 'setting-calendarScope', 'calendar', {trying: {key: 'calendarScope', value: 'myShows', index: 1}});
+			expect(await screen.findByText('Nothing coming up')).toBeTruthy();
+			cleanup();
+			// Its other settings wait until they're saved.
+			draw({}, 'setting-calendarShowEpisodes', 'calendar', {trying: {key: 'calendarShowEpisodes', value: false, index: 1}});
 			await waitFor(() => expect(screen.getAllByText('Night Shift').length).toBeGreaterThan(0));
 			expect(focus).not.toHaveBeenCalled();
 		} finally {
 			focus.mockRestore();
 		}
+	});
+
+	test('Week Start draws the month grid starting on the day being tried, and nothing in it takes focus', async () => {
+		mockSeerr = {...mockSeerr, pluginInfo: {calendarAvailable: true}};
+		// The mocks reset between tests, and only the first test to draw the calendar keeps its load.
+		require('../../../services/calendarApi').loadCalendar.mockImplementation(() => Promise.resolve({entries: [mockEpisode()], problem: null}));
+		const focus = jest.spyOn(Spotlight, 'focus');
+		const firstWeekday = () => find('.weekdays').firstChild.textContent;
+		try {
+			draw({calendarWeekStart: 'sunday'}, 'setting-calendarWeekStart', 'calendar');
+			await waitFor(() => expect(find('.weekdays')).not.toBeNull());
+			expect(firstWeekday()).toBe('Sun');
+			expect(screen.getByText('Shows on the Calendar preview')).toBeTruthy();
+			expect(find('.page').getAttribute('data-spotlight-container-disabled')).toBe('true');
+			cleanup();
+			draw({calendarWeekStart: 'sunday'}, 'setting-calendarWeekStart', 'calendar', {trying: {key: 'calendarWeekStart', value: 'monday', index: 2}});
+			await waitFor(() => expect(find('.weekdays')).not.toBeNull());
+			expect(firstWeekday()).toBe('Mon');
+			expect(focus).not.toHaveBeenCalled();
+		} finally {
+			focus.mockRestore();
+		}
+	});
+
+	test('UI Scaling draws Home at the scale being tried', () => {
+		const screenInner = () => find('.screenInner');
+		draw({uiScale: 1}, 'setting-uiScale', 'home', {trying: {key: 'uiScale', value: 1.2, index: 8}});
+		expect(screen.getByText('Shows on the Home preview')).toBeTruthy();
+		expect(screenInner().style.width).toBe('800px');
+		// Saved, it's drawn at that scale while the row has focus, and at the screen's own size elsewhere.
+		cleanup();
+		draw({uiScale: 0.8}, 'setting-uiScale', 'home');
+		expect(screenInner().style.width).toBe('1200px');
+		cleanup();
+		draw({uiScale: 0.8}, 'setting-oledMode', 'home');
+		expect(screenInner().style.width).toBe('960px');
 	});
 
 	test('the Library chip only shows with a video, music or book library, and comes after Calendar', () => {
@@ -534,13 +871,40 @@ describe('SettingsLivePreview', () => {
 		unmount();
 		draw({seasonalTheme: 'snow', seasonalDensity: 'normal'}, 'setting-seasonalDensity', 'home', {trying: {key: 'seasonalDensity', value: 'heavy', index: 2}});
 		expect(particles()).toBe(falls.heavy);
-		// The preview has no focus for the follower to follow.
+		// Snow has no follower.
 		expect(find('.frame .follower')).toBeNull();
 		cleanup();
-		for (const rowId of ['setting-seasonalFollower', 'setting-clockDisplay']) {
-			draw({seasonalTheme: 'snow', seasonalDensity: 'normal'}, rowId, 'home');
-			expect(find('.overlay')).toBeNull();
+		draw({seasonalTheme: 'snow', seasonalDensity: 'normal'}, 'setting-clockDisplay', 'home');
+		expect(find('.overlay')).toBeNull();
+	});
+
+	test('Focus Follower draws the follower on the card the preview holds in focus, while it\'s on and the effect has one', async () => {
+		const box = (left, top, width, height) => ({left, top, width, height, right: left + width, bottom: top + height});
+		// The preview draws the 1920 by 1080 window at 960 by 540, with the held card at 50, 100.
+		const rects = jest.spyOn(window.Element.prototype, 'getBoundingClientRect').mockImplementation(function () {
+			return this.hasAttribute('data-held-focus') ? box(50, 100, 60, 90) : box(0, 0, 960, 540);
+		});
+		const widths = jest.spyOn(window.HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(1920);
+		const heights = jest.spyOn(window.HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(1080);
+		try {
+			const spot = followerSpot('planchette', {landing: 'card', rect: box(100, 200, 120, 180), screenWidth: 1920, screenHeight: 1080});
+			// Classic rows hold their first card in focus for it.
+			draw({homeRowsStyle: 'v1', seasonalTheme: 'halloween', seasonalFollower: true}, 'setting-seasonalFollower', 'home');
+			expect(screen.getByText('Shows on the Home preview')).toBeTruthy();
+			expect(document.querySelectorAll('.frame [data-held-focus]')).toHaveLength(1);
+			await waitFor(() => expect(find('.frame .follower').style.opacity).toBe('1'));
+			expect(find('.frame .glider').style.transform).toBe(`translate3d(${spot.x}px, ${spot.y}px, 0) rotate(${spot.angle}deg)`);
 			cleanup();
+			draw({homeRowsStyle: 'v1', seasonalTheme: 'halloween', seasonalFollower: false}, 'setting-seasonalFollower', 'home');
+			expect(find('.frame .overlay')).not.toBeNull();
+			expect(find('.frame .follower')).toBeNull();
+			cleanup();
+			draw({seasonalTheme: 'none', seasonalFollower: true}, 'setting-seasonalFollower', 'home');
+			expect(find('.frame .follower')).toBeNull();
+		} finally {
+			rects.mockRestore();
+			widths.mockRestore();
+			heights.mockRestore();
 		}
 	});
 
@@ -580,6 +944,8 @@ describe('the audio and Collections Row Options', () => {
 	});
 
 	afterEach(() => {
+		// Unmount first, since the preview redraws when Home's rows change.
+		cleanup();
 		memoryCache.rowData = null;
 		mockParentalFilter = require('../../../utils/parentalFilter').parentalFilterFromRatings([]);
 	});
@@ -745,3 +1111,228 @@ describe('the audio and Collections Row Options', () => {
 	});
 });
 
+describe('Home\'s own rows', () => {
+	let server = 100;
+	const heat = {Id: 'm1', Name: 'Heat', Type: 'Movie', ImageTags: {Primary: 'p', Thumb: 't', Banner: 'b'}, BackdropImageTags: ['bd'], UserData: {PlayedPercentage: 40}};
+	const fargo = {Id: 's2', Name: 'Fargo', Type: 'Series', ImageTags: {Primary: 'p'}, UserData: {UnplayedItemCount: 3}};
+	const pilot = {
+		Id: 'e1', Name: 'Pilot', Type: 'Episode', SeriesId: 's1', SeriesName: 'Lost', SeriesPrimaryImageTag: 'sp', ParentThumbItemId: 's1',
+		ParentThumbImageTag: 'st', ImageTags: {Primary: 'ep'}, UserData: {Played: true}
+	};
+	const alien = {Id: 'm2', Name: 'Alien', Type: 'Movie', ImageTags: {Primary: 'p', Thumb: 't'}};
+	const home = (extra = {}) => ({
+		homeRowsStyle: 'v1',
+		homeRowOverlay: false,
+		mergeContinueWatchingNextUp: false,
+		homeRows: [
+			{id: 'latest-media', name: 'Recently Added', enabled: true, order: 0},
+			{id: 'resume', name: 'Continue Watching', enabled: true, order: 1},
+			{id: 'nextup', name: 'Next Up', enabled: true, order: 2}
+		],
+		...extra
+	});
+	const rowTitles = () => ['Recently Added Films', 'Continue Watching', 'Next Up', 'Favorite Movies'].filter((title) => screen.queryAllByText(title).length > 0);
+	const cardOf = (title) => screen.getAllByText(title).map((node) => node.parentElement).find((node) => node.style.width);
+	const artOf = (title) => cardOf(title).querySelector('img').getAttribute('src');
+	const shapeOf = (title) => {
+		const card = cardOf(title);
+		return parseFloat(card.style.width) / parseFloat(card.firstChild.style.height);
+	};
+	const focusedCard = () => Array.from(document.querySelectorAll('.frame div')).find((node) => node.style.border.indexOf('3px solid') === 0).parentNode.parentNode;
+
+	beforeEach(() => {
+		server += 1;
+		mockAuth = {...mockAuth, serverUrl: `http://server${server}`, api: {getItems: jest.fn(async () => ({Items: [alien]}))}};
+		memoryCache.rowData = [
+			{id: 'latest-lib', title: 'Recently Added Films', isLatestRow: true, items: [alien], type: 'portrait'},
+			{id: 'resume', title: 'Continue Watching', items: [heat, fargo], type: 'landscape'},
+			{id: 'nextup', title: 'Next Up', items: [pilot], type: 'landscape'}
+		];
+	});
+
+	afterEach(() => {
+		cleanup();
+		memoryCache.rowData = null;
+	});
+
+	test('Watched Indicators starts at the first row wearing them, and draws them the way the one being tried allows', () => {
+		const shown = () => ({
+			progress: Boolean(cardOf('Heat').querySelector('div[style*="width: 40%"]')),
+			count: within(cardOf('Fargo')).queryByText('3') !== null,
+			check: Boolean(cardOf('Pilot').querySelector('svg'))
+		});
+		const {rerender} = draw(home(), 'setting-watchedIndicatorBehavior', 'home');
+		expect(rowTitles()).toEqual(['Continue Watching', 'Next Up']);
+		expect(within(focusedCard()).getByText('Heat')).toBeTruthy();
+		expect(shown()).toEqual({progress: true, count: true, check: true});
+		const row = describeRow('setting-watchedIndicatorBehavior', mockSettings);
+		const expected = {hideCount: {progress: true, count: false, check: true}, episodesOnly: {progress: false, count: false, check: true}, never: {progress: false, count: false, check: false}};
+		Object.keys(expected).forEach((value, index) => {
+			rerender(<SettingsLivePreview scene='home' row={row} trying={{key: 'watchedIndicatorBehavior', value, index}} onPickScene={() => {}} onLeaveChips={() => {}} />);
+			expect(shown()).toEqual(expected[value]);
+		});
+	});
+
+	test('Hide Watch Progress and Hide Unwatched Count start at the first row wearing them and take off only their own mark', () => {
+		const shown = () => ({
+			progress: Boolean(cardOf('Heat').querySelector('div[style*="width: 40%"]')),
+			count: within(cardOf('Fargo')).queryByText('3') !== null
+		});
+		draw(home({hideHomeWatchProgress: true}), 'setting-hideHomeWatchProgress', 'home');
+		expect(rowTitles()).toEqual(['Continue Watching', 'Next Up']);
+		expect(shown()).toEqual({progress: false, count: true});
+		cleanup();
+		draw(home({hideHomeUnwatchedCount: true}), 'setting-hideHomeUnwatchedCount', 'home');
+		expect(rowTitles()).toEqual(['Continue Watching', 'Next Up']);
+		expect(shown()).toEqual({progress: true, count: false});
+	});
+
+	test('Display Series Thumbnails starts at the first row with an episode and swaps its still for the series art, in either style', () => {
+		draw(home(), 'setting-useSeriesThumbnails', 'home');
+		expect(rowTitles()).toEqual(['Next Up']);
+		expect(artOf('Pilot')).toContain('/Items/e1/Images/Primary');
+		cleanup();
+		// A Classic poster row takes the series poster and a wider one the series thumb, as Home's cards do.
+		draw(home({useSeriesThumbnails: true}), 'setting-useSeriesThumbnails', 'home');
+		expect(artOf('Pilot')).toContain('/Items/s1/Images/Primary');
+		cleanup();
+		draw(home({useSeriesThumbnails: true, homeRowsImageType: 'thumb'}), 'setting-useSeriesThumbnails', 'home');
+		expect(artOf('Pilot')).toContain('/Items/s1/Images/Thumb');
+		cleanup();
+		// A Modern card shows the series art once it's focused.
+		draw(home({homeRowsStyle: 'v2', useSeriesThumbnails: true}), 'setting-useSeriesThumbnails', 'home');
+		expect(focusedCard().querySelector('img').getAttribute('src')).toContain('/Items/s1/Images/Thumb');
+	});
+
+	test('a row on the image type screen is drawn first in its artwork and shape, and the global type reshapes the rest', () => {
+		draw(home({homeRowImageTypes: {resume: 'banner'}}), 'row-image-type-resume', 'home');
+		expect(screen.getByText('Shows on the Home preview')).toBeTruthy();
+		expect(rowTitles()).toEqual(['Continue Watching', 'Next Up']);
+		expect(shapeOf('Heat')).toBeCloseTo(1168 / 216);
+		expect(artOf('Heat')).toContain('/Items/m1/Images/Banner');
+		cleanup();
+		// Merged with Next Up, the row is set under Continue Watching.
+		draw(home({mergeContinueWatchingNextUp: true}), 'row-image-type-nextup', 'home');
+		expect(screen.getByText('Continue Watching & Next Up')).toBeTruthy();
+		expect(screen.queryByText('Alien')).toBeNull();
+		cleanup();
+		draw(home({homeRowsImageType: 'thumb'}), 'setting-homeRowsImageType', 'home');
+		expect(shapeOf('Alien')).toBeCloseTo(16 / 9);
+		expect(artOf('Alien')).toContain('/Items/m2/Images/Thumb');
+		cleanup();
+		draw(home(), 'setting-homeRowsImageType', 'home');
+		expect(shapeOf('Alien')).toBeCloseTo(2 / 3);
+	});
+
+	test('Focus Expansion Animation grows the focused Classic card, and Info Overlay brings back the info band', () => {
+		draw(home(), 'setting-cardFocusZoom', 'home');
+		expect(rowTitles()).toEqual(['Recently Added Films', 'Continue Watching', 'Next Up']);
+		expect(focusedCard().style.transform).toBe('scale(1.05)');
+		expect(screen.getAllByText('Alien')).toHaveLength(1);
+		cleanup();
+		draw(home({cardFocusZoom: false, homeRowOverlay: true}), 'setting-homeRowOverlay', 'home');
+		expect(focusedCard().style.transform).toBe('');
+		expect(screen.getAllByText('Alien')).toHaveLength(2);
+	});
+
+	test('the preview follows Home as it loads its rows again behind Settings', async () => {
+		memoryCache.rowData = [];
+		draw(home(), 'setting-cardFocusZoom', 'home');
+		expect(screen.queryByText('Heat')).toBeNull();
+		act(() => {
+			memoryCache.rowData = [{id: 'resume', title: 'Continue Watching', items: [heat], type: 'landscape'}];
+		});
+		expect(screen.getByText('Heat')).toBeTruthy();
+	});
+
+	test('the Rows screen draws its arrangement before it\'s saved', () => {
+		const settings = home();
+		const draft = [settings.homeRows[2], settings.homeRows[0], settings.homeRows[1]].map((entry, order) => ({...entry, order}));
+		draw(settings, 'homerow-nextup', 'home', {trying: {key: 'homeRows', value: draft, index: -1}});
+		expect(screen.getByText('Shows on the Home preview')).toBeTruthy();
+		expect(rowTitles()).toEqual(['Recently Added Films', 'Continue Watching', 'Next Up']);
+		const titles = Array.from(document.querySelectorAll('.frame div')).map((node) => node.textContent);
+		expect(titles.indexOf('Next Up')).toBeLessThan(titles.indexOf('Recently Added Films'));
+	});
+
+	test('a Favorites sort being tried loads Home\'s favorites rows through Home\'s own loader, in that sort', async () => {
+		const settings = home({displayFavoritesRows: true, homeRows: [
+			{id: 'resume', name: 'Continue Watching', enabled: true, order: 0},
+			{id: 'favoriteMovies', name: 'Favorite Movies', enabled: true, order: 1}
+		]});
+		const {rerender} = draw(settings, 'setting-favoritesRowSortBy', 'home');
+		await waitFor(() => expect(rowTitles()).toEqual(['Favorite Movies']));
+		expect(mockAuth.api.getItems).toHaveBeenCalledWith(expect.objectContaining({Filters: 'IsFavorite', IncludeItemTypes: 'Movie', SortBy: expect.stringMatching(/^SortName/)}));
+		expect(within(focusedCard()).getByText('Alien')).toBeTruthy();
+		const row = describeRow('setting-favoritesRowSortBy', mockSettings);
+		rerender(<SettingsLivePreview scene='home' row={row} trying={{key: 'favoritesRowSortBy', value: 'DateCreated', index: 1}} onPickScene={() => {}} onLeaveChips={() => {}} />);
+		await waitFor(() => expect(mockAuth.api.getItems).toHaveBeenCalledWith(expect.objectContaining({Filters: 'IsFavorite', SortBy: expect.stringMatching(/^DateCreated/)})));
+	});
+
+	test('with the Favorites rows off in Rows, a notice names them and the group they sit in', () => {
+		draw(home({displayFavoritesRows: true}), 'setting-favoritesRowSortBy', 'home');
+		expect(find('.notice').textContent).toBe('The Favorites rows are all turned off. To show one, go to Rows, open Favorites under Disabled, and turn it on.');
+		cleanup();
+		draw(home({displayStudiosRows: false}), 'setting-studiosRowSortBy', 'home');
+		expect(find('.notice').textContent).toBe('To see the Studios row on Home, first turn on Display Studio Row. Then go to Rows, open Genres and Studios under Disabled, and turn it on.');
+		expect(screen.getByText('Turn on Display Studio Row, then turn on a row in Rows')).toBeTruthy();
+	});
+
+	test('Poster Labels puts the server\'s labels on the cards of Home\'s rows, and takes them off', () => {
+		draw(home({useMoonfinPlugin: true, showPosterLabels: true}), 'setting-showPosterLabels', 'home');
+		expect(screen.getByText('Shows on the Home preview')).toBeTruthy();
+		expect(within(cardOf('Heat')).getByText('4K')).toBeTruthy();
+		expect(screen.getAllByText('4K')).toHaveLength(1);
+		cleanup();
+		draw(home({useMoonfinPlugin: true, homeRowsStyle: 'v2', showPosterLabels: true}), 'setting-showPosterLabels', 'home');
+		expect(within(cardOf('Heat')).getByText('4K')).toBeTruthy();
+		cleanup();
+		draw(home({useMoonfinPlugin: true, showPosterLabels: false}), 'setting-showPosterLabels', 'home');
+		expect(screen.queryByText('4K')).toBeNull();
+	});
+
+	test('Modern cards on My Media row starts at My Media, and turns its wide tiles into posters that grow on focus', () => {
+		const library = (Id, Name) => ({Id, Name, Type: 'CollectionFolder', isLibraryTile: true, ImageTags: {Primary: 'p', Thumb: 't'}});
+		memoryCache.rowData = [
+			...memoryCache.rowData,
+			{id: 'library-tiles', title: 'My Media', items: [library('l1', 'Movies'), library('l2', 'Shows')], type: 'landscape', isLibraryRow: true}
+		];
+		const settings = (modernCardsOnMyMediaRow) => home({
+			homeRowsStyle: 'v2',
+			modernCardsOnMyMediaRow,
+			homeRows: [...home().homeRows, {id: 'library-tiles', name: 'My Media', enabled: true, order: 3}]
+		});
+		// What's under a card that grew on focus.
+		const grown = () => Boolean(focusedCard().querySelector('div[style*="height: 76px"]'));
+		draw(settings(false), 'setting-modernCardsOnMyMediaRow', 'home');
+		expect(screen.getByText('Shows on the Home preview')).toBeTruthy();
+		expect(within(focusedCard()).getByText('Movies')).toBeTruthy();
+		expect(grown()).toBe(false);
+		expect(shapeOf('Movies')).toBeCloseTo(16 / 9);
+		expect(shapeOf('Shows')).toBeCloseTo(16 / 9);
+		expect(artOf('Shows')).toContain('/Items/l2/Images/Thumb');
+		cleanup();
+		draw(settings(true), 'setting-modernCardsOnMyMediaRow', 'home');
+		expect(within(focusedCard()).getByText('Movies')).toBeTruthy();
+		expect(grown()).toBe(true);
+		expect(focusedCard().querySelector('img').getAttribute('src')).toContain('/Items/l1/Images/Thumb');
+		expect(shapeOf('Shows')).toBeCloseTo(2 / 3);
+		expect(artOf('Shows')).toContain('/Items/l2/Images/Primary');
+	});
+
+	test('Peek Home Rows draws Home\'s first row along the bottom of the bars that have a peek', () => {
+		const peekTop = () => {
+			const title = screen.queryByText('Recently Added Films');
+			return title ? title.parentElement.parentElement.style.top : null;
+		};
+		draw(home({mediaBarRowPeek: true, featuredBarStyle: 'moonfin'}), 'setting-mediaBarRowPeek', 'home');
+		// The title band and half of a Classic poster, up from the bottom of the 540 tall screen.
+		expect(peekTop()).toBe(`${540 - (24 + 19 + 5 + 90)}px`);
+		cleanup();
+		draw(home({mediaBarRowPeek: true, featuredBarStyle: 'banner'}), 'setting-mediaBarRowPeek', 'home');
+		expect(peekTop()).toBeNull();
+		cleanup();
+		draw(home({mediaBarRowPeek: false}), 'setting-featuredBarStyle', 'home');
+		expect(peekTop()).toBeNull();
+	});
+});

@@ -57,10 +57,10 @@ const SpotlightDetailContent = (props) => {
 		effectiveApi, serverToken, seasons = [], similar = [], similarSource, reviews = [], onSelectReview, extras = [], cast = [], crew = [],
 		nextUp = [], collectionItems = [], missingCollectionItems = [], parentCollections = [],
 		albumTracks = [], artistAlbums = [], playlistItems = [], personMovies = [], personSeries = [],
-		filmography, loadMoreCollectionItems, collectionMenu, collectionOrder,
+		filmography, loadMoreCollectionItems, loadMoreCollectionTitles, collectionMenu, collectionOrder,
 		mediaSource, hasMultipleVersions, selectedAudioIndex, selectedSubtitleIndex,
 		onSelectItem, onSelectPerson, onSelectStudio, onSelectSeerrCard,
-		handleChapterSelect, handleExtraSelect, playTrack, playlistMenu,
+		handleChapterSelect, handleExtraSelect, playTrack, playlistMenu, bookSeriesItem,
 		onReorderPlaylistItem, onRemovePlaylistItem, canManagePlaylist, spotlightBackRef
 	} = props;
 
@@ -159,7 +159,7 @@ const SpotlightDetailContent = (props) => {
 		collectionItems, missingCollectionItems, parentCollections,
 		albumTracks, artistAlbums, playlistItems, playlistSort,
 		personMovies, personSeries, filmography: otherCredits,
-		seerrAppearances, seerrCrewCredits,
+		seerrAppearances, seerrCrewCredits, bookSeriesItem,
 		studioCards, canManagePlaylist,
 		seerr: {
 			details: seerr.details,
@@ -174,7 +174,7 @@ const SpotlightDetailContent = (props) => {
 		fallbackImageUrl: cardFallbackImageUrl
 	}), [
 		item, effectiveServerUrl, settings, showsSection, seerrOnly, mediaSource, seasons, episodes, seriesEpisodes, similar, similarSource, reviews,
-		extras, cast, crew, nextUp, collectionItems, missingCollectionItems, parentCollections,
+		extras, cast, crew, nextUp, collectionItems, missingCollectionItems, parentCollections, bookSeriesItem,
 		albumTracks, artistAlbums, playlistItems, playlistSort, personMovies, personSeries, otherCredits,
 		seerrAppearances, seerrCrewCredits, studioCards, canManagePlaylist, cardFallbackImageUrl,
 		seerr.recommendationCards, seerr.similarCards, seerr.details, seerr.mediaType, seerr.collection, seerr.seasonMarkers,
@@ -193,7 +193,6 @@ const SpotlightDetailContent = (props) => {
 		playlistMenu,
 		reorderTrack: onReorderPlaylistItem,
 		removeTrack: onRemovePlaylistItem,
-		loadMoreCollectionItems,
 		collectionMenu,
 		effectiveApi,
 		settings,
@@ -202,7 +201,7 @@ const SpotlightDetailContent = (props) => {
 	}), [
 		onSelectItem, onSelectSeerrCard, onSelectPerson, onSelectStudio, onSelectReview, handleChapterSelect,
 		handleExtraSelect, playTrack, playlistMenu, onReorderPlaylistItem, onRemovePlaylistItem,
-		loadMoreCollectionItems, collectionMenu,
+		collectionMenu,
 		effectiveApi, settings, selectedAudioIndex, selectedSubtitleIndex
 	]);
 
@@ -311,6 +310,7 @@ const SpotlightDetailContent = (props) => {
 	};
 
 	const heroTitle = () => {
+		const itemName = bookSeriesItem ? bookSeriesItem.Name : item.Name;
 		if (isEpisode) {
 			return (
 				<>
@@ -330,7 +330,7 @@ const SpotlightDetailContent = (props) => {
 						)}
 					</div>
 					<h1 className={css.title}>
-						{item.Name}
+						{itemName}
 						{!logoUrl && !item.SeriesName && renderVersionBadge()}
 					</h1>
 				</>
@@ -339,14 +339,14 @@ const SpotlightDetailContent = (props) => {
 		if (logoUrl && !isPerson) {
 			return (
 				<div className={css.logoRow}>
-					<img className={css.logo} src={logoUrl} alt={item.Name} onError={onLogoError} />
+					<img className={css.logo} src={logoUrl} alt={itemName} onError={onLogoError} />
 					{renderVersionBadge()}
 				</div>
 			);
 		}
 		return (
 			<h1 className={css.title}>
-				{item.Name}
+				{itemName}
 				{renderVersionBadge()}
 			</h1>
 		);
@@ -454,9 +454,8 @@ const SpotlightDetailContent = (props) => {
 				serverUrl={effectiveServerUrl}
 				actions={cardActions}
 				seerr={{details: seerr.details, mediaType: seerr.mediaType, collection: seerr.collection, streaming: seerr.streamingProviders, nav: seerrNav}}
-				// Paging appends to the playlist list, which is the one that arrives a page at a
-				// time. The Movies and Shows grid is fetched whole, so it has nothing to ask for.
-				onNearEnd={openCardId === 'playlist_order' ? cardActions.loadMoreCollectionItems : null}
+				// The playlist and the Movies and Shows grid each arrive a page at a time.
+				onNearEnd={{playlist_order: loadMoreCollectionItems, boxset_items: loadMoreCollectionTitles}[openCardId] || null}
 			/>
 			{collectionSort.sortOpen && (
 				<NouveauSortDialog

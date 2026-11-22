@@ -4,7 +4,7 @@ import $L from '@enact/i18n/$L';
 import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 
-import {arrange, seerrOnlyRow, countSplit, applyButtonLimit, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../utils/buttonLayout';
+import {arrange, seerrOnlyRow, splitSlots, countSplit, applyButtonLimit, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../utils/buttonLayout';
 import {KEYS} from '../../utils/keys';
 import {DETAIL_ICON_PATHS} from './detailIcons';
 import {ActionButton, detailActionCatalogue} from './detailActions';
@@ -20,8 +20,10 @@ const MenuContainer = SpotlightContainerDecorator({
 }, 'div');
 
 // A host that hands over handleOpenExtras gets an Extras button straight after Play, outside the
-// viewer's arrangement, and can send focus back to it by this id.
+// viewer's arrangement, and can send focus back to it by this id. handleOpenCollectionItems does the
+// same for a collection's own titles, under collectionItemsLabel.
 export const EXTRAS_BUTTON_ID = 'details-extras-btn';
+export const COLLECTION_ITEMS_BUTTON_ID = 'details-collection-items-btn';
 
 // The pickers a host can draw on its own instead, with `omitTrackButtons`.
 const TRACK_BUTTONS = ['version', 'audio', 'subtitles'];
@@ -49,9 +51,9 @@ const ModernActionButtons = (props) => {
 	// Only what the row itself needs. Everything the buttons are built from is read straight off
 	// props by the catalogue.
 	const {
-		settings, seerrOnly, isBook, isReadableBook, isPlaylist, playlistTracks, isPerson,
+		actionsHeld, settings, seerrOnly, isBook, isReadableBook, isPlaylist, playlistTracks, isPerson,
 		hasPlaybackPosition, resumeTimeText, hasTech,
-		handlePlay, handleResume, handleOpenExtras,
+		handlePlay, handleResume, handleOpenExtras, handleOpenCollectionItems, collectionItemsLabel,
 		onFocusRow, downTarget, maxVisibleButtons, overflowAsMenu, menuBackRef,
 		stacked, centered, startAligned, frosted, omitTrackButtons, buttonCap, onNavigateUp, onNavigateDown, onRightEdge
 	} = props;
@@ -165,15 +167,15 @@ const ModernActionButtons = (props) => {
 	const offeredButtons = rowButtons.filter((btn) => btn.when);
 	// Kids Mode sets the saved arrangement aside rather than filtering it, since its own short row
 	// is the point and a reorder would otherwise put a hidden button back.
-	const customizable = isKidsMode(settings)
+	const customizable = splitSlots(isKidsMode(settings)
 		? kidsModeButtons(offeredButtons, true)
-		: arrange(offeredButtons, {order: settings[DETAIL_ORDER_KEY], hidden: settings[DETAIL_HIDDEN_KEY]});
+		: arrange(offeredButtons, {order: settings[DETAIL_ORDER_KEY], hidden: settings[DETAIL_HIDDEN_KEY]}));
 
 	// Resume and Restart both lead the row when there is somewhere to resume from, so the
 	// leading slots are counted rather than assumed to be one. A person has nothing to play.
 	const showsResume = !seerrOnly && !isPerson && hasPlaybackPosition && !isBook;
 	const showsPlay = !seerrOnly && !isPerson && (isBook ? isReadableBook : true) && (!isPlaylist || (playlistTracks ? playlistTracks.length > 0 : true));
-	const leading = (showsResume ? 1 : 0) + (showsPlay ? 1 : 0) + (handleOpenExtras ? 1 : 0);
+	const leading = (showsResume ? 1 : 0) + (showsPlay ? 1 : 0) + (handleOpenExtras ? 1 : 0) + (handleOpenCollectionItems ? 1 : 0);
 
 	// Kids Mode's row is its own short allow list and always fits, so the viewer's cap is one more
 	// of the settings the mode sets aside. Reading it would fold a button the mode does allow behind
@@ -200,8 +202,9 @@ const ModernActionButtons = (props) => {
 	return (
 		<>
 			<RowContainer
-				className={frosted ? css.actionsFrosted : stacked ? css.actionsStacked : centered ? `${css.actionsCentered} ${startAligned ? css.actionsStart : ''}` : `${css.actions} ${hasTech ? css.actionsTight : ''}`}
+				className={`${frosted ? css.actionsFrosted : stacked ? css.actionsStacked : centered ? `${css.actionsCentered} ${startAligned ? css.actionsStart : ''}` : `${css.actions} ${hasTech ? css.actionsTight : ''}`} ${actionsHeld ? css.actionsHeld : ''}`}
 				spotlightId="details-action-buttons"
+				spotlightDisabled={actionsHeld}
 				onFocus={handleRowFocus}
 				onKeyDown={stacked ? handleStackedKeyDown : handleKeyDown}
 			>
@@ -226,6 +229,9 @@ const ModernActionButtons = (props) => {
 				)}
 				{handleOpenExtras && (
 					<ActionButton path={DETAIL_ICON_PATHS.videoLibraryOutlined} label={$L('Extras')} onClick={handleOpenExtras} spotlightId={EXTRAS_BUTTON_ID} />
+				)}
+				{handleOpenCollectionItems && (
+					<ActionButton path={DETAIL_ICON_PATHS.collectionsBookmarkOutlined} label={collectionItemsLabel} onClick={handleOpenCollectionItems} spotlightId={COLLECTION_ITEMS_BUTTON_ID} />
 				)}
 				{inline.map((btn) => <Fragment key={btn.id}>{btn.render()}</Fragment>)}
 				{behindMenu.length > 0 && (

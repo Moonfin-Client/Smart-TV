@@ -1,4 +1,3 @@
-import {registerPlexServer} from '../utils/plexUrls';
 import {getServerUrl} from './jellyfinApi';
 import {fetchBoard, parseBoard, placeRun, postScore, recordDeviceRun} from './miniGamesApi';
 import {platformFetch} from './secureFetch';
@@ -7,8 +6,11 @@ import {getFromStorage, saveToStorage} from './storage';
 jest.mock('./secureFetch', () => ({platformFetch: jest.fn()}));
 jest.mock('./storage', () => ({getFromStorage: jest.fn(), saveToStorage: jest.fn()}));
 jest.mock('./jellyfinApi', () => ({getServerUrl: jest.fn(), getApiKey: () => 'key'}));
+const mockCompanionFetch = jest.fn();
 jest.mock('./moonbaseEndpoint', () => ({
-	moonbaseEndpoint: (base) => Promise.resolve({base, headers: {Authorization: 'MediaBrowser Token="key"'}})
+	moonbaseEndpoint: (base) => Promise.resolve(base === 'http://plex:32400'
+		? {base: 'http://plex:32500', headers: {'X-Plex-Token': 'key'}, fetch: mockCompanionFetch}
+		: {base, headers: {Authorization: 'MediaBrowser Token="key"'}})
 }));
 
 const answer = (status, body) => ({ok: status >= 200 && status < 300, status, text: () => Promise.resolve(body == null ? '' : JSON.stringify(body))});
@@ -31,12 +33,12 @@ describe('After Hours scores', () => {
 		expect(init.headers.Authorization).toBe('MediaBrowser Token="key"');
 	});
 
-	test('a Plex server keeps its scores on the Moonbase companion beside it', async () => {
-		registerPlexServer('http://plex:32400', 'key');
+	test('a Plex server keeps its scores on the Moonbase companion beside it, reached its own way', async () => {
 		getServerUrl.mockReturnValueOnce('http://plex:32400');
-		platformFetch.mockResolvedValueOnce(answer(200, []));
+		mockCompanionFetch.mockResolvedValueOnce(answer(200, []));
 		await fetchBoard('buffer-run');
-		expect(platformFetch.mock.calls[0][0]).toBe('http://plex:32500/Moonfin/MiniGames/buffer-run/Scores');
+		expect(mockCompanionFetch.mock.calls[0][0]).toBe('http://plex:32500/Moonfin/MiniGames/buffer-run/Scores');
+		expect(platformFetch).not.toHaveBeenCalled();
 	});
 
 	test('a server without the plugin is an error, so the arcade falls back to the device', async () => {

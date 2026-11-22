@@ -4,9 +4,11 @@ import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 
 import {iconViewBox} from '../../components/icons/iconViewBox';
+import SeerrIcon from '../../components/icons/SeerrIcon';
 import {SeerrSeasonDot} from '../../components/seerr/SeerrStatusBadge';
 import SeerrStatusBanner, {hasSeerrDot, seerrBadgeStyle, seerrTitleStatus} from '../../components/seerr/SeerrStatusBanner';
 import {SeerrChips, SeerrFacts, SeerrStreaming} from '../../components/seerr/SeerrSections';
+import seerrApi from '../../services/seerrApi';
 import {rem, rootScale} from '../../utils/rootScale';
 import {FavoriteHeartIcon, WatchedCheckIcon} from './DetailBadges';
 import {castPhotoUrl} from './detailsMedia';
@@ -17,7 +19,7 @@ import NouveauRail from './nouveau/sections/NouveauRail';
 import {nouveauCardImageUrl} from './nouveau/nouveauCardImage';
 import {spotlightItemImageUrl} from './spotlight/spotlightImages';
 import {factsWeight} from './premiere/premiereRules';
-import {stageTrackChoices} from './stage/stageRules';
+import {collectionGroups, stageTrackChoices} from './stage/stageRules';
 
 import css from './stage/StageDetailContent.module.less';
 
@@ -42,6 +44,15 @@ export const Icon = ({path, className}) => (
 		<path d={path} />
 	</svg>
 );
+
+// A card's picture, or its placeholder when it has none or the picture fails to load.
+const CardImage = ({url, placeholder}) => {
+	const [failed, setFailed] = useState(false);
+	const handleError = useCallback(() => setFailed(true), []);
+	return url && !failed
+		? <img className={css.cardImage} src={url} alt="" onError={handleError} />
+		: <div className={css.cardPlaceholder}>{placeholder}</div>;
+};
 
 const findIn = (list, key) => list.find((candidate) => String(candidate.cardKey || candidate.Id) === key);
 
@@ -84,8 +95,8 @@ export const hasSpottable = (container, active, side) => {
 const useDetailPage = (props, {onNavigateUp, onNavigateDown, bleedRight}) => {
 	const {
 		item, settings, showsSection, seerr, seerrNav, effectiveServerUrl, backdropUrl, seasons, episodes,
-		seriesEpisodes, similar = [], extras = [], cast = [], crew = [], collectionSections = [], onSelectItem,
-		onSelectPerson, onSelectStudio, onSelectSeerrCard, handleEpisodePlay, handleOpenAudioModal,
+		seriesEpisodes, similar = [], extras = [], cast = [], crew = [], collectionItems = [], collectionSections = [],
+		collectionMenu, loadMoreCollectionTitles, onSelectItem, onSelectPerson, onSelectStudio, onSelectSeerrCard, handleEpisodePlay, handleOpenAudioModal,
 		handleOpenSubtitleModal, handleOpenVersionModal, spotlightBackRef
 	} = props;
 
@@ -156,12 +167,12 @@ const useDetailPage = (props, {onNavigateUp, onNavigateDown, bleedRight}) => {
 		if (extra) handleEpisodePlay?.(extra);
 	}, [extras, handleEpisodePlay]);
 
-	const collectionItems = useMemo(() => collectionSections.flatMap((section) => section.items), [collectionSections]);
+	const parentCollectionItems = useMemo(() => collectionSections.flatMap((section) => section.items), [collectionSections]);
 	const handlePosterCard = useCallback((ev) => {
 		const key = ev.currentTarget.dataset.selectKey;
-		const found = findIn(similar, key) || findIn(collectionItems, key);
+		const found = findIn(similar, key) || findIn(parentCollectionItems, key) || findIn(collectionItems, key);
 		if (found) onSelectItem?.(found);
-	}, [similar, collectionItems, onSelectItem]);
+	}, [similar, parentCollectionItems, collectionItems, onSelectItem]);
 
 	const handleSeerrCard = useCallback((ev) => {
 		const key = ev.currentTarget.dataset.selectKey;
@@ -189,9 +200,7 @@ const useDetailPage = (props, {onNavigateUp, onNavigateDown, bleedRight}) => {
 			>
 				<div className={css.cardArt}>
 					<div className={css.cardClip}>
-						{imageUrl
-							? <img className={css.cardImage} src={imageUrl} alt="" />
-							: <div className={css.cardPlaceholder}>{placeholder}</div>}
+						<CardImage key={imageUrl} url={imageUrl} placeholder={placeholder ?? entry.Name} />
 						{entry.UserData?.IsFavorite && (
 							<div className={css.cardFavorite}><FavoriteHeartIcon /></div>
 						)}
@@ -210,7 +219,9 @@ const useDetailPage = (props, {onNavigateUp, onNavigateDown, bleedRight}) => {
 		);
 	};
 	const seerrStyle = seerrBadgeStyle(settings);
-	const renderLibraryPoster = (entry) => renderCard(entry, handlePosterCard);
+	const renderLibraryPoster = (entry) => renderCard(entry, handlePosterCard, {
+		children: entry._seerrMissing && <span className={css.cardSeerrBadge}><SeerrIcon /></span>
+	});
 	const renderSeerrPoster = (entry) => {
 		const status = seerrStyle ? seerrTitleStatus(entry) : null;
 		return renderCard(entry, handleSeerrCard, {
@@ -247,11 +258,11 @@ const useDetailPage = (props, {onNavigateUp, onNavigateDown, bleedRight}) => {
 		wide: true
 	});
 
-	// Core draws a season Seerr knows of as its name on a plain card, with no artwork.
+	// A season Seerr knows of: its TMDB poster, or its name on a plain card when it has none.
 	const renderSeerrSeason = (season) => {
 		const status = seerrStyle ? seerr.seasonMarkers?.get(season.seasonNumber) : null;
 		return renderCard(season, handleSeasonCard, {
-			imageUrl: null,
+			imageUrl: season.posterPath ? seerrApi.getImageUrl(season.posterPath, 'w342') : null,
 			placeholder: season.Name,
 			subtitle: season.episodeCount ? String(season.episodeCount) : null,
 			children: seerrStyle === 'banner'
@@ -337,7 +348,7 @@ const useDetailPage = (props, {onNavigateUp, onNavigateDown, bleedRight}) => {
 	// The people and studios behind the title, one cell each. A cell takes focus first, and OK opens
 	// it so its names can be picked. The crew list merges a director who also wrote into one entry, so
 	// the roles are read from People. With `weighByText` each cell's width follows how much text it
-	// holds and its names sit side by side, where otherwise the cells split the panel evenly.
+	// holds, where otherwise the cells split the panel evenly.
 	const factsStop = ({weighByText = false} = {}) => {
 		const people = showsSection('crew') ? item.People || [] : [];
 		const directors = people.filter((person) => person.Type === 'Director');
@@ -352,7 +363,7 @@ const useDetailPage = (props, {onNavigateUp, onNavigateDown, bleedRight}) => {
 		return {
 			id: 'stage-facts',
 			node: (
-				<RowContainer className={`${css.panel} ${weighByText ? css.weighed : ''}`} spotlightId="stage-facts">
+				<RowContainer className={css.panel} spotlightId="stage-facts">
 					{groups.map((group, index) => {
 						const entered = openGroup === group.key;
 						const names = group.names.map((entry) => (entered
@@ -403,6 +414,14 @@ const useDetailPage = (props, {onNavigateUp, onNavigateDown, bleedRight}) => {
 		return rail('stage-seasons', $L('Seasons'), cards, renderSeerrSeason, {...POSTER_ROOM, gap: 20}, {onLeftEdge});
 	};
 
+	// A collection's own titles, a row for each kind it holds. They load a page at a time, so nearing
+	// the end of a row asks for the next one. A viewer who can't change the collection still gets the
+	// usual card menu, just without Remove.
+	const collectionStops = () => collectionGroups(item, collectionItems).map((group) => rail(
+		`stage-collection-items-${group.id}`, group.title, group.items, renderLibraryPoster, POSTER_ROOM,
+		{itemMenu: collectionMenu || true, onNearEnd: loadMoreCollectionTitles}
+	));
+
 	// The full width rows: the cast, extras, the collections the title belongs to, more like it and
 	// what Seerr adds. Seerr's own block is `whole` when it has nothing to press, its numbers and
 	// streaming services alone.
@@ -440,7 +459,7 @@ const useDetailPage = (props, {onNavigateUp, onNavigateDown, bleedRight}) => {
 		return rows;
 	};
 
-	return {menuBackRef, handleScroll, episodesStop, tracksStop, factsStop, seerrSeasonsStop, rowStops};
+	return {menuBackRef, handleScroll, episodesStop, tracksStop, factsStop, seerrSeasonsStop, collectionStops, rowStops};
 };
 
 export default useDetailPage;

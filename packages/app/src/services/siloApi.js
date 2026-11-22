@@ -17,6 +17,7 @@ import {createSiloTrackChoices} from './siloTrackChoices';
 import {siloItemMediaSources} from './siloMediaSources';
 import * as userDataSync from './userDataSync';
 import {registerSiloImage, registerSiloServer, siloImageTagFor} from '../utils/siloUrls';
+import {TIMEOUT} from '../utils/connectionErrors';
 import {
 	SILO_SETTING_KEYS, configurationToSiloSettings, isSiloSystemInfo, siloProfileToUser, siloPublicInfo,
 	siloSettingsToConfiguration
@@ -62,6 +63,19 @@ export const probeSilo = async (baseUrl) => {
 		tryRead(base, '/api/v2/system/setup')
 	]);
 	return siloPublicInfo({systemInfo, identity, branding, setup});
+};
+
+/**
+ * `probeSilo` for an address that may be another kind of server. A request that failed without timing out, like one an
+ * Emby server's CORS headers refused, means it isn't Silo, so the address can still be asked the Jellyfin way.
+ */
+export const probeSiloOrNull = async (baseUrl) => {
+	try {
+		return await probeSilo(baseUrl);
+	} catch (err) {
+		if (err.siloApiUnsupported || err.connectionType === TIMEOUT) throw err;
+		return null;
+	}
 };
 
 export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, platform}) => {
@@ -299,11 +313,12 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		reportPlaybackStart: playback.reportPlaybackStart,
 		reportPlaybackProgress: playback.reportPlaybackProgress,
 		reportPlaybackStopped: async (info) => {
-			await playback.reportPlaybackStopped(info);
+			const answer = await playback.reportPlaybackStopped(info);
 			// What was watched moves Continue Watching and Next Up along, and the item's new resume point and watched
 			// state are read back for the cards showing it.
 			items.forget();
 			noteSiloPlaybackEnded(base(), info?.ItemId);
+			return answer;
 		},
 		stopActiveEncodings: playback.stopActiveEncodings,
 		closeLiveStream: playback.closeLiveStream,
@@ -436,6 +451,8 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 						body: {value: after[key]}
 					});
 					written[key] = after[key];
+					// The newest rows keep the old Hide Watched answer for a minute otherwise.
+					if (key === SILO_SETTING_KEYS.hideWatchedItems) items.forget();
 				}
 			} finally {
 				lastSettings = {profileId: getUserId(), values: written};

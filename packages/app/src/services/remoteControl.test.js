@@ -294,12 +294,31 @@ describe('remote control', () => {
 		await play({ItemIds: ['a', 'b'], StartIndex: 1, StartPositionTicks: 50, AudioStreamIndex: 3, MediaSourceId: 'src'});
 
 		expect(app.current.playItems).toHaveBeenCalledWith(['a', 'b'], {
+			isCurrent: expect.any(Function),
 			startIndex: 1,
 			startPositionTicks: 50,
 			audioStreamIndex: 3,
 			subtitleStreamIndex: null,
 			mediaSourceId: 'src'
 		});
+	});
+
+	test('a Stop calls off a play that is still loading, even with no player up yet', async () => {
+		unregisterPlayer();
+		await play({ItemIds: ['a']});
+		const {isCurrent} = app.current.playItems.mock.calls[0][1];
+		expect(isCurrent()).toBe(true);
+
+		await playstate('Stop');
+		expect(isCurrent()).toBe(false);
+	});
+
+	test('a newer play calls off one that is still loading', async () => {
+		await play({ItemIds: ['a']});
+		await play({ItemIds: ['b']});
+		const [older, newer] = app.current.playItems.mock.calls.map(([, options]) => options.isCurrent);
+		expect(older()).toBe(false);
+		expect(newer()).toBe(true);
 	});
 
 	test('buffers typing during player exit and delivers it when Search mounts', async () => {

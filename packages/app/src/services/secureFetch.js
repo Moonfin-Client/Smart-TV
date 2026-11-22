@@ -17,7 +17,7 @@
  * rejection we surface `INSECURE_CERT` so the UI can show actionable guidance.
  */
 
-import {fetchWithTimeout} from '../utils/fetchTimeout';
+import {abortError, fetchWithTimeout} from '../utils/fetchTimeout';
 import {classifyError, INSECURE_CERT, DNS_OR_NETWORK} from '../utils/connectionErrors';
 import {traceRequest} from '../utils/networkLogSink';
 import {isVega, isWebOS} from '../platform';
@@ -45,7 +45,8 @@ const makeResponse = ({status, body, headers}) => {
 		status,
 		statusText: '',
 		headers: {
-			get: (name) => (headers ? headers[String(name).toLowerCase()] : undefined) || null
+			get: (name) => (headers ? headers[String(name).toLowerCase()] : undefined) || null,
+			forEach: (fn) => Object.keys(headers || {}).forEach((name) => fn(headers[name], name))
 		},
 		text: () => Promise.resolve(text),
 		json: () => Promise.resolve(text ? JSON.parse(text) : null)
@@ -64,6 +65,10 @@ const readSettings = async () => {
 	return lastSettings;
 };
 
+// Plex and Emby account calls carry a password or token, so the setting never reaches them.
+const ACCOUNT_SERVICE = /[/.](plex\.tv|emby\.media)(:\d+)?$/;
+const allowInsecureFor = (url, settings) => !!settings.allowInsecureCerts && !ACCOUNT_SERVICE.test(originOf(url));
+
 // The WebView on Fire TV and on Xbox refuses a certificate it cant verify and the
 // page only sees a network error. With the setting on, the shell is told to
 // accept the host and the request is tried once more.
@@ -75,7 +80,7 @@ const allowHostInShell = async (url) => {
 	const bridge = await loadShellBridge();
 	if (!bridge) return false;
 	const settings = await readSettings();
-	if (!settings.allowInsecureCerts) return false;
+	if (!allowInsecureFor(url, settings)) return false;
 	bridge.allowInsecureHost(host);
 	shellAllowedHosts.add(host);
 	return true;
@@ -166,7 +171,7 @@ export const platformFetch = async (url, options = {}, timeoutMs) => {
 	// proxy (avoids a guaranteed-to-fail fetch + its timeout on every request).
 	if (canProxy && proxyHosts.has(origin)) {
 		const settings = await readSettings();
-		return proxyRequest(url, options, timeoutMs, settings.allowInsecureCerts);
+		return proxyRequest(url, options, timeoutMs, allowInsecureFor(url, settings));
 	}
 
 	try {
@@ -188,7 +193,7 @@ export const platformFetch = async (url, options = {}, timeoutMs) => {
 		// rejection, that error carries connectionType === INSECURE_CERT so the
 		// UI shows the cert-specific guidance instead of a generic "can't reach".
 		const settings = await readSettings();
-		const res = await proxyRequest(url, options, timeoutMs, settings.allowInsecureCerts);
+		const res = await proxyRequest(url, options, timeoutMs, allowInsecureFor(url, settings));
 		proxyHosts.add(origin);
 		return res;
 	}
@@ -199,11 +204,14 @@ export const originFreeFetch = (url, options = {}, timeoutMs) => {
 	return canProxy ? proxyRequest(url, options, timeoutMs, false) : fetch(url, options);
 };
 
-// A Plex server only lets app.plex.tv read its answers across origins, and the page on
-// Fire TV sits at file://, so the shell makes those requests there.
+// A Plex server only lets app.plex.tv read its answers across origins, Silo sends no CORS
+// headers, and the page on Fire TV sits at file://, so the shell makes those requests
+// there. The shell can't stop a request it has sent, so a caller that gives up only stops one
+// that hasn't gone out yet. One already sent is waited for and keeps its place in the queue.
 export const corsFreeFetch = async (url, options = {}, timeoutMs) => {
 	const bridge = isVega() ? await loadShellBridge() : null;
 	if (!bridge?.requestThroughShell) return platformFetch(url, options, timeoutMs);
+	if (options.signal?.aborted) throw abortError();
 	return traceRequest(`${options.method || 'GET'} (shell)`, url, async () => {
 		const answer = await bridge.requestThroughShell(url, options, timeoutMs);
 		if (answer.status) return makeResponse(answer);

@@ -109,6 +109,13 @@ export const usePlayerButtons = ({
 					label: recordMark && recordMark !== 'skipped' ? $L('Cancel Recording') : $L('Record'),
 					action: 'record'
 				}] : []),
+				// Its own id, so hiding or moving the video player's Favorite button leaves the channel's alone.
+				...(canFavorite ? [{
+					id: 'channelFavorite',
+					icon: isFavorite ? <IconFavoriteFilled color={FAVORITE_PINK} /> : <IconFavorite />,
+					label: isFavorite ? $L('Unfavorite Channel') : $L('Favorite Channel'),
+					action: 'favorite'
+				}] : []),
 				{id: 'info', icon: <IconInfo />, label: $L('Playback Information'), action: 'info'}
 			], {order: osdOrder, hidden: osdHidden});
 		}

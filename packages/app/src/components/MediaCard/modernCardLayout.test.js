@@ -1,4 +1,5 @@
-import {isStaticLibraryCard, modernCardMetrics, modernRowSpacing, getCardDisplayTitle, getEpisodeLabels} from './modernCardLayout';
+import {isCarouselRow, isStaticLibraryCard, modernCardMetrics, modernRowSpacing, getCardDisplayTitle, getEpisodeLabels} from './modernCardLayout';
+import {defaultSettings} from '../../context/defaultSettings';
 
 const metrics = (over = {}) => modernCardMetrics({
 	posterSize: 'default',
@@ -25,21 +26,45 @@ describe('isStaticLibraryCard', () => {
 	});
 });
 
+describe('isCarouselRow', () => {
+	const carousel = {homeRowsStyle: 'carousel'};
+
+	test('is the default Row Type on the TV', () => {
+		expect(defaultSettings.homeRowsStyle).toBe('carousel');
+		expect(isCarouselRow({id: 'latest-movies', type: 'portrait'}, defaultSettings)).toBe(true);
+	});
+
+	test('gives title and genre rows their panel only under Carousel', () => {
+		const nextUp = {id: 'nextup', type: 'landscape'};
+		expect(isCarouselRow(nextUp, carousel)).toBe(true);
+		expect(isCarouselRow({id: 'genres-movies', type: 'portrait', isGenreRow: true}, carousel)).toBe(true);
+		expect(isCarouselRow(nextUp, {homeRowsStyle: 'v2'})).toBe(false);
+		expect(isCarouselRow(nextUp, {homeRowsStyle: 'v1'})).toBe(false);
+	});
+
+	test('keeps music, My Media, Live TV and studio rows plain', () => {
+		expect(isCarouselRow({id: 'audioalbums', type: 'square'}, carousel)).toBe(false);
+		expect(isCarouselRow({id: 'library-tiles', type: 'landscape', isLibraryRow: true}, carousel)).toBe(false);
+		expect(isCarouselRow({id: 'livetv', type: 'landscape', isLiveTvRow: true}, carousel)).toBe(false);
+		expect(isCarouselRow({id: 'studios', type: 'landscape'}, carousel)).toBe(false);
+	});
+});
+
 describe('modernCardMetrics', () => {
 	test('scales the image with the size preset and falls back to the default', () => {
-		expect(metrics({posterSize: 'small'}).imageHeight).toBe(160);
-		expect(metrics().imageHeight).toBe(200);
-		expect(metrics({posterSize: 'xlarge'}).imageHeight).toBe(280);
-		expect(metrics({posterSize: 'nonsense'}).imageHeight).toBe(200);
+		expect(metrics({posterSize: 'small'}).imageHeight).toBe(288);
+		expect(metrics().imageHeight).toBe(360);
+		expect(metrics({posterSize: 'xlarge'}).imageHeight).toBe(504);
+		expect(metrics({posterSize: 'nonsense'}).imageHeight).toBe(360);
 	});
 
 	test('keeps Grandparents at the Extra Large height', () => {
-		expect(metrics({posterSize: 'grandparents'}).imageHeight).toBe(280);
+		expect(metrics({posterSize: 'grandparents'}).imageHeight).toBe(504);
 	});
 
 	test('a poster is two thirds of its height and a sleeve is square', () => {
-		expect(metrics().cardWidth).toBe(134);
-		expect(metrics({isSquareItem: true}).cardWidth).toBe(200);
+		expect(metrics().cardWidth).toBe(240);
+		expect(metrics({isSquareItem: true}).cardWidth).toBe(360);
 	});
 
 	test('a static My Media tile is as wide as a focused card, so the rows line up', () => {
@@ -55,8 +80,8 @@ describe('modernCardMetrics', () => {
 	});
 
 	test('a focused card opens to 16:9 on every platform, as Core draws it', () => {
-		expect(metrics().expandedWidth).toBe(356);
-		expect(metrics({posterSize: 'small'}).expandedWidth).toBe(285);
+		expect(metrics().expandedWidth).toBe(640);
+		expect(metrics({posterSize: 'small'}).expandedWidth).toBe(512);
 	});
 });
 

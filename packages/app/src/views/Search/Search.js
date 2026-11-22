@@ -11,11 +11,14 @@ import {withoutBlockedItems} from '../../services/parentalControls';
 import {useSettings} from '../../context/SettingsContext';
 import {useSeerr} from '../../context/SeerrContext';
 import * as connectionPool from '../../services/connectionPool';
+import MergedServerBadge from '../../components/MergedServerBadge';
+import {hasMergedCopies, mergesLibraries} from '../../utils/mergedCopies';
 import * as gamesApi from '../../services/gamesApi';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ProxiedImage from '../../components/ProxiedImage';
 import DetailsTabBar from '../../components/DetailsTabBar';
 import GameCard from '../../components/GameCard';
+import PosterLabels from '../../components/PosterLabels';
 import {KEYS} from '../../utils/keys';
 import {getImageUrl} from '../../utils/helpers';
 import {showsWatchedCheck} from '../../utils/playedState';
@@ -116,10 +119,14 @@ const jellyfinSubtitle = (item) => {
 	}
 };
 
-const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, onPlayChannel, remoteSearch, musicBar}) => {
+// [preferRequests] is Search opened from Discover, which lands on the Requests tab once a search has
+// request results.
+const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, onPlayChannel, remoteSearch, musicBar, preferRequests = false}) => {
 	const {api, serverUrl, serverType, hasMultipleServers} = useAuth();
 	const {settings} = useSettings();
 	const unifiedMode = settings.unifiedLibraryMode && hasMultipleServers;
+	// With merged libraries a title several servers hold is one result.
+	const foldsCopies = mergesLibraries(settings, hasMultipleServers);
 	const {isEnabled: seerrEnabled, api: seerrApi, displayName: seerrName, pluginInfo} = useSeerr();
 	const smartSearchOn = !!settings.useMoonfinPlugin && pluginInfo?.smartSearchEnabled === true;
 
@@ -178,10 +185,11 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 
 	const seerrLabel = seerrName || $L('Seerr');
 
-	// Focus the All pill itself. Focusing the tab container would land on the
-	// first pill, which is Seerr or Games when either has results.
+	// Focus the All pill itself, or the Requests pill this search landed on. Focusing the tab
+	// container would land on the first pill, which is Seerr or Games when either has results.
+	const onRequestsRef = useRef(false);
 	const focusAllTab = useCallback(() => {
-		if (!Spotlight.focus('[data-spotlight-id="search-tabs"] [data-id="all"]')) {
+		if (!Spotlight.focus(`[data-spotlight-id="search-tabs"] [data-id="${onRequestsRef.current ? 'seerr' : 'all'}"]`)) {
 			Spotlight.focus('search-tabs');
 		}
 	}, []);
@@ -200,6 +208,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 
 	const doSearch = useCallback(async (searchQuery) => {
 		const requestId = ++requestIdRef.current;
+		onRequestsRef.current = false;
 		const q = (searchQuery || '').trim();
 		if (q.length < MIN_SEARCH_LENGTH) {
 			setIsLoading(false);
@@ -222,7 +231,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 			).then(withoutBlockedItems).catch(() => []);
 			const [libraryResult, channels] = await Promise.all([
 				unifiedMode
-					? connectionPool.searchAllServers(q, GLOBAL_FETCH_LIMIT).then((serverItems) => ({Items: serverItems}))
+					? connectionPool.searchAllServers(q, GLOBAL_FETCH_LIMIT, {foldCopies: foldsCopies}).then((serverItems) => ({Items: serverItems}))
 					: searchLibrary(api, q, GLOBAL_FETCH_LIMIT, serverType),
 				hasLiveTvRef.current && !isStudioQuery
 					? api.getLiveTvChannels(0, 500).then((r) => r?.Items || []).catch(() => [])
@@ -272,6 +281,14 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 					if (requestId !== requestIdRef.current) return;
 					const filtered = (res.results || []).filter((r) => r.mediaType !== 'person').slice(0, SEERR_CAP);
 					setSeerrResults(filtered);
+					if (preferRequests && filtered.length > 0) {
+						// Requests arrive after the rest, so the search moves over to them unless another tab was picked.
+						onRequestsRef.current = true;
+						setActiveTab((tab) => (tab === 'all' ? 'seerr' : tab));
+						setTimeout(() => {
+							if (Spotlight.getCurrent()?.dataset?.id === 'all' && !remoteSearchRef.current?.active) focusAllTab();
+						}, 0);
+					}
 				}).catch((err) => console.error('Seerr search failed:', err));
 			} else {
 				setSeerrResults([]);
@@ -294,7 +311,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 			setGameResults([]);
 			setIsLoading(false);
 		}
-	}, [api, serverType, seerrEnabled, seerrApi, unifiedMode, focusAllTab, rememberSearch, settings]);
+	}, [api, serverType, seerrEnabled, seerrApi, unifiedMode, foldsCopies, focusAllTab, rememberSearch, settings, preferRequests]);
 
 	// A single word is a title or a name, which the normal search handles, so only
 	// queries of two words or more go to Moonbase.
@@ -634,15 +651,22 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 				spotlightId={spotlightId}
 			>
 				<div className={`${css.cardImg} ${img} ${circle ? css.imgCircle : ''}`}>
-					{unifiedMode && item._serverName && <div className={css.serverBadge}>{item._serverName}</div>}
+					{/* A result several servers hold shows how many instead of one's name. */}
+					{unifiedMode && item._serverName && !hasMergedCopies(item) && <div className={css.serverBadge}>{item._serverName}</div>}
+					<MergedServerBadge item={item} />
 					{imageUrl
 						? <img className={css.cardImage} src={imageUrl} alt={item.Name} loading="lazy" />
 						: <div className={css.cardPlaceholder}>{circle ? '👤' : '🎬'}</div>}
 					{showsWatchedCheck(item) && (
 						<div className={css.watchedBadge}>
-							<svg viewBox="0 0 24 24"><path fill="white" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+							<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
 						</div>
 					)}
+					<PosterLabels
+						item={item}
+						serverUrl={itemServerUrl}
+						topRight={showsWatchedCheck(item) || (unifiedMode && item._serverName && !hasMergedCopies(item)) ? 40 : 8}
+					/>
 				</div>
 				<div className={css.cardTitle}>{item.Name}</div>
 				<div className={css.cardSubtitle}>{jellyfinSubtitle(item)}</div>

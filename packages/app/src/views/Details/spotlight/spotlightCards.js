@@ -33,7 +33,8 @@ export const CARD_ICONS = {
 	appearances: DETAIL_ICON_PATHS.starOutline,
 	crew: DETAIL_ICON_PATHS.movieCreationOutlined,
 	seerrDetails: MATERIAL_ICON_PATHS.info,
-	fileDetails: MATERIAL_ICON_PATHS.info
+	fileDetails: MATERIAL_ICON_PATHS.info,
+	books: MATERIAL_ICON_PATHS.menu_book
 };
 
 // A runtime for a card subtitle or the hero's metadata row: "1h 32m", "2h", or "48m". The
@@ -110,13 +111,18 @@ class CardBuilder {
 	// Which cards this item gets and in what order, each still unbuilt so a caller after one
 	// card does not pay for the rest.
 	factories() {
-		const {item, seerrOnly} = this.s;
+		const {item, seerrOnly, bookSeriesItem} = this.s;
 		if (seerrOnly) {
 			return {
 				seerr_details: () => this.seerrDetailsCard(),
 				people: () => this.peopleCard(),
 				similar: () => this.similarCard(),
 				reviews: () => this.reviewsCard()
+			};
+		}
+		if (bookSeriesItem?.ChildCount > 0) {
+			return {
+				books: () => this.booksCard()
 			};
 		}
 		switch (item?.Type) {
@@ -337,6 +343,20 @@ class CardBuilder {
 		};
 	}
 
+	booksCard() {
+		const {bookSeriesItem, fallbackImageUrl} = this.s;
+		const items = bookSeriesItem?.Members ?? [];
+		const itemCount = bookSeriesItem?.ChildCount ?? 0;
+		return {
+			id: 'books',
+			title: $L('Books'),
+			subtitle: countLabel(itemCount, $L('1 book'), $L('{count} books')),
+			imageUrl: fallbackImageUrl,
+			icon: CARD_ICONS.books,
+			sections: [mediaSection($L('Books'), items)]
+		};
+	}
+
 	fileDetailsCard() {
 		if (!this.shows('mediaInfo')) return null;
 		const {item, mediaSource} = this.s;
@@ -408,7 +428,7 @@ class CardBuilder {
 			subtitle: countLabel(episodes.length, $L('1 episode'), $L('{count} episodes')),
 			imageUrl: firstPosterImageUrl(serverUrl, episodes) || fallbackImageUrl,
 			icon: CARD_ICONS.episodes,
-			sections: [{...mediaSection($L('Episodes'), episodes, 'landscape'), posterLabels: true}]
+			sections: [mediaSection($L('Episodes'), episodes, 'landscape')]
 		};
 	}
 
@@ -463,8 +483,7 @@ class CardBuilder {
 				id: `season-${season}`,
 				collapsible: true,
 				expanded: isCurrent(season, seasonEpisodes),
-				currentId: item?.Id,
-				posterLabels: true
+				currentId: item?.Id
 			}))
 		};
 	}

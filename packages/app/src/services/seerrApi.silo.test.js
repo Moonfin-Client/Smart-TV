@@ -2,7 +2,7 @@ import {fetchWithTimeout} from '../utils/fetchTimeout';
 import {getMoonfinStatus, setMoonfinConfig} from './seerrApi';
 
 jest.mock('../utils/fetchTimeout', () => ({fetchWithTimeout: jest.fn()}));
-jest.mock('../platform', () => ({isWebOS: () => false, isLegacyTizen: () => false}));
+jest.mock('../platform', () => ({isLegacyWebOS: () => false, isLegacyTizen: () => false}));
 jest.mock('./jellyfinApi', () => ({createApiForServer: jest.fn(), getUserId: () => null}));
 
 // The stored Silo logins are only known once they've been read back, which takes a moment.

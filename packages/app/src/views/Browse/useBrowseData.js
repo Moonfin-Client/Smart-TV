@@ -9,14 +9,15 @@ import {isSiloServer} from '../../utils/siloUrls';
 import * as connectionPool from '../../services/connectionPool';
 import * as seerrApi from '../../services/seerrApi';
 import browseReducer, {browseInitialState, mergeRowsById, replaceRecentRows} from './browseReducer';
-import {BROWSE_ROW_LOADERS, buildLoaderContext, loadDeferredSections, loadLatestAndRecentlyReleased, loadSinceYouWatched} from './browseRowLoaders';
+import {BROWSE_ROW_LOADERS, buildLoaderContext, loadDeferredSections, loadLatestAndRecentlyReleased, loadSinceYouWatched, onNowRow} from './browseRowLoaders';
 import {headLengthFor, moreAfter, nextHeadLength, pageableRow, withRowPage} from './rowPaging';
-import {genericCollectionLabel, mergeRecentRows} from '../../utils/mergeRecentRows';
+import {addSeriesProviderIds, genericCollectionLabel, mergeRecentRows} from '../../utils/mergeRecentRows';
+import {mergeLibrariesByType} from '../../utils/mergedCopies';
 import {normalizeLatestMediaItems} from '../../utils/latestMediaRowNormalizer';
 import {EXCLUDED_COLLECTION_TYPES, filterItemsByExcludedGenres, matchesContentType} from './browseFilters';
 import {featuredConfigKey} from './featuredConfig';
 import {withExternalSlides} from './featuredExternal';
-import {readDatedSource, readFeaturedSources} from './featuredSources';
+import {readDatedSource, readFeaturedSources, withBarFields} from './featuredSources';
 import {DATED_SOURCES} from '../../utils/mediaBarNewRelease';
 import {shuffleArray} from '../Details/detailsMedia';
 import {withoutBlockedItems} from '../../services/parentalControls';
@@ -82,6 +83,7 @@ const useBrowseData = ({
 
 	const lastVolatileRefreshRef = useRef(0);
 	const loadFetchedVolatileRef = useRef(0);
+	const onNowRequestRef = useRef(0);
 	const refreshRecentRowsRef = useRef(null);
 	// Counts the loads, so a refresh of the recent rows that a reload overtook is dropped.
 	const loadGenerationRef = useRef(0);
@@ -187,7 +189,7 @@ const useBrowseData = ({
 				// The plugin answers from the synced picks, so it has to read the profile this TV syncs with.
 				const mediaBarResult = await seerrApi.getMoonfinMediaBar(serverUrl, accessToken, activeSyncProfile(s.syncProfile));
 				if (mediaBarResult?.Items?.length) {
-					items = mediaBarResult.Items;
+					items = await withBarFields(mediaBarResult.Items, api.getItems);
 				}
 			}
 
@@ -199,7 +201,14 @@ const useBrowseData = ({
 
 			// Merged libraries keep the random draw, since the dated sources read one server.
 			if (items.length === 0 && datedSource && !unifiedMode) {
-				const options = {contentType: s.featuredContentType, days: s.mediaBarNewReleaseDays};
+				const options = {
+					contentType: s.featuredContentType,
+					days: s.mediaBarNewReleaseDays,
+					movieDays: s.mediaBarNewMovieDays,
+					seriesType: s.recentlyReleasedSeriesType,
+					count,
+					hideWatched: s.hideWatchedInRecentRows === true
+				};
 				const readSource = async (parentId) => ({Items: await readDatedSource(api, sourceType, parentId, options)});
 				items = pickFrom(await readFeaturedSources(hasSourceFilter ? sourceIds : [null], readSource, isUsable, count));
 			}
@@ -258,6 +267,12 @@ const useBrowseData = ({
 		}
 		if (!force && Date.now() - lastVolatileRefreshRef.current < VOLATILE_REFRESH_COOLDOWN_MS) return;
 		lastVolatileRefreshRef.current = Date.now();
+		// Time away moves On Now along too. A failed read leaves the row as it was, and only the newest read
+		// lands, since an older one answering last would bring back programs that have ended.
+		const onNowRequest = ++onNowRequestRef.current;
+		const onNowRead = homeRowsConfig.some((row) => row.enabled && row.id === 'onnow')
+			? api.getLiveTvAiringPrograms(20).catch(() => null)
+			: null;
 		try {
 			let resumeItems, nextUp;
 			let resumeLimit = 0;
@@ -302,6 +317,8 @@ const useBrowseData = ({
 			}
 
 			dispatch({type: 'REFRESH_VOLATILE', volatileRows});
+			const onNow = await onNowRead;
+			if (onNow && onNowRequest === onNowRequestRef.current) dispatch({type: 'REFRESH_ON_NOW', row: onNowRow(onNow)});
 			if (memoryCache.rowData) {
 				const filtered = memoryCache.rowData.filter(r => r.id !== 'resume' && r.id !== 'nextup');
 				memoryCache.rowData = [...volatileRows, ...filtered];
@@ -313,7 +330,7 @@ const useBrowseData = ({
 		} catch (e) {
 			console.warn('[Browse] Background refresh failed:', e);
 		}
-	}, [unifiedMode, cacheOwner, settings.nextUpMaxDays, readResume, readNextUp]);
+	}, [api, homeRowsConfig, unifiedMode, cacheOwner, settings.nextUpMaxDays, readResume, readNextUp]);
 
 	// Signing in as someone else has to throw the rows away. Leaving the home screen and
 	// coming back must not, and it used to, because an effect runs when it first mounts
@@ -522,7 +539,9 @@ const useBrowseData = ({
 			// answer for another. Series keeps the key rows were stored under before.
 			const releasedType = settings.recentlyReleasedSeriesType;
 			const rowConfigKey = (settings.mergeRecentRowsByType ? 'merged-recent' : 'per-library') +
-				(releasedType && releasedType !== 'series' ? `:${releasedType}` : '');
+				(releasedType && releasedType !== 'series' ? `:${releasedType}` : '') +
+				(settings.hideWatchedInRecentRows === true ? ':hide-watched' : '') +
+				(unifiedMode && settings.mergeLibrariesByType === true ? ':merged-libraries' : '');
 
 			if (hasDynamicRowConfig || unifiedMode) {
 				memoryCache.rowConfigKey = rowConfigKey;
@@ -641,7 +660,9 @@ const useBrowseData = ({
 
 				if (libs.length > 0) {
 					// Kids Mode sends the guide back home, so leaving its tile here would be a dead end.
-					const libraryItems = librariesForNav(libs, false, {hideLiveTv: isKidsMode(settings)}).map(lib => ({
+					// Merged libraries put every server's movie and show libraries behind one tile each.
+					const tileLibs = unifiedMode && settings.mergeLibrariesByType ? mergeLibrariesByType(libs) : libs;
+					const libraryItems = librariesForNav(tileLibs, false, {hideLiveTv: isKidsMode(settings)}).map(lib => ({
 						...lib,
 						Type: 'CollectionFolder',
 						isLibraryTile: true
@@ -714,9 +735,15 @@ const useBrowseData = ({
 							.filter((r) => r && r.latest?.length > 0)
 							.map((r) => ({
 								lib: r.lib,
-								items: normalizeLatestMediaItems(r.latest, {collectionType: r.lib?.CollectionType, limit: 16})
+								items: normalizeLatestMediaItems(r.latest, {collectionType: r.lib?.CollectionType, limit: 16, hideWatched: settings.hideWatchedInRecentRows === true})
 							}));
-						for (const merged of mergeRecentRows(entries, 'DateCreated')) {
+						// With merged libraries a title several servers hold shows once, carrying the rest as copies.
+						const foldCopies = unifiedMode && settings.mergeLibrariesByType === true;
+						if (foldCopies) {
+							await addSeriesProviderIds(entries, (item) => connectionPool.getApiForItem(item) || api);
+							if (cancelled) return;
+						}
+						for (const merged of mergeRecentRows(entries, 'DateCreated', {foldCopies})) {
 							newRows.push({
 								id: `latest-merged-${merged.collectionType}`,
 								title: $L('Recently Added {libraryName}').replace('{libraryName}', genericCollectionLabel(merged.collectionType)),
@@ -728,7 +755,7 @@ const useBrowseData = ({
 					} else {
 						for (const result of latestResults) {
 							if (result && result.latest?.length > 0) {
-								const items = normalizeLatestMediaItems(result.latest, {collectionType: result.lib?.CollectionType, limit: 16});
+								const items = normalizeLatestMediaItems(result.latest, {collectionType: result.lib?.CollectionType, limit: 16, hideWatched: settings.hideWatchedInRecentRows === true});
 								if (items.length > 0) {
 									const libraryTitle = result.lib._serverName
 										? `${result.lib.Name} (${result.lib._serverName})`
@@ -839,6 +866,8 @@ const useBrowseData = ({
 		settings.playlistsRowShowEpisodes,
 		settings.uiLanguage,
 		settings.mergeRecentRowsByType,
+		settings.mergeLibrariesByType,
+		settings.hideWatchedInRecentRows,
 		settings.recentlyReleasedSeriesType,
 		settings.mergeContinueWatchingNextUp,
 		settings.kidsModeEnabled,

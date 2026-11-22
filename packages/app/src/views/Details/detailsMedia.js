@@ -4,6 +4,7 @@
 import $L from '@enact/i18n/$L';
 
 import {getImageUrl} from '../../utils/helpers';
+import {videoRangeBadges} from '../../utils/videoRange';
 
 // Caps that match the mobile clients, so a title forced down on one device looks the
 // same on the others. The server transcodes to fit whichever is chosen.
@@ -95,6 +96,18 @@ export const splitCastAndCrew = (people = [], limit = 20, isEpisode = false) => 
 	return {cast, crew};
 };
 
+// A collection has no people of its own, so it takes its titles', in collection order and once per
+// name: the directors, the writers, then the actors and guest stars. Spotlight's own people card
+// gathers them its own way.
+export const boxSetPeople = (titles = []) => {
+	const people = titles.flatMap((title) => title.People || []);
+	const firstOf = (types) => {
+		const seen = new Set();
+		return people.filter((person) => person?.Name != null && types.includes(person.Type) && !seen.has(person.Name) && seen.add(person.Name));
+	};
+	return [...firstOf(['Director']), ...firstOf(['Writer']), ...firstOf(['Actor', 'GuestStar'])];
+};
+
 export const shuffleArray = (arr) => {
 	const out = [...arr];
 	for (let i = out.length - 1; i > 0; i--) {
@@ -116,17 +129,9 @@ export const getMediaBadges = (item, versionIndex = 0) => {
 		else if (video.Width >= 1900) badges.push({type: 'badgeHd', label: $L('1080p')});
 		else if (video.Width >= 1260) badges.push({type: 'badgeHd', label: $L('720p')});
 
-		const rangeType = video.VideoRangeType;
-		if (rangeType === 'DOVIWithHDR10' || rangeType === 'DOVI' || rangeType === 'DOVIWithHDR10Plus') {
-			badges.push({type: 'badgeDv', label: $L('DV')});
-		}
-		if (rangeType && rangeType !== 'SDR') {
-			if (rangeType.includes('HDR10Plus')) badges.push({type: 'badgeHdr', label: $L('HDR10+')});
-			else if (rangeType.includes('HDR10') || rangeType === 'DOVIWithHDR10') badges.push({type: 'badgeHdr', label: $L('HDR10')});
-			else if (rangeType !== 'DOVI') badges.push({type: 'badgeHdr', label: $L('HDR')});
-		} else if (video.VideoRange === 'HDR') {
-			badges.push({type: 'badgeHdr', label: $L('HDR')});
-		}
+		videoRangeBadges(video).forEach((label) => {
+			badges.push({type: label.indexOf('DV') === 0 ? 'badgeDv' : 'badgeHdr', label: $L(label)});
+		});
 
 		const videoCodec = video.Codec?.toUpperCase();
 		if (videoCodec) {

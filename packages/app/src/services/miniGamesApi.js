@@ -2,7 +2,6 @@
 // user holding their best, with the user taken from the token. The device keeps its own top 3 of
 // every run as well, which is what the arcade shows when the plugin isn't there or a call fails.
 
-import {isPlexServer, plexMoonbaseUrl} from '../utils/plexUrls';
 import {getApiKey, getServerUrl} from './jellyfinApi';
 import {moonbaseEndpoint} from './moonbaseEndpoint';
 import {platformFetch} from './secureFetch';
@@ -12,12 +11,11 @@ const TIMEOUT_MS = 8000;
 const DEVICE_KEY = 'afterHoursScores';
 
 const call = async (gameId, init) => {
-	const server = getServerUrl();
-	const endpoint = await moonbaseEndpoint(isPlexServer(server) ? plexMoonbaseUrl(server) : server, getApiKey());
+	const endpoint = await moonbaseEndpoint(getServerUrl(), getApiKey());
 	if (!endpoint) throw new Error('No Moonbase');
 	const headers = {...endpoint.headers, Accept: 'application/json'};
 	if (init.body) headers['Content-Type'] = 'application/json';
-	const res = await platformFetch(`${endpoint.base}/Moonfin/MiniGames/${encodeURIComponent(gameId)}/Scores`, {...init, headers}, TIMEOUT_MS);
+	const res = await (endpoint.fetch || platformFetch)(`${endpoint.base}/Moonfin/MiniGames/${encodeURIComponent(gameId)}/Scores`, {...init, headers}, TIMEOUT_MS);
 	if (!res.ok) throw new Error(`MiniGames ${res.status}`);
 	const text = await res.text();
 	return text ? JSON.parse(text) : null;

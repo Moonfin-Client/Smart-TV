@@ -10,6 +10,7 @@ import {
 	attachTrailerStream,
 	buildInnertubePayload,
 	extractInnertubeStream,
+	fetchSponsorSegments,
 	fetchVideoStream,
 	firstSearchVideoId,
 	freshVisitorData,
@@ -324,6 +325,32 @@ describe('fetchVideoStream', () => {
 		expect(stream.url).toBe(HLS_URL);
 		expect(window.PalmServiceBridge).not.toHaveBeenCalled();
 		expect(global.fetch.mock.calls[0][1]).not.toHaveProperty('signal');
+	});
+});
+
+describe('fetchSponsorSegments', () => {
+	afterEach(() => {
+		delete global.fetch;
+	});
+
+	test('asks by hash prefix and keeps only the segments for the requested video', async () => {
+		global.fetch = jest.fn(() => Promise.resolve({ok: true, json: () => Promise.resolve([
+			{videoID: 'otherVideo1', hash: 'x', segments: [{segment: [0, 99]}]},
+			{videoID: 'dQw4w9WgXcQ', hash: 'y', segments: [{segment: [0, 12]}, {segment: [40]}]}
+		])}));
+
+		const segments = await fetchSponsorSegments('dQw4w9WgXcQ');
+
+		expect(segments).toEqual([{start: 0, end: 12}]);
+		const url = global.fetch.mock.calls[0][0];
+		expect(url.indexOf('https://sponsor.ajay.app/api/skipSegments/5f6b?categories=')).toBe(0);
+		expect(url).not.toContain('dQw4w9WgXcQ');
+	});
+
+	test('treats a 404 as no segments', async () => {
+		global.fetch = jest.fn(() => Promise.resolve({ok: false, status: 404}));
+
+		expect(await fetchSponsorSegments('dQw4w9WgXcQ')).toEqual([]);
 	});
 });
 

@@ -6,7 +6,9 @@ import {formatFileSize} from '../../../utils/formatFileSize';
 import {formatDuration} from '../../../utils/helpers';
 import {rem, rootScale} from '../../../utils/rootScale';
 import {buildMediaFacts} from '../../../utils/seerrMediaFacts';
-import {MEDIA_STATUS} from '../../../utils/seerrStatus';
+import {
+	DOWNLOAD_STATE, MEDIA_STATUS, downloadSizesLabel, downloadStateLabel, formatDownloadTimeLeft
+} from '../../../utils/seerrStatus';
 import {parseServerDate} from '../../../utils/serverDate';
 import {uiLocale} from '../../../utils/uiLocale';
 import {videoLines} from '../nouveau/nouveauFooterFields';
@@ -19,17 +21,18 @@ const SHOW_TYPES = ['Series', 'Season', 'Episode'];
 export const FROST_BUTTON_CAP = 6;
 
 // The tabs along the bar, in order. Each one shows only when it has something in it, and the counts
-// are already down to nothing for a section the viewer hid. A show leads with its episodes and a
-// film with its cast. Episodes waits on its section only on an episode's page, where it's the rest
-// of the show. A title only in Seerr has its seasons in place of episodes, its related titles from
-// Seerr and no Seerr tab, since the whole page is Seerr's.
-export const frostTabs = (item, {seerrOnly, showsSection, seasons = 0, cast = 0, extras = 0, related = 0, seerr = 0}) => {
+// are already down to nothing for a section the viewer hid. A collection leads with its titles, a
+// show with its episodes and a film with its cast. Episodes waits on its section only on an
+// episode's page, where it's the rest of the show. A title only in Seerr has its seasons in place of
+// episodes, its related titles from Seerr and no Seerr tab, since the whole page is Seerr's.
+export const frostTabs = (item, {seerrOnly, showsSection, items = 0, seasons = 0, cast = 0, extras = 0, related = 0, seerr = 0}) => {
 	const show = SHOW_TYPES.indexOf(item.Type) >= 0;
 	if (seerrOnly) {
 		return ['overview', show ? seasons > 0 && 'seasons' : cast > 0 && 'cast', related > 0 && 'related', 'details'].filter(Boolean);
 	}
 	return [
 		'overview',
+		items > 0 && 'items',
 		show ? (item.Type !== 'Episode' || showsSection('moreEpisodes')) && 'episodes' : cast > 0 && 'cast',
 		extras > 0 && 'extras',
 		related > 0 && 'related',
@@ -57,7 +60,7 @@ export const frostSeason = (numbers, picked, ownSeason, nextUpSeason) => {
 };
 
 // How many tiles each tab sets across a row. Overview and Details aren't grids.
-export const FROST_COLUMNS = {episodes: 1, seasons: 1, cast: 5, extras: 3, related: 7, seerr: 7};
+export const FROST_COLUMNS = {items: 7, episodes: 1, seasons: 1, cast: 5, extras: 3, related: 7, seerr: 7};
 
 // Where an arrow press takes focus from a stop, by its key. A key is `tab:<tab>` in the tab bar and
 // `<tab>:<index>` in a tab's content, with `overview:text`, `overview:track:<n>`, `<tab>:about`,
@@ -191,6 +194,7 @@ export const frostStatusColors = (theme) => ({
 	available: toCssColor(theme.semantic.statusAvailable),
 	requested: toCssColor(theme.semantic.statusRequested),
 	pending: toCssColor(theme.semantic.statusPending),
+	error: toCssColor(theme.semantic.statusError),
 	none: `rgba(${toRgbTriplet(theme.colors.onBackground)}, 0.55)`
 });
 
@@ -202,6 +206,28 @@ export const frostSeerrStatus = (status, colors) => {
 		case MEDIA_STATUS.PROCESSING: return {label: $L('Requested'), color: colors.requested};
 		case MEDIA_STATUS.PENDING: return {label: $L('Pending'), color: colors.pending};
 		default: return {label: $L('Not Requested'), color: colors.none};
+	}
+};
+
+// The status line while a title downloads: what it's doing, how far along, the time left and
+// the sizes. A stuck download takes the pending or error color, and a paused or queued one goes gray.
+export const frostDownloadStatus = (download, colors) => {
+	if (download.state === DOWNLOAD_STATE.WAITING_FOR_IMPORT) {
+		return {label: $L('Downloaded, waiting for import'), color: colors.requested};
+	}
+	if (download.state === DOWNLOAD_STATE.IMPORT_BLOCKED) {
+		return {label: $L('Import blocked'), color: colors.pending};
+	}
+	const stateLabel = downloadStateLabel(download);
+	const eta = !stateLabel && download.timeLeftSeconds > 0 ? formatDownloadTimeLeft(download.timeLeftSeconds) : null;
+	const label = [stateLabel || $L('Downloading'), `${Math.round(download.fraction * 100)}%`, eta, downloadSizesLabel(download)]
+		.filter(Boolean).join(' · ');
+	switch (download.state) {
+		case DOWNLOAD_STATE.STALLED: return {label, color: colors.pending};
+		case DOWNLOAD_STATE.FAILED: return {label, color: colors.error};
+		case DOWNLOAD_STATE.PAUSED:
+		case DOWNLOAD_STATE.QUEUED: return {label, color: colors.none};
+		default: return {label, color: colors.requested};
 	}
 };
 

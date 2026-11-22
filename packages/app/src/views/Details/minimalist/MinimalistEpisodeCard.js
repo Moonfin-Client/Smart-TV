@@ -1,7 +1,10 @@
 import PosterLabels from '../../../components/PosterLabels';
 import {SpottableDiv} from '../detailsSpottables';
+import {registerThemeSheet} from '../../../theme/themeOverrides';
 
 import css from './MinimalistCards.module.less';
+
+registerThemeSheet('minimalistCards', css);
 
 // One episode in the rail: the still, its number, and the title.
 //
@@ -21,7 +24,7 @@ const MinimalistEpisodeCard = ({imageUrl, title, number, watched, current, width
 			{number != null && <div className={css.number}>{number}</div>}
 			{watched && (
 				<div className={css.watchedBadge}>
-					<svg viewBox="0 0 24 24"><path fill="white" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+					<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
 				</div>
 			)}
 			<PosterLabels

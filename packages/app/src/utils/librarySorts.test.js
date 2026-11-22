@@ -103,6 +103,11 @@ describe('savedSortOrder', () => {
 		expect(savedSortOrder('Ascending', 'DateCreated')).toBe('Ascending');
 	});
 
+	test('a show library read from Plex offers no Date Episode Added sort', () => {
+		expect(librarySortKeys({series: true, movieOrSeries: true})).toContain('DateLastContentAdded');
+		expect(librarySortKeys({series: true, movieOrSeries: true, plex: true})).not.toContain('DateLastContentAdded');
+	});
+
 	test('a sort saved without a direction keeps the one it used to run in', () => {
 		expect(savedSortOrder('', 'DateCreated')).toBe('Descending');
 		expect(savedSortOrder('', 'SortName')).toBe('Ascending');

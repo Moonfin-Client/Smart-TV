@@ -6,11 +6,13 @@ import {modernCardMetrics} from '../../components/MediaCard/modernCardLayout';
 const CLASSIC_CARDS_TOP = 69;
 const MODERN_CARDS_TOP = 50;
 
-// Per library rows share one override under the id that gates them. Overrides are a classic
-// rows feature, the modern layout keeps its own arrangement untouched.
+// The id a row's image type is set under. Per library rows share the one id that gates them.
+export const imageTypeRowId = (row) => (row.isLatestRow ? 'latest-media'
+	: row.isRecentlyReleasedRow ? 'recently-released' : row.id);
+
+// Overrides are a classic rows feature, the modern layout keeps its own arrangement untouched.
 export const rowImageType = (row, settings) => {
-	const key = row.isLatestRow ? 'latest-media'
-		: row.isRecentlyReleasedRow ? 'recently-released' : row.id;
+	const key = imageTypeRowId(row);
 	const overrides = settings.homeRowsStyle === 'v1' ? (settings.homeRowImageTypes || {}) : {};
 	// Continue Watching merged with Next Up is set under the two rows it's made of, Continue Watching first.
 	const override = key === 'continue-nextup' ? (overrides.resume || overrides.nextup) : overrides[key];
@@ -34,3 +36,4 @@ export const rowPeekHeight = (settings, row) => {
 	const {height} = classicCardSize(classicShape(row.type, rowImageType(row, settings)), settings.homeRowsPosterSize);
 	return CLASSIC_CARDS_TOP + height / 2;
 };
+

@@ -402,9 +402,10 @@
 }
 
 .cellNames {
-	align-items: center;
+	.flex-wrap-gap(13.4px);
 	display: flex;
-	flex-direction: column;
+	flex-wrap: wrap;
+	justify-content: center;
 	margin-top: 13px;
 }
 
@@ -421,10 +422,6 @@
 	padding: 7px 17px;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-
-.name ~ .name {
-	margin-top: 13px;
 }
 
 .name:focus {
@@ -535,6 +532,28 @@
 	left: 0;
 	top: 0;
 	width: 100%;
+}
+
+// The mark on a title only Seerr has.
+.cardSeerrBadge {
+	align-items: center;
+	background: #6366f1;
+	border-radius: 50%;
+	box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+	color: #fff;
+	display: flex;
+	height: 32px;
+	justify-content: center;
+	position: absolute;
+	right: 7px;
+	top: 7px;
+	width: 32px;
+	z-index: 5;
+
+	svg {
+		height: 26px;
+		width: 26px;
+	}
 }
 
 .cardTitle {
@@ -655,14 +674,4 @@
 
 .seerrBlock > * + * {
 	margin-top: 18px;
-}
-
-// Premiere's panel, where each cell's width follows how much text it holds, lays the names side by
-// side and wraps them, the way Core does. Kept last so it wins over the stacked names above.
-.weighed .cellNames {
-	.flex-wrap-gap(13.4px);
-	flex-direction: row;
-	flex-wrap: wrap;
-	justify-content: center;
-	margin-top: 13px;
 }

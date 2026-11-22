@@ -1,6 +1,6 @@
 import {traceRequest} from './networkLogSink';
 
-const abortError = () => {
+export const abortError = () => {
 	const err = new Error('The operation was aborted.');
 	err.name = 'AbortError';
 	return err;
@@ -18,7 +18,11 @@ const send = (url, options, timeoutMs) => {
 		]);
 	}
 
+	const caller = options.signal;
+	if (caller?.aborted) return Promise.reject(abortError());
 	const controller = new AbortController();
+	const stop = () => controller.abort();
+	if (caller) caller.addEventListener('abort', stop);
 	let timer = null;
 	const timeoutPromise = new Promise((_, reject) => {
 		timer = setTimeout(() => {
@@ -31,7 +35,10 @@ const send = (url, options, timeoutMs) => {
 	fetchPromise.catch(noop);
 
 	const raced = Promise.race([fetchPromise, timeoutPromise]);
-	const clear = () => clearTimeout(timer);
+	const clear = () => {
+		clearTimeout(timer);
+		if (caller) caller.removeEventListener('abort', stop);
+	};
 	raced.then(clear, clear);
 	return raced;
 };

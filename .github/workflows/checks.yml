@@ -1,0 +1,182 @@
+name: Checks
+
+# The fast tier: lint, the legacy CSS check and the Jest suite, on Ubuntu
+# only. It reports on a pull request in a few minutes, while Build is still
+# building. The PR Comment workflow reads its results from here.
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+  merge_group:
+  # Release tags, as in build.yml, so a tagged commit still gets the tests
+  # like it did when they were a job in Build.
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+*'
+
+permissions:
+  contents: read
+
+# A new push to a pull request replaces its running checks. Every other run
+# gets a group of its own, so tags, manual runs and merge groups never queue
+# or cancel.
+concurrency:
+  group: checks-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # The same lint gate and CSS check every platform build runs before it
+  # packs, run once here so a lint failure shows as lint rather than as four
+  # failed builds. setup-node's ESLint problem matcher marks each warning on
+  # its line in Files changed.
+  lint:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: npm
+
+      # Without --ignore-scripts, so the postinstall puts the enact CLI in tools/.
+      - name: Install dependencies
+        run: npm ci --force
+
+      # enact lint exits zero on warnings, and the gate fails on them, as in
+      # the builds.
+      - name: Lint
+        id: eslint
+        run: |
+          node -e '
+          const {LINT_DIRS, runLintGate} = require("./scripts/lint-gate.js");
+          let ok = true;
+          for (const dir of LINT_DIRS) ok = runLintGate(dir) && ok;
+          process.exit(ok ? 0 : 1);'
+
+      - name: Check CSS against the oldest TV engines
+        id: css
+        if: ${{ !cancelled() && steps.eslint.outcome != 'skipped' }}
+        run: npm run lint:css
+
+      - name: Write lint-results.json
+        if: always()
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          ESLINT: ${{ steps.eslint.outcome }}
+          CSS: ${{ steps.css.outcome }}
+        run: |
+          node -e '
+          const {PR_NUMBER, SHA, ESLINT, CSS} = process.env;
+          const out = {pr_number: PR_NUMBER ? Number(PR_NUMBER) : null, sha: SHA, eslint: ESLINT, css: CSS};
+          require("fs").writeFileSync("lint-results.json", JSON.stringify(out));
+          console.log(out);'
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: lint-results
+          path: lint-results.json
+          overwrite: true
+
+  # The Jest suite. The platform builds bundle only reachable code, so a
+  # failing test is invisible to them. This job is what the PR comment reads
+  # its Tests line from.
+  tests:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --force
+
+      - name: Run tests
+        working-directory: packages/app
+        run: |
+          status=0
+          npx enact test --json --outputFile="$RUNNER_TEMP/jest.json" || status=1
+          echo "$status" > "$RUNNER_TEMP/run-status"
+
+      - name: Test the in-app update build helper
+        run: node --test scripts/ota/index.test.js
+
+      # The counts and failing test names, for the PR comment. A suite that
+      # couldn't run has no tests in it, so it counts as one failure.
+      - name: Summarize results
+        if: always()
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          node - <<'EOF'
+          const fs = require('fs');
+          const path = require('path');
+          const tmp = process.env.RUNNER_TEMP;
+          const read = (file) => { try { return fs.readFileSync(path.join(tmp, file), 'utf8'); } catch (_) { return null; } };
+
+          let report = null;
+          try { report = JSON.parse(read('jest.json')); } catch (_) {}
+          const status = read('run-status');
+          const runStatus = status === null ? 1 : Number(status.trim());
+
+          let passed = 0;
+          const failures = [];
+          for (const suite of report?.testResults || []) {
+            const file = path.relative(process.cwd(), suite.name);
+            const tests = suite.assertionResults || [];
+            passed += tests.filter(t => t.status === 'passed').length;
+            const failed = tests.filter(t => t.status === 'failed');
+            failed.forEach(t => failures.push(`${file}: ${t.fullName}`));
+            if (suite.status === 'failed' && failed.length === 0) failures.push(`${file} (did not run)`);
+          }
+
+          const out = {
+            pr_number: process.env.PR_NUMBER ? Number(process.env.PR_NUMBER) : null,
+            sha: process.env.SHA,
+            passed,
+            failed: failures.length,
+            failures: failures.slice(0, 50),
+            more_failures: Math.max(0, failures.length - 50),
+            // No report means the run crashed before Jest wrote one.
+            run_status: report ? runStatus : 1,
+          };
+          fs.writeFileSync('test-results.json', JSON.stringify(out));
+          console.log(JSON.stringify({...out, failures: undefined}));
+          EOF
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: test-results
+          path: test-results.json
+          overwrite: true
+
+      - name: Gate on failures
+        if: always()
+        run: |
+          node -e '
+          const r = require("./test-results.json");
+          process.exit(r.failed || r.run_status ? 1 : 0);'
+
+  # The one status check a ruleset needs to require, "Checks / checks". It
+  # reports even when a job above fails or is skipped, and fails if any did.
+  checks:
+    name: checks
+    if: always()
+    needs: [lint, tests]
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Fail if any job failed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          node -e '
+          const results = Object.fromEntries(Object.entries(JSON.parse(process.env.NEEDS)).map(([k, v]) => [k, v.result]));
+          console.log(results);
+          process.exit(Object.values(results).some(r => r === "failure" || r === "cancelled") ? 1 : 0);'

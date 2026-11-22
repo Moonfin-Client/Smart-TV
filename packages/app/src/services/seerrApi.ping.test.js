@@ -2,7 +2,7 @@ import {fetchWithTimeout} from '../utils/fetchTimeout';
 import {moonfinPing} from './seerrApi';
 
 jest.mock('../utils/fetchTimeout', () => ({fetchWithTimeout: jest.fn()}));
-jest.mock('../platform', () => ({isWebOS: () => false, isLegacyTizen: () => false}));
+jest.mock('../platform', () => ({isLegacyWebOS: () => false, isLegacyTizen: () => false}));
 jest.mock('./jellyfinApi', () => ({createApiForServer: jest.fn(), getUserId: () => null}));
 jest.mock('./moonbaseEndpoint', () => ({
 	moonbaseEndpoint: async (base, token) => ({base, headers: {Authorization: `MediaBrowser Token="${token}"`}}),

@@ -12,8 +12,7 @@ export const isStaticLibraryCard = (isLibraryRow, settings) =>
 
 export const posterSizeScale = (posterSize) => POSTER_SIZE_MULTIPLIERS[posterSize] || 1;
 
-// Core's Medium poster on TV, 120 points tall on its 1150 wide canvas, drawn at 1920.
-const BASE_IMAGE_HEIGHT = 120 * 1920 / 1150;
+const BASE_IMAGE_HEIGHT = 360;
 
 // Worked out together because a tile held static sits at the width a card grows
 // to on focus, which is what lines the row up with the ones around it.
@@ -38,6 +37,27 @@ export const modernRowSpacing = (settings) => {
 	const offset = Math.min(Math.max((settings?.modernHomeRowsPadding ?? 360) - 400, -40), 200);
 	return offset < 20 ? Math.round((offset + 40) * 34 / 60) : Math.max(34, offset);
 };
+
+// The space below each home row. The other clients size the padding sliders in their own units,
+// so the stored value is turned into it here. Classic rows count from the slider's lowest step,
+// so they sit a little closer at every setting. Full screen rows pace themselves.
+export const homeRowSpacing = (settings) => {
+	if (settings.fullScreenRows) return null;
+	return settings.homeRowsStyle !== 'v1'
+		? modernRowSpacing(settings)
+		: Math.max(0, (settings.classicHomeRowsPadding ?? 30) - 10);
+};
+
+// A Carousel row is a Modern row with the focused title's panel under its cards. Music rows, My
+// Media and the Live TV tiles keep plain Modern cards, and Studios stays Classic in every style.
+export const isCarouselRow = (row, settings) => settings.homeRowsStyle === 'carousel' &&
+	row.id !== 'studios' && row.type !== 'square' && !row.isLibraryRow && !row.isLiveTvRow;
+
+// Same stops as .scrim in CarouselPanel.module.less.
+export const CAROUSEL_PANEL_SCRIM = [
+	{to: 'top', rgb: '16, 18, 24', stops: [[0, 0.7], [0.35, 0]]},
+	{to: 'right', rgb: '16, 18, 24', stops: [[0, 1], [0.34, 1], [0.46, 0.9], [0.6, 0.5], [0.78, 0]]}
+];
 
 export const getEpisodeLabels = (item) => {
 	if (!item) return null;

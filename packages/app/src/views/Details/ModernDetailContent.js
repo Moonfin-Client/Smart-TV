@@ -30,6 +30,7 @@ import {AnimeEpisodePills, AnimeItemPills} from '../../components/AnimeMarkerPil
 import IncompleteBadge, {IncompleteDetailLine} from '../../components/IncompleteBadge';
 import PosterLabels from '../../components/PosterLabels';
 import {scrimStyle} from '../../utils/scrimImage';
+import {rootScale} from '../../utils/rootScale';
 import PlaylistSortFilterBar, {EmptyPlaylistFilterState, EmptyPlaylistState} from '../../components/PlaylistSortFilterBar';
 import {
 	sortAndFilterPlaylistTracks,
@@ -60,6 +61,10 @@ const SCRIM = [
 ];
 const PERSON_SCRIM = [{to: 'top', rgb: '11, 13, 16', stops: [[0, 1], [0.5, 0.6], [1, 0.45]]}];
 
+// How near the foot of a collection's page the next page of its titles is asked for, in 1920 wide
+// pixels.
+const NEAR_END_PX = 714;
+
 const Icon = ({path}) => (
 	<svg className={css.icon} viewBox={iconViewBox(path)} fill="currentColor" aria-hidden="true">
 		<path d={path} />
@@ -83,7 +88,7 @@ const hasSpottableBelow = (container, active) => {
 
 const ModernDetailContent = (props) => {
 	const {
-		item, effectiveServerUrl, effectiveApi, serverToken, settings, showsSection,
+		item, effectiveServerUrl, effectiveApi, serverToken, settings, showsSection, bookSeriesItem,
 		isEpisode, isSeries, isSeason, isPerson, isBoxSet, isAlbum, isMusicArtist, isPlaylist,
 		backdropUrl, posterUrl, logoUrl, onLogoError,
 		tagline,
@@ -92,7 +97,8 @@ const ModernDetailContent = (props) => {
 		mediaSource, supportsMediaSourceSelection, selectedAudioIndex, selectedSubtitleIndex,
 		handleChapterSelect, handleExtraSelect, playTrack, playlistMenu,
 		onSelectItem, onSelectPerson, onSelectStudio,
-		seerr, seerrNav, onSelectSeerrCard, spotlightBackRef, collectionMenu, loadMoreCollectionItems, collectionOrder,
+		seerr, seerrNav, onSelectSeerrCard, spotlightBackRef, collectionMenu, loadMoreCollectionItems, loadMoreCollectionTitles,
+		collectionOrder,
 		handlePlay, handleShuffle, onWatchWithGroup
 	} = props;
 
@@ -268,7 +274,13 @@ const ModernDetailContent = (props) => {
 	const scrollTopRef = useRef(0);
 	const handleScroll = useCallback((ev) => {
 		scrollTopRef.current = ev.scrollTop;
-	}, []);
+		// A collection loads a page at a time, so scrolling near the foot of the page asks for the next
+		// one. The event carries the offset but not the sizes, so those are measured.
+		const content = contentRef.current;
+		if (isBoxSet && content && ev.scrollTop > content.scrollHeight - (content.parentElement?.clientHeight || 0) - NEAR_END_PX * rootScale()) {
+			loadMoreCollectionTitles?.();
+		}
+	}, [isBoxSet, loadMoreCollectionTitles]);
 	// Up from the top row scrolls back to the top first so the hero comes back
 	// into view, and only hands focus to the navbar once it is already there. A
 	// left docked sidebar swallows the press instead, since it is reached with
@@ -357,6 +369,7 @@ const ModernDetailContent = (props) => {
 		if ((isAlbum && albumTracks.length) || isPlaylist) list.push({id: 'tracks', label: $L('Tracks')});
 		if (isMusicArtist && artistAlbums.length) list.push({id: 'albums', label: $L('Albums')});
 		if (isBoxSet && collectionItems.length) list.push({id: 'items', label: $L('Items')});
+		if (bookSeriesItem) list.push({id: 'books', label: $L('Books')});
 		if (cast.length) list.push({id: 'cast', label: $L('Cast')});
 		if (crew.length) list.push({id: 'crew', label: $L('Crew')});
 		if (studios?.length) list.push({id: 'studios', label: $L('Studios')});
@@ -365,13 +378,13 @@ const ModernDetailContent = (props) => {
 		if (chapters?.length) list.push({id: 'chapters', label: $L('Chapters')});
 		if (additionalParts.length) list.push({id: 'additionalParts', label: $L('Additional Parts')});
 		if (otherExtras.length) list.push({id: 'extras', label: $L('Extras')});
-		if (showsDetails) list.push({id: 'details', label: $L('Details')});
+		if (showsDetails && !bookSeriesItem) list.push({id: 'details', label: $L('Details')});
 		if (collectionSections.length) list.push({id: 'collection', label: collectionTabLabel});
 		if (similar.length) list.push({id: 'similar', label: $L('More Like This')});
 		if (reviews.length) list.push({id: 'reviews', label: $L('Reviews')});
 		if (seerr.hasTabContent) list.push({id: 'seerr', label: seerr.displayName});
 		return list;
-	}, [isSeries, seasons.length, listsEpisodes, episodes.length, isPerson, personMovies.length, personSeries.length, isAlbum, isPlaylist, albumTracks.length, isMusicArtist, artistAlbums.length, isBoxSet, showsSection, collectionItems.length, collectionSections.length, collectionTabLabel, cast.length, crew.length, studios, chapters, additionalParts.length, otherExtras.length, showsDetails, similar.length, reviews.length, seerr.hasTabContent, seerr.displayName]);
+	}, [isSeries, seasons.length, listsEpisodes, episodes.length, isPerson, personMovies.length, personSeries.length, isAlbum, isPlaylist, albumTracks.length, isMusicArtist, artistAlbums.length, isBoxSet, showsSection, collectionItems.length, collectionSections.length, collectionTabLabel, cast.length, crew.length, studios, chapters, additionalParts.length, otherExtras.length, showsDetails, similar.length, reviews.length, seerr.hasTabContent, seerr.displayName, bookSeriesItem]);
 
 	const [activeTab, setActiveTab] = useState(null);
 	// Expanded Tabs on keeps the first tab open and lets focus follow selection.
@@ -450,7 +463,7 @@ const ModernDetailContent = (props) => {
 	const renderGrid = (items, cardType, onSelect = onSelectItem, menuOptions) => (
 		<RowContainer className={css.grid}>
 			{items.map((it) => (
-				<MediaCard key={it.Id} item={it} serverUrl={effectiveServerUrl} cardType={cardType} onSelect={onSelect} menuOptions={menuOptions} />
+				<MediaCard key={it.Id} item={it} serverUrl={effectiveServerUrl} cardType={cardType} onSelect={onSelect} menuOptions={menuOptions} posterLabels />
 			))}
 		</RowContainer>
 	);
@@ -714,6 +727,8 @@ const ModernDetailContent = (props) => {
 						))}
 					</div>
 				);
+			case 'books':
+				return renderGrid(bookSeriesItem.Members, 'portrait');
 			case 'similar':
 				return renderGrid(similar, 'portrait');
 			case 'reviews':
@@ -783,7 +798,7 @@ const ModernDetailContent = (props) => {
 		if (logoUrl && !isPerson) {
 			return <img className={css.logo} src={logoUrl} alt={item.Name} onError={onLogoError} />;
 		}
-		return <h1 className={css.title}>{item.Name}</h1>;
+		return <h1 className={css.title}>{bookSeriesItem ? bookSeriesItem.Name : item.Name}</h1>;
 	};
 
 	// The title, the facts about it and its ratings. With a Next Up card on

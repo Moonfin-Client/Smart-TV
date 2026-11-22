@@ -20,6 +20,7 @@ var url = require('url');
 var fs = require('fs');
 var path = require('path');
 var tls = require('tls');
+var childProcess = require('child_process');
 
 var service = new Service('org.moonfin.webos.service');
 
@@ -162,4 +163,62 @@ service.register('fetch', function (message) {
 	} catch (e) {
 		message.respond({returnValue: false, errorText: e.message, errorClass: 'network'});
 	}
+});
+
+// webOS 3 doesn't let this service call the app manager, but Developer Mode's
+// luna-send-pub tool may, dev/ methods included.
+function appManager (method, params, callback) {
+	childProcess.execFile('luna-send-pub',
+		['-n', '1', '-w', '10000', 'luna://com.webos.applicationManager/' + method, JSON.stringify(params)],
+		function (err, out) {
+			var res = null;
+			try {
+				res = JSON.parse(out);
+			} catch (e) {
+				// no reply
+			}
+			callback(err ? null : res);
+		});
+}
+
+// Closes the app, waits until it's really gone and opens it again. A launch while
+// the old instance is still closing only reaches that instance, and a page closing
+// itself can take several seconds.
+service.register('relaunch', function (message) {
+	var appId = 'org.moonfin.webos';
+	var tries = 0;
+	appManager('dev/closeByAppId', {id: appId}, function (closed) {
+		if (!closed || !closed.returnValue) {
+			message.respond({returnValue: false, errorText: 'Could not close the app'});
+			return;
+		}
+		message.respond({returnValue: true});
+		(function launchWhenClosed () {
+			appManager('dev/running', {}, function (list) {
+				var open = list && (list.running || []).some(function (app) { return app.id === appId; });
+				if (open && ++tries < 40) {
+					setTimeout(launchWhenClosed, 250);
+					return;
+				}
+				appManager('launch', {id: appId}, function () {});
+			});
+		}());
+	});
+});
+
+// webOS uninstalls every Developer Mode app, this one included, once the session runs
+// out, and an expired session can't be renewed. The Dev Mode app keeps the token that
+// renews it in this file.
+service.register('extendDevMode', function (message) {
+	var token = '';
+	try {
+		token = fs.readFileSync('/var/luna/preferences/devmode_enabled', 'utf8').trim();
+	} catch (e) {
+		// not installed through Developer Mode
+	}
+	if (!/^[0-9a-zA-Z]+$/.test(token)) {
+		message.respond({returnValue: false, errorText: 'No Developer Mode session'});
+		return;
+	}
+	doRequest({url: 'https://developer.lge.com/secure/ResetDevModeSession.dev?sessionToken=' + token, timeoutMs: 15000}, message);
 });

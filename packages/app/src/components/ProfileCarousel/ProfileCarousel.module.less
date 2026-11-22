@@ -14,11 +14,6 @@
 	}
 }
 
-.shift(@x; @scale) {
-	-webkit-transform: translateX((@x * @dp)) scale(@scale);
-	transform: translateX((@x * @dp)) scale(@scale);
-}
-
 .carousel {
 	outline: none;
 	text-align: center;
@@ -50,29 +45,9 @@
 	z-index: 2;
 }
 
-.slotM1,
-.slotP1 {
+.slotNear {
 	z-index: 1;
-	opacity: 0.55;
 }
-
-.slotM2,
-.slotP2 {
-	opacity: 0.3;
-}
-
-.slotM3,
-.slotP3 {
-	opacity: 0;
-	pointer-events: none;
-}
-
-.slotM1 { .shift(-188; 0.595); }
-.slotP1 { .shift(188; 0.595); }
-.slotM2 { .shift(-314; 0.429); }
-.slotP2 { .shift(314; 0.429); }
-.slotM3 { .shift(-420; 0.3); }
-.slotP3 { .shift(420; 0.3); }
 
 .avatar {
 	width: 100%;

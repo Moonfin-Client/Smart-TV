@@ -1,17 +1,21 @@
-name: Auto-label platform, server and type
+name: Auto-label platform, server, type and template gaps
 
 on:
   issues:
     types: [opened, edited]
   pull_request_target:
     types: [opened, edited]
+  issue_comment:
+    # deleted too, so removing the only screenshot puts the label back.
+    types: [created, edited, deleted]
 
 permissions:
   issues: write
   pull-requests: write
 
 # Opening an issue fires "opened" alongside one "labeled" per label the form
-# applies, so without this several runs reconcile the same labels at once.
+# applies, and an edit and a comment can land together, so without this
+# several runs reconcile the same labels at once.
 concurrency:
   group: label-${{ github.event.issue.number || github.event.pull_request.number }}
   cancel-in-progress: false
@@ -19,8 +23,13 @@ concurrency:
 jobs:
   label:
     runs-on: ubuntu-26.04
+    # Comments matter only because a screenshot can arrive as one, so skip
+    # comments on issues and anything another bot said.
+    if: >-
+      github.event_name != 'issue_comment' ||
+      (github.event.issue.pull_request && github.event.comment.user.type != 'Bot')
     steps:
-      - name: Apply platform, server and type labels
+      - name: Apply platform, server, type and evidence labels
         uses: actions/github-script@v8
         with:
           script: |
@@ -31,6 +40,7 @@ jobs:
             const target = context.payload.issue || context.payload.pull_request;
             const body = target.body || '';
             const number = target.number;
+            const isPR = !!(target.pull_request || context.payload.pull_request);
 
             const HEADING = /^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/;
             const CHECKBOX = /^\s*(?:[-*+]\s*)?\[([ xX✓✔☑])\]\s*(.*)$/;
@@ -87,6 +97,15 @@ jobs:
               ['Build', /\bBuild\s*\/\s*CI\b/i]
             ];
 
+            const VISUAL = [
+              /!\[[^\]]*\]\(\s*https?:\/\/\S+/i,
+              /<img\s[^>]*src\s*=/i,
+              /<video\s/i,
+              /https:\/\/github\.com\/user-attachments\/assets\/\S+/i,
+              /https:\/\/user-images\.githubusercontent\.com\/\S+/i,
+              /https?:\/\/\S+\.(png|jpe?g|gif|webp|heic|bmp|mp4|mov|webm|m4v)(\?\S*)?/i
+            ];
+
             const wanted = new Set();
             const managed = new Set();
 
@@ -121,6 +140,28 @@ jobs:
 
             const typeLines = section(body, /^type of change\b/i);
             if (typeLines) apply(TYPES, selected(typeLines));
+
+            async function hasVisual() {
+              if (VISUAL.some(re => re.test(body))) return true;
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: number,
+                per_page: 100
+              });
+              return comments.some(c =>
+                c.user.type !== 'Bot' && VISUAL.some(re => re.test(c.body || '')));
+            }
+
+            // These two are left alone on issues, where require-bug-evidence
+            // reconciles them. Both workflows owning a label would flip it on
+            // and off against each other.
+            if (isPR) {
+              managed.add('Missing Template');
+              managed.add('Missing Screenshot');
+              if (!platformLines && !typeLines) wanted.add('Missing Template');
+              if (wanted.has('UI') && !(await hasVisual())) wanted.add('Missing Screenshot');
+            }
 
             if (!managed.size) {
               core.info('No Platform, Server or Type of Change section found, leaving labels alone.');

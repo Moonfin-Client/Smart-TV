@@ -41,6 +41,8 @@ export const chooseHostReader = (...args) => impl?.chooseHostReader?.(...args);
 // A platform whose page cant read YouTube's manifests has its host read them
 export const readTrailerManifest = (url) => (impl?.readTrailerManifest ? impl.readTrailerManifest(url) : Promise.resolve(null));
 export const getHostAudioOutput = async () => (impl?.getHostAudioOutput ? impl.getHostAudioOutput() : null);
+// The HDR mode a platform's own player put the display in for what is playing
+export const getHostDisplay = () => impl?.getHostDisplay?.() || null;
 // A platform whose own player draws a bitmap subtitle format the page cant, and the call
 // that picks the track by stream index, with -1 for none.
 export const rendersSubtitleInHost = (codec) => !!impl?.rendersSubtitleInHost?.(codec);

@@ -23,23 +23,25 @@ import {setTmdbThumbsAvailable} from '../utils/tmdbThumb';
 import {configureIncompleteRecordings} from '../services/incompleteRecordings';
 import serverLogger from '../services/serverLogger';
 import * as remoteControl from '../services/remoteControl';
-import {isBackKey, KEYS} from '../utils/keys';
+import {isBackKey, KEYS, remoteShortcut} from '../utils/keys';
 import {drawsStage} from '../views/Details/stage/stageRules';
 import {QUICK_LOOK_ID} from '../views/Details/quickLook/quickLookRules';
-import {applyPerfTier} from '../utils/perfTier';
+import {applyPerfTier, smoothScrollingFor} from '../utils/perfTier';
 import {setSmoothScrolling} from '../utils/focusScroll';
 import {isLiveTvChannel, isLiveTvLibrary} from '../utils/liveTvLibrary';
 import {OLED_TUNING} from '../utils/oledMode';
-import {isTizen} from '../platform';
+import {isTizen, isVega, isXbox} from '../platform';
 import {initVideo, cleanupVideoElement, setupVisibilityHandler, setupPlatformLifecycle} from '../services/video';
-import {activateApp, exitApp} from '../utils/appLifecycle';
+import {activateApp, exitApp, renewDevMode} from '../utils/appLifecycle';
 import {SettingsProvider} from '../context/SettingsContext';
 import {seedLanguagePreferences} from '../utils/languagePrefSeed';
+import {seedHideWatched} from '../utils/hideWatchedRecentRows';
 import {shouldRun as shouldRunSetupWizard, beginRerun as beginSetupWizardRerun} from '../utils/setupWizardGate';
+import {syncNotificationPrefs} from '../services/notificationPrefs';
 import {getActiveServer} from '../services/multiServerManager';
 import {SeerrProvider, useSeerr} from '../context/SeerrContext';
 import {AchievementsProvider, useAchievements} from '../context/AchievementsContext';
-import {achievementIconPath} from '../views/Settings/achievements/achievementIcons';
+import {HOME_MATERIAL_ICON_PATHS} from '../components/icons/homeIconPaths';
 import {threadIsPhoto} from '../utils/achievementsModel';
 import {ServerMessagesProvider, useServerMessages} from '../context/ServerMessagesContext';
 import {SyncPlayProvider, followsQueueUpdate, useSyncPlay} from '../context/SyncPlayContext';
@@ -66,17 +68,15 @@ import {extendServerShuffle} from '../services/serverShuffle';
 import {rememberSignInPin, signInPinRemembered, signInPinStillUnlocked} from '../services/serverPinApi';
 import {MaterialIcon} from '../components/icons/materialIcons';
 import PhotoViewer from '../components/PhotoViewer';
-import ComicViewer from '../components/ComicViewer';
-import EpubReader from '../components/EpubReader';
-import PdfReader from '../components/PdfReader';
+import {isSlideshowVideo, stepIndex, viewerItems} from '../components/PhotoViewer/usePhotoSlideshow';
 import AdminMessageDialog from '../components/AdminMessageDialog';
 import {bookReader, isBookItem, supportsNewerBookFormats} from '../utils/books';
-import SettingsPanel from '../components/SettingsPanel';
 import ShuffleOverlay from '../components/ShuffleOverlay';
 import SpottableInput from '../components/SpottableInput/SpottableInput';
 import TVKeyboard from '../components/TVKeyboard/TVKeyboard';
 import {isTvKeyboardVisible, closeTvKeyboard, subscribeTvKeyboardVisibility} from '../components/TVKeyboard/keyboardBus';
 import useInactivityTimer from '../hooks/useInactivityTimer';
+import useSleepAfterIdle from '../hooks/useSleepAfterIdle';
 import useSignInPin from '../hooks/useSignInPin';
 import {useThemeMusic} from '../hooks/useThemeMusic';
 import {useAccessSchedule} from '../hooks/useAccessSchedule';
@@ -90,6 +90,9 @@ import Browse from '../views/Browse';
 import {isGameLibrary, refreshGameLibraries, resolveGameLibraryId} from '../utils/gameLibrary';
 import {afterHomeReady} from '../utils/homeReady';
 import {setMusicPlaying} from '../utils/sharedVideoOwner';
+import {hasMergedCopies, mergeLibrariesByType, mergesLibraries} from '../utils/mergedCopies';
+import {clearMergedTitleReads, findEveryCopy} from '../services/mergedTitleReads';
+import MergedCopyPicker from '../components/MergedCopyPicker';
 
 const Details = lazy(() => import('../views/Details'));
 const Library = lazy(() => import('../views/Library'));
@@ -113,9 +116,16 @@ const GamePlayer = lazy(() => import('../views/GamePlayer'));
 const SetupWizard = lazy(() => import('../views/SetupWizard'));
 const Calendar = lazy(() => import('../views/Calendar'));
 const CalendarMonth = lazy(() => import('../views/Calendar/CalendarMonth'));
+const SettingsPanel = lazy(() => import('../components/SettingsPanel'));
+const ComicViewer = lazy(() => import('../components/ComicViewer'));
+const EpubReader = lazy(() => import('../components/EpubReader'));
+const PdfReader = lazy(() => import('../components/PdfReader'));
 
 import '../styles/perf-overrides.less';
 import css from './App.module.less';
+
+// How long to wait before each new read of the libraries while a server hasn't answered.
+const LIBRARY_RETRY_DELAYS_MS = [3000, 8000, 20000, 45000];
 
 const partyRoom = (state) => state.room;
 
@@ -191,6 +201,18 @@ const PANELS = {
 	CALENDAR_MONTH: 24
 };
 
+// A library with no id, which only names the server a genre or studio from another one is browsed on.
+const serverOnlyLibrary = (name, source) => ({
+	Id: null,
+	Name: name,
+	_serverUrl: source._serverUrl,
+	_serverType: source._serverType,
+	_serverAccessToken: source._serverAccessToken,
+	_serverUserId: source._serverUserId,
+	_serverName: source._serverName,
+	_serverId: source._serverId
+});
+
 const AppContent = (props) => {
 	const {isAuthenticated, isLoading, serverUrl, serverName, api, user, hasMultipleServers, accessToken, connectionState, revalidateSession, leaveSession, serverType} = useAuth();
 	const {settings, activeTheme, syncOnLogin, updateSettings, loaded: settingsLoaded} = useSettings();
@@ -202,7 +224,12 @@ const AppContent = (props) => {
 
 	const [remoteMessage, setRemoteMessage] = useState(null);
 	const clearRemoteMessage = useCallback(() => setRemoteMessage(null), []);
+	// The player closed because an admin ended its Silo session, so the screen it returns to says why.
+	const showEndedOnServer = useCallback(() => {
+		setRemoteMessage({key: Date.now(), title: $L('Playback was ended on the Silo server.')});
+	}, []);
 	const unifiedMode = settings.unifiedLibraryMode && hasMultipleServers;
+	const mergeLibraries = mergesLibraries(settings, hasMultipleServers);
 
 	// Blocked ratings belong to whoever is signed in on this server.
 	useEffect(() => {
@@ -236,24 +263,27 @@ const AppContent = (props) => {
 		clearUnlocks();
 		if (unlocks.muteDuringPlayback && panelIndex === PANELS.PLAYER) return;
 		const {badges} = unlocks;
-		if (unlocks.grouped && badges.length > 1) {
-			const top = badges.reduce((best, badge) => (badge.score > best.score ? badge : best));
-			const names = badges.slice(0, 3).map((badge) => badge.title).join(', ');
-			const more = badges.length - 3;
-			setBadgeToasts((queue) => [...queue, {
-				key: unlocks.key,
-				title: $L('{count} achievements unlocked').replace('{count}', String(badges.length)),
-				body: more > 0 ? `${names} ${$L('+{count} more').replace('{count}', String(more))}` : names,
-				icon: achievementIconPath(top.icon)
-			}]);
-			return;
-		}
-		setBadgeToasts((queue) => [...queue, ...badges.map((badge, index) => ({
-			key: `${unlocks.key}-${index}`,
-			title: $L('Achievement unlocked'),
-			body: badge.title,
-			icon: achievementIconPath(badge.icon)
-		}))]);
+		// The badge icons live with Settings, so they only load once something unlocks.
+		import('../views/Settings/achievements/achievementIcons').then(({achievementIconPath}) => {
+			if (unlocks.grouped && badges.length > 1) {
+				const top = badges.reduce((best, badge) => (badge.score > best.score ? badge : best));
+				const names = badges.slice(0, 3).map((badge) => badge.title).join(', ');
+				const more = badges.length - 3;
+				setBadgeToasts((queue) => [...queue, {
+					key: unlocks.key,
+					title: $L('{count} achievements unlocked').replace('{count}', String(badges.length)),
+					body: more > 0 ? `${names} ${$L('+{count} more').replace('{count}', String(more))}` : names,
+					icon: achievementIconPath(top.icon)
+				}]);
+				return;
+			}
+			setBadgeToasts((queue) => [...queue, ...badges.map((badge, index) => ({
+				key: `${unlocks.key}-${index}`,
+				title: $L('Achievement unlocked'),
+				body: badge.title,
+				icon: achievementIconPath(badge.icon)
+			}))]);
+		}).catch(() => {});
 	}, [unlocks, clearUnlocks, panelIndex]);
 
 	// A banner for a chat that got a message from someone else, one at a time. Held back over
@@ -267,7 +297,7 @@ const AppContent = (props) => {
 		key: `${incomingThread.conversationId}-${incomingThread.lastAt ? incomingThread.lastAt.getTime() : incomingThread.unreadCount}`,
 		title: $L('New message from {name}').replace('{name}', incomingThread.name),
 		body: threadIsPhoto(incomingThread) ? $L('Photo') : incomingThread.lastMessage,
-		icon: achievementIconPath('forum')
+		icon: HOME_MATERIAL_ICON_PATHS.forum
 	} : null;
 	const [selectedItem, setSelectedItem] = useState(null);
 	const [selectedLibrary, setSelectedLibrary] = useState(null);
@@ -367,25 +397,67 @@ const AppContent = (props) => {
 	const prevUserIdRef = useRef(null);
 	const [photoViewerItem, setPhotoViewerItem] = useState(null);
 	const [photoViewerItems, setPhotoViewerItems] = useState([]);
+	// Set by the photo's Slideshow button. While a slideshow video plays the viewer is hidden, but stays
+	// open under the player so the slideshow carries on from it.
+	const [slideshowRunning, setSlideshowRunning] = useState(false);
+	const [slideshowVideo, setSlideshowVideo] = useState(false);
+	const [videoByHand, setVideoByHand] = useState(false);
+	const slideshowIndexRef = useRef(0);
+	// Hands the library the item to come back to, since a video takes the library off screen.
+	const photoReturnRef = useRef(null);
+	// How much of the folder the library has fetched, out of how many items it holds, for paging the viewer on.
+	const [photoPaging, setPhotoPaging] = useState({loaded: 0, total: 0});
+	const photoPagingRef = useRef({loaded: 0, total: 0});
+	const photoMoreRef = useRef(false);
+	const photoMoreTimerRef = useRef(null);
+	// The folder's exact number of photos and videos once the library has counted them, or 0 until then.
+	const [photoCount, setPhotoCount] = useState(0);
 	const [reading, setReading] = useState(null);
 	const BookReader = reading ? BOOK_READERS[reading.reader.kind] : null;
 	const [unreadableBook, setUnreadableBook] = useState(null);
 	const {updateInfo, formattedNotes, dismiss: dismissUpdate} = useVersionCheck(
 		isAuthenticated && settings.updateNotificationsEnabled !== false ? 3000 : null
 	);
+	// Once per launch, or later if someone turns it on, before anyone has to sign in.
+	const devModeRenewedRef = useRef(false);
+	useEffect(() => {
+		if (!settingsLoaded || devModeRenewedRef.current || settings.keepDevModeAlive === false) return;
+		devModeRenewedRef.current = true;
+		renewDevMode();
+	}, [settingsLoaded, settings.keepDevModeAlive]);
 	const {userId, record: signInPin, account: pinAccount, latest: latestSignInPin, save: saveSignInPin} = useSignInPin();
 	const pinSession = isAuthenticated && userId ? `${userId}:${pinCheckCount}` : null;
 	const pinPending = Boolean(pinSession) && pinPassed !== pinSession;
 	const isPinGateActive = pinPending && isSignInPinEnabled(signInPin) && pinRememberRead === pinSession;
+	const signInPinRef = useRef(signInPin);
+	signInPinRef.current = signInPin;
+	// A PIN set on another device while the app was away is only known to the server. One found there is kept,
+	// so the gate still asks for it if the server can't be reached when the gate checks again. An answer that
+	// arrives after the profile changed, or after another check started, belongs to neither and is dropped.
+	const pinSessionRef = useRef(pinSession);
+	pinSessionRef.current = pinSession;
+	const pinAddedElsewhereRef = useRef(null);
+	pinAddedElsewhereRef.current = async () => {
+		const session = pinSession;
+		const before = latestSignInPin();
+		const next = await refreshSignInPin(before, pinAccount);
+		if (pinSessionRef.current !== session || !isSignInPinEnabled(next)) return false;
+		if (next !== before) saveSignInPin(next);
+		return true;
+	};
 	// Until the server has said whether the account has a PIN, nothing behind the gate shows.
 	const isPinChecking = pinPending && !isPinGateActive && pinChecked !== pinSession;
 	const [pinKeyboardOpen, setPinKeyboardOpen] = useState(false);
 	const screensaverTimeout = Number(settings.screensaverTimeout || 90);
+	const mediaPlaying = Boolean(playingItem) && !isPlayerPaused && (panelIndex === PANELS.PLAYER || backgroundMusic);
+	// Music and audiobooks keep the screensaver away while they play, on Now Playing or behind the
+	// other screens, unless the viewer lets it start over them.
+	const audioPlaying = mediaPlaying && isAudioItem(playingItem);
 	const screensaverEnabled = Boolean(
 		settings.screensaverEnabled &&
 		isAuthenticated &&
 		panelIndex !== PANELS.LOGIN &&
-		(panelIndex !== PANELS.PLAYER || isPlayerPaused) &&
+		(audioPlaying ? settings.screensaverDuringAudio === true : (panelIndex !== PANELS.PLAYER || isPlayerPaused)) &&
 		// Emulator input bypasses Spotlight (paused during gameplay), so inactivity never resets.
 		panelIndex !== PANELS.GAME_PLAYER &&
 		// A media bar trailer plays without any key presses to reset the timer.
@@ -399,6 +471,13 @@ const AppContent = (props) => {
 		!reading
 	);
 	const {isInactive: showScreensaver, dismiss: dismissScreensaver, wake: wakeScreensaver} = useInactivityTimer(screensaverTimeout, screensaverEnabled);
+	// A paused player holds the screen on too, so it counts as idle. Games and slideshows go on without key presses.
+	// Xbox and Vega have no TV sleep timer to hand the screen to.
+	useSleepAfterIdle(
+		isXbox() || isVega() ? 0 : Number(settings.sleepAfterIdle) || 0,
+		!mediaPlaying && !slideshowRunning && panelIndex !== PANELS.GAME_PLAYER,
+		showScreensaver
+	);
 
 	useEffect(() => {
 		window.dispatchEvent(new CustomEvent('moonfin:screensaver', {detail: {active: showScreensaver}}));
@@ -523,11 +602,17 @@ const AppContent = (props) => {
 
 	useEffect(() => {
 		if (isAuthenticated && serverUrl && accessToken) {
-			syncOnLogin(serverUrl, accessToken).catch((err) => {
+			syncOnLogin(serverUrl, accessToken, user?.Id).catch((err) => {
 				console.warn('[App] Initial settings sync failed:', err.message);
 			});
+			// Plex keeps no Seerr notification choices.
+			if (serverType !== 'plex') {
+				syncNotificationPrefs(serverUrl, accessToken, user?.Id).catch((err) => {
+					console.warn('[Seerr] Notification choices not synced:', err?.message);
+				});
+			}
 		}
-	}, [isAuthenticated, serverUrl, accessToken, syncOnLogin]);
+	}, [isAuthenticated, serverUrl, accessToken, user?.Id, serverType, syncOnLogin]);
 
 	// The setup wizard asks its questions once per server and user, so this
 	// only flips the flag for a pair that has never finished it. A server that
@@ -553,7 +638,10 @@ const AppContent = (props) => {
 
 	useEffect(() => {
 		if (!isAuthenticated || !user?.Configuration) return;
-		const seeded = seedLanguagePreferences(settings, user.Configuration, settings.uiLanguage, window.navigator?.language);
+		const seeded = {
+			...seedLanguagePreferences(settings, user.Configuration, settings.uiLanguage, window.navigator?.language),
+			...seedHideWatched(settings, user.Configuration)
+		};
 		if (Object.keys(seeded).length > 0) updateSettings(seeded);
 	}, [isAuthenticated, user, settings, updateSettings]);
 
@@ -571,13 +659,37 @@ const AppContent = (props) => {
 		return subscribeTvKeyboardVisibility(({visible}) => setPinKeyboardOpen(visible));
 	}, [isPinGateActive]);
 
-	const fetchLibraries = useCallback(async () => {
+	// A server that hasn't answered when the libraries are read, such as one still waking up as the app starts, is read
+	// again a little later. Its libraries, and the merged libraries it belongs in, would otherwise stay missing until
+	// something else reloaded them.
+	const librariesRetryRef = useRef({timer: null, attempt: 0, read: null, shape: null});
+	const fetchLibraries = useCallback(async (options) => {
+		const retrying = options?.retrying === true;
+		const retry = librariesRetryRef.current;
+		clearTimeout(retry.timer);
+		retry.timer = null;
+		if (!retrying) retry.attempt = 0;
 		if (isAuthenticated && api && user) {
 			try {
 				let libs;
 				if (unifiedMode) {
-					libs = await connectionPool.getLibrariesFromAllServers();
-					libs = libs.map(lib => ({
+					const {libraries: read, complete} = await connectionPool.readLibrariesFromAllServers();
+					libs = read;
+					if (!complete && retry.attempt < LIBRARY_RETRY_DELAYS_MS.length) {
+						retry.timer = setTimeout(() => retry.read?.({retrying: true}), LIBRARY_RETRY_DELAYS_MS[retry.attempt]);
+						retry.attempt++;
+					}
+					// Home read its libraries alongside these, so it reads them again whenever a retry changes which libraries
+					// there are or their order, as a server coming back or one dropping out.
+					const shape = read.map((library) => `${library._serverId}|${library.Id}`).join(',');
+					const changed = retrying && shape !== retry.shape;
+					retry.shape = shape;
+					if (changed) {
+						window.dispatchEvent(new window.CustomEvent('moonfin:browseRefresh', {detail: {libraries: true}}));
+					}
+					if (mergeLibraries) libs = mergeLibrariesByType(libs);
+					// A merged library stands for every server, so it keeps its plain name.
+					libs = libs.map(lib => (lib._mergedType ? lib : {
 						...lib,
 						Name: `${lib.Name} (${lib._serverName})`
 					}));
@@ -595,10 +707,13 @@ const AppContent = (props) => {
 		} else {
 			setLibraries([]);
 		}
-	}, [isAuthenticated, api, user, unifiedMode]);
+	}, [isAuthenticated, api, user, unifiedMode, mergeLibraries]);
 
+	librariesRetryRef.current.read = fetchLibraries;
 	useEffect(() => {
 		fetchLibraries();
+		const retry = librariesRetryRef.current;
+		return () => clearTimeout(retry.timer);
 	}, [fetchLibraries]);
 
 	useEffect(() => {
@@ -633,8 +748,8 @@ const AppContent = (props) => {
 	}, [settings.performanceMode]);
 
 	useEffect(() => {
-		setSmoothScrolling(settings.smoothScrolling);
-	}, [settings.smoothScrolling]);
+		setSmoothScrolling(smoothScrollingFor(settings.smoothScrollingChoice));
+	}, [settings.smoothScrollingChoice, settings.performanceMode]);
 
 	// The surfaces are crushed on the theme itself, so all this has to do is tell
 	// the stylesheet which artwork boost to draw with.
@@ -799,10 +914,21 @@ const AppContent = (props) => {
 			// The app is held in the background until it activates, so a throw on the way
 			// there must not be allowed to skip it.
 			try {
-				releaseVideoElements();
-				// The player closes the way Back closes it, so the viewer lands where they were.
-				playerEndRef.current?.();
-				setPinCheckCount((count) => count + 1);
+				// Coming back leaves the app as it was, the player included. A profile behind a PIN is asked for it
+				// again, which takes the whole app down to the gate, so its player closes the way Back closes it.
+				// The player is left to let go of its video itself, since one released first reads as at the start
+				// and the stop it reports would wipe the resume position.
+				const askForPin = () => {
+					playerEndRef.current?.();
+					setPinCheckCount((count) => count + 1);
+				};
+				if (isSignInPinEnabled(signInPinRef.current)) {
+					askForPin();
+				} else {
+					pinAddedElsewhereRef.current?.().then((added) => {
+						if (added) askForPin();
+					});
+				}
 				recheckAccessRef.current?.();
 			} finally {
 				activateApp();
@@ -964,6 +1090,41 @@ const AppContent = (props) => {
 		setQuickLook((open) => (open ? {...open, autoPlay: false} : open));
 	}, []);
 
+	// A card several servers hold, from a merged library, first asks which server's copy to open.
+	const [copyPick, setCopyPick] = useState(null);
+	const copyPickRef = useRef(null);
+	copyPickRef.current = copyPick;
+	const pickMergedCopy = useCallback((item) => {
+		if (!hasMergedCopies(item)) return Promise.resolve(item);
+		// A second press while one is open replaces it.
+		copyPickRef.current?.resolve(null);
+		return new Promise((resolve) => {
+			copyPickRef.current = {item, resolve};
+			setCopyPick(copyPickRef.current);
+		});
+	}, []);
+	const handleCopyPicked = useCallback((copy) => {
+		const open = copyPickRef.current;
+		copyPickRef.current = null;
+		setCopyPick(null);
+		open?.resolve(copy);
+	}, []);
+	const handleCopyPickClosed = useCallback(() => handleCopyPicked(null), [handleCopyPicked]);
+	// A pick made for one session never opens anything once it ended or another account signed in.
+	useEffect(() => () => {
+		if (copyPickRef.current) handleCopyPicked(null);
+	}, [isAuthenticated, user?.Id, serverUrl, handleCopyPicked]);
+	// Only the latest selection opens. A card still looking for its copies is dropped by a newer pick, a move to another
+	// screen or a new session, and titles read with one account's token never serve another.
+	const selectionRef = useRef(0);
+	useEffect(() => () => {
+		selectionRef.current += 1;
+		clearMergedTitleReads();
+	}, [isAuthenticated, user?.Id, serverUrl, accessToken]);
+	useEffect(() => {
+		selectionRef.current += 1;
+	}, [panelIndex, quickLookShown]);
+
 	useEffect(() => {
 		const handleKeyDown = (e) => {
 			// An arrow press means the user is done pointing. Spotlight flips
@@ -1028,6 +1189,11 @@ const AppContent = (props) => {
 					closeWatchParty();
 					return;
 				}
+				// Same for the server picker: back closes it and leaves the page behind it where it was.
+				if (copyPickRef.current) {
+					handleCopyPickClosed();
+					return;
+				}
 
 				if (updateInfo) {
 					dismissUpdate();
@@ -1085,7 +1251,7 @@ const AppContent = (props) => {
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [panelIndex, handleBack, performAppCleanup, settings.exitConfirmation, showAccountModal, showServerMessages, showExitDialog, showSettingsPanel, showShuffleOverlay, photoViewerItem, reading, unreadableBook, isPinGateActive, isPinChecking, timesUp, setupWizardActive, updateInfo, dismissUpdate, syncPlayDialogOpen, closeSyncPlay, quickLookShown, closeQuickLook, watchPartyOpen, closeWatchParty]);
+	}, [panelIndex, handleBack, performAppCleanup, settings.exitConfirmation, showAccountModal, showServerMessages, showExitDialog, showSettingsPanel, showShuffleOverlay, photoViewerItem, reading, unreadableBook, isPinGateActive, isPinChecking, timesUp, setupWizardActive, updateInfo, dismissUpdate, syncPlayDialogOpen, closeSyncPlay, quickLookShown, closeQuickLook, watchPartyOpen, closeWatchParty, handleCopyPickClosed]);
 
 	// The account stays saved, so it can be chosen again from the picker once its hours are back.
 	const handleTimesUpSwitchUser = useCallback(() => {
@@ -1148,7 +1314,7 @@ const AppContent = (props) => {
 		openFullPage(item);
 	}, [openFullPage]);
 
-	const handleSelectItem = useCallback((item, autoPlay = false) => {
+	const openSelectedItem = useCallback((item, autoPlay = false) => {
 		setDetailsAutoPlay(Boolean(autoPlay) && item?.Type !== 'Audio' && !isLiveTvChannel(item));
 		// A channel has no details worth landing on, so it tunes straight away.
 		if (isLiveTvChannel(item)) {
@@ -1184,6 +1350,28 @@ const AppContent = (props) => {
 		openFullPage(item);
 	}, [navigateTo, panelIndex, handlePlayChannel, openFullPage, settings]);
 
+	const handleSelectItem = useCallback((item, autoPlay = false) => {
+		const open = (card) => {
+			if (!hasMergedCopies(card)) {
+				openSelectedItem(item, autoPlay);
+				return;
+			}
+			pickMergedCopy(card).then((copy) => {
+				if (copy) openSelectedItem(copy, autoPlay);
+			});
+		};
+		// A card's own list can leave copies out, as a Home row holding only each server's most recent titles, so the
+		// picker asks the servers. A title no other server holds opens as it always did.
+		if (!mergeLibraries) {
+			open(item);
+			return;
+		}
+		const ticket = ++selectionRef.current;
+		findEveryCopy(item).then((card) => {
+			if (ticket === selectionRef.current) open(card);
+		});
+	}, [openSelectedItem, pickMergedCopy, mergeLibraries]);
+
 	// A song or a channel plays as soon as it's picked, so only the rest wait for their screen to start them.
 	const handlePlayFromMenu = useCallback((item) => {
 		handleSelectItem(item, true);
@@ -1206,15 +1394,101 @@ const AppContent = (props) => {
 		handleSelectItem({Id: deepLink.id, Type: deepLink.type === 'episode' ? 'Episode' : 'Movie'}, settings.continueWatchingDefaultAction === 'play');
 	}, [deepLink, isAuthenticated, settingsLoaded, user, pinPending, timesUp, handleSelectItem, settings.continueWatchingDefaultAction]);
 
-	const handleViewPhoto = useCallback((item, siblings) => {
+	const handleViewPhoto = useCallback((item, siblings, source) => {
+		photoReturnRef.current = source?.noteReturn || null;
+		photoPagingRef.current = {loaded: source?.loaded || 0, total: source?.total || 0};
+		photoMoreRef.current = false;
+		setPhotoPaging(photoPagingRef.current);
+		setPhotoCount(0);
 		setPhotoViewerItem(item);
 		setPhotoViewerItems(siblings || []);
 	}, []);
 
-	const handleClosePhotoViewer = useCallback(() => {
+	// The viewer asks for the next page of the folder as it nears the end of what it has. The page's library loads it
+	// and reports back, and if that library was rebuilt after a video and is still behind what the viewer
+	// already holds, the request is repeated until it reaches past it.
+	const dispatchMorePhotos = useCallback(() => {
+		const {loaded, total} = photoPagingRef.current;
+		if (loaded >= total) return;
+		clearTimeout(photoMoreTimerRef.current);
+		photoMoreRef.current = true;
+		photoMoreTimerRef.current = setTimeout(() => { photoMoreRef.current = false; }, 10000);
+		window.dispatchEvent(new CustomEvent('moonfin:libraryLoadMore'));
+	}, []);
+
+	const requestMorePhotos = useCallback(() => {
+		if (!photoMoreRef.current) dispatchMorePhotos();
+	}, [dispatchMorePhotos]);
+
+	useEffect(() => {
+		if (!photoViewerItem) return undefined;
+		const onLibraryItems = (ev) => {
+			const {items, loaded, total} = ev.detail;
+			const before = photoPagingRef.current.loaded;
+			photoPagingRef.current = {loaded: Math.max(before, loaded), total};
+			setPhotoPaging(photoPagingRef.current);
+			setPhotoViewerItems((prev) => {
+				const known = new Set(prev.map((entry) => entry.Id));
+				const added = items.filter((entry) => !known.has(entry.Id));
+				return added.length ? prev.concat(added) : prev;
+			});
+			if (!photoMoreRef.current) return;
+			if (loaded > before || loaded >= total) {
+				photoMoreRef.current = false;
+				clearTimeout(photoMoreTimerRef.current);
+			} else {
+				dispatchMorePhotos();
+			}
+		};
+		window.addEventListener('moonfin:libraryItems', onLibraryItems);
+		const onPhotoCount = (ev) => setPhotoCount(ev.detail);
+		window.addEventListener('moonfin:libraryPhotoCount', onPhotoCount);
+		return () => {
+			window.removeEventListener('moonfin:libraryItems', onLibraryItems);
+			window.removeEventListener('moonfin:libraryPhotoCount', onPhotoCount);
+			photoMoreRef.current = false;
+			clearTimeout(photoMoreTimerRef.current);
+		};
+	}, [photoViewerItem, dispatchMorePhotos]);
+
+	// How many more photos and videos the folder holds than the viewer has: the library's exact count when it has
+	// one, otherwise the items it hasn't fetched yet, which may turn out to include a few that aren't photos.
+	const photoMoreCount = useMemo(() => {
+		if (photoPaging.loaded >= photoPaging.total) return 0;
+		if (!photoCount) return photoPaging.total - photoPaging.loaded;
+		return Math.max(1, photoCount - viewerItems(photoViewerItems, photoViewerItem).length);
+	}, [photoPaging, photoCount, photoViewerItems, photoViewerItem]);
+
+	const handleClosePhotoViewer = useCallback((lastShown) => {
+		photoReturnRef.current = null;
+		photoPagingRef.current = {loaded: 0, total: 0};
+		setPhotoPaging(photoPagingRef.current);
+		setPhotoCount(0);
+		setSlideshowRunning(false);
+		setSlideshowVideo(false);
+		setVideoByHand(false);
 		setPhotoViewerItem(null);
 		setPhotoViewerItems([]);
+		if (lastShown?.Id) {
+			setTimeout(() => window.dispatchEvent(new CustomEvent('moonfin:focusLibraryItem', {detail: lastShown.Id})), 50);
+		}
 	}, []);
+
+	// Leaving the app or the TV going to standby ends the slideshow, which also lets the screen sleep again.
+	useEffect(() => {
+		if (!slideshowRunning) return undefined;
+		const onVisibility = () => {
+			if (document.hidden) setSlideshowRunning(false);
+		};
+		document.addEventListener('visibilitychange', onVisibility);
+		return () => document.removeEventListener('visibilitychange', onVisibility);
+	}, [slideshowRunning]);
+
+	// A player left by any route other than the slideshow's own callbacks (a relaunch, a blocked item, the
+	// guide) must not leave the viewer hidden. The handoff to the player sets both together, so it isn't caught here.
+	useEffect(() => {
+		if (slideshowVideo && panelIndex !== PANELS.PLAYER) handleClosePhotoViewer();
+	}, [slideshowVideo, panelIndex, handleClosePhotoViewer]);
 
 	const handleCloseReader = useCallback(() => {
 		setReading(null);
@@ -1269,11 +1543,12 @@ const AppContent = (props) => {
 		navigateTo(PANELS.LIBRARY);
 	}, [api, navigateTo, settings.liveTvSkipGuide]);
 
-	const handleSelectStudio = useCallback((studioName) => {
+	// A studio on a title from another server in unified mode is browsed on that server, as a genre is.
+	const handleSelectStudio = useCallback((studioName, sourceItem) => {
 		if (!studioName) return;
 		setStudioFilter(studioName);
 		setGenreFilter(null);
-		setSelectedLibrary(null);
+		setSelectedLibrary(sourceItem?._serverUrl ? serverOnlyLibrary(studioName, sourceItem) : null);
 		navigateTo(PANELS.LIBRARY);
 	}, [navigateTo]);
 
@@ -1297,7 +1572,7 @@ const AppContent = (props) => {
 		navigateTo(PANELS.GAME_PLAYER);
 	}, [navigateTo, backgroundMusic]);
 
-	const handlePlay = useCallback(async (item, resume, options) => {
+	const playItem = useCallback(async (item, resume, options) => {
 		if (isBookItem(item)) {
 			openBook(item);
 			return;
@@ -1316,6 +1591,11 @@ const AppContent = (props) => {
 		setIsResume(!!resume);
 		navigateTo(PANELS.PLAYER);
 	}, [navigateTo, isSyncPlayInGroup, openSyncPlay, serverType, settings.syncplayAutoOpen, settings.syncplayEnabled, syncPlaySetNewQueue, backgroundMusic, openBook, watchPartyRoom]);
+
+	const handlePlay = useCallback(async (item, resume, options) => {
+		const copy = await pickMergedCopy(item);
+		if (copy) await playItem(copy, resume, options);
+	}, [pickMergedCopy, playItem]);
 
 	const playSyncPlayItem = useCallback((item, options = null) => {
 		if (panelIndex === PANELS.PLAYER && playingItem?.Id === item.Id) return;
@@ -1446,6 +1726,79 @@ const AppContent = (props) => {
 	}, [handleBack, panelHistory, selectedItem, playingItem, panelIndex, watchPartyRoom, openWatchParty, isSyncPlayInGroup, openSyncPlay]);
 	playerEndRef.current = handlePlayerEnd;
 
+	const handleSlideshowPlayVideo = useCallback(async (video, index, byHand = false) => {
+		slideshowIndexRef.current = index;
+		if (photoReturnRef.current) photoReturnRef.current(video.Id);
+		if (backgroundMusic) await remoteControl.releasePlayer();
+		setVideoByHand(byHand);
+		setSlideshowVideo(true);
+		setPlayingItem(video);
+		setPlaybackOptions(null);
+		setIsResume(false);
+		navigateTo(PANELS.PLAYER);
+	}, [navigateTo, backgroundMusic]);
+
+	// In a SyncPlay group or a Watch Party the player waits on the group and reports to it, so a slideshow there
+	// passes over its videos.
+	const slideshowVideos = settings.photoSlideshowVideos !== false && !isSyncPlayInGroup && !watchPartyRoom;
+
+	// Moves a slideshow video on, to a video swapped in the player where it is (the panel history stays as
+	// it was) or to a photo, which takes the player off screen and shows the viewer on it again. Once the
+	// slideshow has stopped, a step or an end goes back to the viewer, where a video shows as its still.
+	const moveSlideshow = useCallback((dir, auto) => {
+		const list = viewerItems(photoViewerItems, photoViewerItem);
+		const index = auto && !slideshowRunning
+			? slideshowIndexRef.current
+			: stepIndex(list, slideshowIndexRef.current, dir, {skipVideos: auto && !slideshowVideos});
+		const target = list[index];
+		slideshowIndexRef.current = index;
+		if (slideshowRunning && isSlideshowVideo(target, slideshowVideos)) {
+			if (photoReturnRef.current) photoReturnRef.current(target.Id);
+			setPlayingItem(target);
+			setPlaybackOptions(null);
+			setIsResume(false);
+			return;
+		}
+		if (target) setPhotoViewerItem(target);
+		setSlideshowVideo(false);
+		handlePlayerEnd();
+	}, [slideshowVideos, photoViewerItems, photoViewerItem, slideshowRunning, handlePlayerEnd]);
+
+	const handleSlideshowExit = useCallback(() => {
+		handleClosePhotoViewer();
+		handlePlayerEnd();
+	}, [handleClosePhotoViewer, handlePlayerEnd]);
+
+	// A video picked by hand plays like any other, and its end or Back comes back to the viewer on it.
+	const returnToViewer = useCallback(() => {
+		const target = viewerItems(photoViewerItems, photoViewerItem)[slideshowIndexRef.current];
+		if (target) setPhotoViewerItem(target);
+		setVideoByHand(false);
+		setSlideshowVideo(false);
+		handlePlayerEnd();
+	}, [photoViewerItems, photoViewerItem, handlePlayerEnd]);
+
+	// The player calls these some time after it was rendered, so they read the latest through a ref.
+	const slideshowApiRef = useRef(null);
+	slideshowApiRef.current = {
+		step: (dir) => moveSlideshow(dir, false),
+		ended: () => moveSlideshow(1, true),
+		exit: handleSlideshowExit
+	};
+	const slideshowCallbacks = useMemo(() => ({
+		onStep: (dir) => slideshowApiRef.current.step(dir),
+		onEnded: () => slideshowApiRef.current.ended(),
+		onExit: () => slideshowApiRef.current.exit()
+	}), []);
+	const slideshowSound = settings.photoSlideshowVideoSound !== false;
+	// A slideshow's own video hands its end and Back to the slideshow. Anything else ends as usual.
+	const slideshowOwnsPlayer = slideshowVideo && !videoByHand;
+	const playerSlideshow = useMemo(
+		() => (slideshowOwnsPlayer ? {...slideshowCallbacks, muted: slideshowRunning && !slideshowSound} : undefined),
+		[slideshowOwnsPlayer, slideshowRunning, slideshowSound, slideshowCallbacks]
+	);
+	const playerDone = videoByHand ? returnToViewer : handlePlayerEnd;
+
 	const handlePlayerBackground = useCallback(() => {
 		setMusicInBackground(true);
 		handleBack();
@@ -1459,18 +1812,28 @@ const AppContent = (props) => {
 	}, [panelIndex]);
 
 	// The guide button on the live TV OSD always lands on the guide, not wherever
-	// playback was launched from. When the player was opened from the guide its
-	// history entry is dropped so back doesn't bounce through the guide twice.
-	const handlePlayerGuide = useCallback(() => {
+	// playback was launched from, and the remote's Recordings button on Recordings.
+	// When the player was opened from that screen its history entry is dropped so
+	// back doesn't bounce through it twice.
+	const leavePlayerFor = useCallback((panel) => {
 		setIsPlayerPaused(false);
 		setPlayingItem(null);
 		setPlaybackOptions(null);
 		setIsResume(false);
-		setPanelHistory(prev => (prev[prev.length - 1] === PANELS.LIVETV ? prev.slice(0, -1) : prev));
-		showPanel(PANELS.LIVETV);
+		setPanelHistory(prev => (prev[prev.length - 1] === panel ? prev.slice(0, -1) : prev));
+		showPanel(panel);
 	}, [showPanel]);
+	const handlePlayerGuide = useCallback(() => leavePlayerFor(PANELS.LIVETV), [leavePlayerFor]);
+	const handlePlayerRecordings = useCallback(() => leavePlayerFor(PANELS.RECORDINGS), [leavePlayerFor]);
 
+	// Discover's Search lands on the Requests tab once a search has request results.
+	const [searchPrefersRequests, setSearchPrefersRequests] = useState(false);
 	const handleOpenSearch = useCallback(() => {
+		setSearchPrefersRequests(false);
+		navigateTo(PANELS.SEARCH);
+	}, [navigateTo]);
+	const handleOpenRequestSearch = useCallback(() => {
+		setSearchPrefersRequests(true);
 		navigateTo(PANELS.SEARCH);
 	}, [navigateTo]);
 
@@ -1564,16 +1927,7 @@ const AppContent = (props) => {
 		if (library) {
 			setSelectedLibrary(library);
 		} else if (genre._serverUrl) {
-			setSelectedLibrary({
-				Id: null,
-				Name: genre.name,
-				_serverUrl: genre._serverUrl,
-				_serverType: genre._serverType,
-				_serverAccessToken: genre._serverAccessToken,
-				_serverUserId: genre._serverUserId,
-				_serverName: genre._serverName,
-				_serverId: genre._serverId
-			});
+			setSelectedLibrary(serverOnlyLibrary(genre.name, genre));
 		} else {
 			setSelectedLibrary(null);
 		}
@@ -1607,6 +1961,40 @@ const AppContent = (props) => {
 	const handleOpenRecordings = useCallback(() => {
 		navigateTo(PANELS.RECORDINGS);
 	}, [navigateTo]);
+
+	// Home's Guide and Recordings buttons open Live TV once the server shows it has channels, as
+	// long as focus is still on Home rather than in something opened over it. Nothing focused
+	// counts as Home.
+	const panelIndexRef = useRef(panelIndex);
+	panelIndexRef.current = panelIndex;
+	const homeHasRemote = useCallback(() => {
+		const layer = quickLookLayerRef.current;
+		const active = document.activeElement;
+		return panelIndexRef.current === PANELS.BROWSE && Boolean(layer) &&
+			(!active || active === document.body || underDrawer(layer, active));
+	}, []);
+	const liveTvShortcutBusyRef = useRef(false);
+	const kidsMode = isKidsMode(settings);
+	useEffect(() => {
+		if (panelIndex !== PANELS.BROWSE || kidsMode) return undefined;
+		const handleKeyDown = async (e) => {
+			const shortcut = remoteShortcut(e);
+			if ((shortcut !== 'guide' && shortcut !== 'recordings') || isTvKeyboardVisible() || !homeHasRemote()) return;
+			e.preventDefault();
+			e.stopPropagation();
+			if (liveTvShortcutBusyRef.current) return;
+			liveTvShortcutBusyRef.current = true;
+			try {
+				const channels = await api.getLiveTvChannels(0, 1);
+				if (channels?.Items?.length && homeHasRemote()) (shortcut === 'guide' ? handleOpenLiveTv : handleOpenRecordings)();
+			} catch {
+				// A server without Live TV, or one that turns the request down, has no shortcut.
+			}
+			liveTvShortcutBusyRef.current = false;
+		};
+		window.addEventListener('keydown', handleKeyDown, true);
+		return () => window.removeEventListener('keydown', handleKeyDown, true);
+	}, [panelIndex, kidsMode, api, homeHasRemote, handleOpenLiveTv, handleOpenRecordings]);
 
 	const handlePlayRecording = useCallback((recording) => {
 		setPlayingItem(recording);
@@ -1661,7 +2049,7 @@ const AppContent = (props) => {
 	const playFromRemote = useCallback(async (itemIds, options) => {
 		const loaded = await Promise.all(itemIds.map((id) => api.getItem(id).catch(() => null)));
 		const items = loaded.filter(Boolean);
-		if (!items.length) return;
+		if (!items.length || !options.isCurrent()) return;
 		const item = items[Math.min(Math.max(options.startIndex, 0), items.length - 1)];
 		const queue = items.filter((entry) => isAudioItem(entry) === isAudioItem(item));
 		const playOptions = {
@@ -1676,6 +2064,7 @@ const AppContent = (props) => {
 			return;
 		}
 		await remoteControl.releasePlayer();
+		if (!options.isCurrent()) return;
 		setPlayingItem(item);
 		setPlaybackOptions(playOptions);
 		setIsResume(false);
@@ -1713,6 +2102,7 @@ const AppContent = (props) => {
 		goToSearch: (search) => {
 			clearForRemote();
 			setRemoteSearch(search);
+			setSearchPrefersRequests(false);
 			// The player has already returned to its previous panel. Do not
 			// put the now-closed player into Search's back history.
 			navigateTo(PANELS.SEARCH, panelIndex !== PANELS.PLAYER && panelIndex !== PANELS.SEARCH);
@@ -1986,8 +2376,9 @@ const AppContent = (props) => {
 							</SpottableButton>
 						</div>
 					</div>
+					{/* Inside the gate so the keyboard draws above the gate's backdrop, not under it. */}
+					<TVKeyboard />
 				</div>
-				<TVKeyboard />
 			</div>
 		);
 	}
@@ -2133,7 +2524,7 @@ const AppContent = (props) => {
 						</Panel>
 						<Panel>
 							{panelIndex === PANELS.SEARCH && (
-								<Search remoteSearch={remoteSearch} musicBar={backgroundMusic} onSelectItem={handleSelectItem} onSelectSeerrItem={handleSelectSeerrItem} onSelectPerson={handleSelectPerson} onSelectGame={handleSelectGame} onPlayChannel={handlePlayChannel} />
+								<Search remoteSearch={remoteSearch} musicBar={backgroundMusic} preferRequests={searchPrefersRequests} onSelectItem={handleSelectItem} onSelectSeerrItem={handleSelectSeerrItem} onSelectPerson={handleSelectPerson} onSelectGame={handleSelectGame} onPlayChannel={handlePlayChannel} />
 							)}
 						</Panel>
 						<Panel>
@@ -2173,7 +2564,7 @@ const AppContent = (props) => {
 									onSelectStudio={handleSelectSeerrStudio}
 									onSelectNetwork={handleSelectSeerrNetwork}
 									onOpenRequests={handleOpenSeerrRequests}
-									onOpenSearch={handleOpenSearch}
+									onOpenSearch={handleOpenRequestSearch}
 									onOpenShortcut={handleOpenSeerrShortcut}
 								/>
 							)}
@@ -2338,9 +2729,12 @@ const AppContent = (props) => {
 							liveTvChannels={playbackOptions?.liveTvChannels}
 							background={backgroundMusic}
 							onBackground={handlePlayerBackground}
-							onEnded={handlePlayerEnd}
-							onBack={handlePlayerEnd}
+							onEnded={slideshowOwnsPlayer ? slideshowCallbacks.onEnded : playerDone}
+							onBack={slideshowOwnsPlayer ? slideshowCallbacks.onExit : playerDone}
+							onEndedOnServer={showEndedOnServer}
+							slideshow={playerSlideshow}
 							onGuide={handlePlayerGuide}
+							onRecordings={handlePlayerRecordings}
 							onPlayNext={handlePlayNext}
 							onSelectPerson={handleSelectPersonFromPlayer}
 							onPausedChange={setIsPlayerPaused}
@@ -2363,6 +2757,8 @@ const AppContent = (props) => {
 							onSelectSeerrNetwork={handleSelectSeerrNetwork}
 							onOpenSeerrShortcut={handleOpenSeerrShortcut}
 							onOpenCalendarMonth={handleOpenCalendarMonth}
+							onSelectStudio={handleSelectStudio}
+							onSelectGame={handleSelectGame}
 							isVisible={panelIndex === PANELS.BROWSE && !showSettingsPanel && !pickingHousehold}
 							backHandlerRef={backHandlerRef}
 							onFocusItemThemeMusic={backgroundMusic ? undefined : themeMusic.playThemeMusicDelayed}
@@ -2400,6 +2796,13 @@ const AppContent = (props) => {
 					)}
 				</div>
 			</ItemMenuProvider>
+			{copyPick && (
+				<MergedCopyPicker
+					item={copyPick.item}
+					onPick={handleCopyPicked}
+					onClose={handleCopyPickClosed}
+				/>
+			)}
 			<AccountModal
 				open={showAccountModal}
 				onClose={handleCloseAccountModal}
@@ -2462,22 +2865,30 @@ const AppContent = (props) => {
 				onClose={handleCloseServerMessages}
 				backHandlerRef={serverMessagesBackRef}
 			/>
-			{photoViewerItem && (
+			{photoViewerItem && !slideshowVideo && (
 				<PhotoViewer
 					item={photoViewerItem}
 					items={photoViewerItems}
 					serverUrl={serverUrl}
+					running={slideshowRunning}
+					videos={slideshowVideos}
+					moreCount={photoMoreCount}
+					onNeedMore={requestMorePhotos}
+					onSlideshowChange={setSlideshowRunning}
+					onPlayVideo={isSyncPlayInGroup || watchPartyRoom ? undefined : handleSlideshowPlayVideo}
 					onClose={handleClosePhotoViewer}
 				/>
 			)}
 			{BookReader && (
-				<BookReader
-					item={reading.item}
-					archive={reading.reader.archive}
-					serverUrl={serverUrl}
-					accessToken={accessToken}
-					onClose={handleCloseReader}
-				/>
+				<Suspense fallback={null}>
+					<BookReader
+						item={reading.item}
+						archive={reading.reader.archive}
+						serverUrl={serverUrl}
+						accessToken={accessToken}
+						onClose={handleCloseReader}
+					/>
+				</Suspense>
 			)}
 			<AdminMessageDialog
 				open={!!unreadableBook}
@@ -2521,14 +2932,16 @@ const AppContent = (props) => {
 				</div>
 			)}
 			{showSettingsPanel && (
-				<SettingsPanel
-					initialView={settingsInitialView}
-					onClose={handleCloseSettingsPanel}
-					onLibrariesChanged={fetchLibraries}
-					onRunSetupWizard={handleRunSetupWizard}
-					onSelectItem={handleSelectItemFromSettings}
-					hasLiveTv={hasLiveTv}
-				/>
+				<Suspense fallback={null}>
+					<SettingsPanel
+						initialView={settingsInitialView}
+						onClose={handleCloseSettingsPanel}
+						onLibrariesChanged={fetchLibraries}
+						onRunSetupWizard={handleRunSetupWizard}
+						onSelectItem={handleSelectItemFromSettings}
+						hasLiveTv={hasLiveTv}
+					/>
+				</Suspense>
 			)}
 			<TVKeyboard />
 		</div>

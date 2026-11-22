@@ -49,6 +49,31 @@ function sendMessage (value, key) {
 	}
 }
 
+function exitService () {
+	tizen.application.getCurrentApplication().exit();
+}
+
+// A launch while the app is still closing would only bring that instance back.
+function relaunchWhenClosed (tries) {
+	var launch = function () {
+		tizen.application.launch(applicationId, exitService, exitService);
+	};
+	try {
+		tizen.application.getAppsContext(function (contexts) {
+			var open = contexts.some(function (context) { return context.appId === applicationId; });
+			if (open && tries < 40) {
+				setTimeout(function () { relaunchWhenClosed(tries + 1); }, 250);
+				return;
+			}
+			launch();
+		}, function () {
+			setTimeout(launch, 2000);
+		});
+	} catch (e) {
+		setTimeout(launch, 2000);
+	}
+}
+
 /**
  * Processes incoming app control data to extract and set preview data.
  */
@@ -82,6 +107,8 @@ function handleDataInRequest () {
 					} catch (e) {
 						logAndSend('PreviewData Setting exception: ' + e.message);
 					}
+				} else if (key === 'Relaunch') {
+					relaunchWhenClosed(0);
 				} else {
 					logAndSend('Unhandled key: ' + key + ', value: ' + value);
 				}

@@ -111,15 +111,21 @@ describe('Home loads again when a row setting changes', () => {
 	});
 
 	test('a new Studio Row sort loads the row in that order', async () => {
-		await changed({displayStudiosRows: true, studiosRowSortOrder: 'Ascending'}, {studiosRowSortBy: 'DateCreated'}, rows('studios'),
+		await changed({displayStudiosRows: true, studiosRowSortOrder: 'Ascending'}, {studiosRowSortBy: 'Random'}, rows('studios'),
 			() => expect(api.getStudios).toHaveBeenCalled());
-		await waitFor(() => expect(api.getStudios).toHaveBeenCalledWith(20, 'DateCreated', 'Ascending'));
+		await waitFor(() => expect(api.getStudios).toHaveBeenCalledWith(20, 'Random', 'Ascending'));
 	});
 
 	test('a new Studio Row sort order loads the row in that order', async () => {
-		await changed({displayStudiosRows: true, studiosRowSortBy: 'DateCreated'}, {studiosRowSortOrder: 'Ascending'}, rows('studios'),
+		await changed({displayStudiosRows: true}, {studiosRowSortOrder: 'Descending'}, rows('studios'),
 			() => expect(api.getStudios).toHaveBeenCalled());
-		await waitFor(() => expect(api.getStudios).toHaveBeenCalledWith(20, 'DateCreated', 'Ascending'));
+		await waitFor(() => expect(api.getStudios).toHaveBeenCalledWith(20, 'SortName', 'Descending'));
+	});
+
+	test('a Studio Row sort the setting no longer offers loads as Name in the stored order', async () => {
+		await changed({displayStudiosRows: true}, {studiosRowSortBy: 'DateCreated', studiosRowSortOrder: 'Descending'}, rows('studios'),
+			() => expect(api.getStudios).toHaveBeenCalled());
+		await waitFor(() => expect(api.getStudios).toHaveBeenCalledWith(20, 'SortName', 'Descending'));
 	});
 
 	test('turning on Display Rewatch Row loads the Rewatch row', async () => {
@@ -131,7 +137,7 @@ describe('Home loads again when a row setting changes', () => {
 	test('a new Recently Released Series Sort By loads the rows for it', async () => {
 		await changed({recentlyReleasedSeriesType: 'series'}, {recentlyReleasedSeriesType: 'episode'}, [],
 			() => expect(api.getRecentlyReleased).toHaveBeenCalled());
-		await waitFor(() => expect(api.getRecentlyReleased).toHaveBeenCalledWith('movies', 16, 'Movie,Episode'));
+		await waitFor(() => expect(api.getRecentlyReleased).toHaveBeenCalledWith('movies', 16, 'Movie,Episode', undefined));
 	});
 
 	test('a load a newer one took over leaves the newer rows in place', async () => {
@@ -172,6 +178,6 @@ describe('Home loads again when a row setting changes', () => {
 			timestamp: Date.now() - 60000
 		}));
 		renderHook((p) => useBrowseData(p), {initialProps: props({recentlyReleasedSeriesType: 'season'})});
-		await waitFor(() => expect(api.getRecentlyReleased).toHaveBeenCalledWith('movies', 16, 'Movie,Season'));
+		await waitFor(() => expect(api.getRecentlyReleased).toHaveBeenCalledWith('movies', 16, 'Movie,Season', undefined));
 	});
 });

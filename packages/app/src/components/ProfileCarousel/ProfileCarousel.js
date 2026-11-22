@@ -1,21 +1,19 @@
-import {useCallback, useState} from 'react';
+import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
 import {MaterialIcon} from '../icons/materialIcons';
-import {clampIndex, initialOf, initialsColor, slotOf} from '../../utils/profileCarousel';
+import {clampIndex, initialOf, initialsColor, reachFor, slotOf} from '../../utils/profileCarousel';
+import {rem, rootScale} from '../../utils/rootScale';
 
 import css from './ProfileCarousel.module.less';
 
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
 
-const SLOT_CLASSES = {
-	'-3': css.slotM3,
-	'-2': css.slotM2,
-	'-1': css.slotM1,
-	0: css.slot0,
-	1: css.slotP1,
-	2: css.slotP2,
-	3: css.slotP3
+const DP = 1920 / 1150;
+
+const slotStyle = ({x, scale, opacity, visible}) => {
+	const transform = `translateX(${rem(x * DP)}) scale(${scale.toFixed(3)})`;
+	return {WebkitTransform: transform, transform, opacity, pointerEvents: visible ? '' : 'none'};
 };
 
 const Avatar = ({item}) => {
@@ -40,8 +38,22 @@ const Avatar = ({item}) => {
 // The whole strip is one focus stop: Left and Right move along it and OK opens the one in the middle.
 const ProfileCarousel = ({items, initialIndex = 0, spotlightId, onActivate, onRemove}) => {
 	const [index, setIndex] = useState(initialIndex);
+	const [reach, setReach] = useState(2);
+	const stageRef = useRef(null);
 	const selected = clampIndex(index, items.length);
 	const current = items[selected];
+
+	const measure = useCallback(() => {
+		const node = stageRef.current;
+		if (node) setReach(reachFor(node.offsetWidth / (DP * rootScale())));
+	}, []);
+
+	useLayoutEffect(measure, [measure]);
+
+	useEffect(() => {
+		window.addEventListener('resize', measure);
+		return () => window.removeEventListener('resize', measure);
+	}, [measure]);
 
 	const handleLeft = useCallback((e) => {
 		e.preventDefault();
@@ -81,11 +93,16 @@ const ProfileCarousel = ({items, initialIndex = 0, spotlightId, onActivate, onRe
 			onSpotlightLeft={handleLeft}
 			onSpotlightRight={handleRight}
 		>
-			<div className={css.stage}>
+			<div className={css.stage} ref={stageRef}>
 				{items.map((item, i) => {
-					const slot = slotOf(i, selected);
+					const slot = slotOf(i, selected, reach);
 					return (
-						<div key={item.key} data-index={i} className={`${css.item} ${SLOT_CLASSES[slot]}`}>
+						<div
+							key={item.key}
+							data-index={i}
+							className={`${css.item} ${slot.distance === 0 ? css.slot0 : slot.distance === 1 ? css.slotNear : ''}`}
+							style={slotStyle(slot)}
+						>
 							<div className={css.avatar}>
 								<Avatar item={item} />
 							</div>
@@ -94,7 +111,7 @@ const ProfileCarousel = ({items, initialIndex = 0, spotlightId, onActivate, onRe
 									<MaterialIcon name={item.badge === 'active' ? 'checkRounded' : 'lockOutline'} className={css.badgeIcon} />
 								</div>
 							)}
-							{slot === 0 && item.removable && onRemove && (
+							{slot.distance === 0 && item.removable && onRemove && (
 								// Only a pointer reaches this, the remote stays on the strip
 								<button className={css.removeBtn} onClick={handleRemove} tabIndex={-1}>
 									<MaterialIcon name="close" className={css.removeIcon} />

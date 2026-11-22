@@ -41,8 +41,20 @@ import useItemMenuHold, {cardIndexOf} from '../../hooks/useItemMenuHold';
 import {FOCUS_SCALE, POSTER_HEIGHTS, POSTER_SIZE_OPTIONS, createGridKeyDown, createRowsLeftKeyDown, createToolbarKeyDown, focusOverhang, horizontalCellPad, libraryPosterSize, matchesStartLetter, stopPropagation} from '../../utils/gridChrome';
 import {ARROW_DOWN_ICON, ARROW_UP_ICON, CLEAR_FILTERS_ICON, EXPAND_LESS_ICON, EXPAND_MORE_ICON, GROUP_ICON, HOME_ICON, Icon, Letters, LibraryDock, LibraryTitle, ModernBar, ModernLetters, SEARCH_ICON, SETTINGS_ICON, SHUFFLE_ICON, SORT_ICON} from './LibraryHeaders';
 import LibrarySkeleton from './LibrarySkeleton';
+import {registerThemeSheet} from '../../theme/themeOverrides';
+import * as connectionPool from '../../services/connectionPool';
+import MergedServerBadge from '../../components/MergedServerBadge';
+import {readSharedTitles, readsEveryTitle} from '../../services/mergedTitleReads';
+import {PreferredCopies, copyKey, foldCopies, indexCopies, joinIndexedCopies, mergeFacetValues, mergedLibraryType, mergedSearchText, mergedSortComparator, titleMatchKeys} from '../../utils/mergedCopies';
+import {createMergedReaders, mergedReadersDrained, takeMergedPage} from '../../utils/mergedBrowse';
 
 import css from './Library.module.less';
+
+registerThemeSheet('library', css);
+
+// How long the first page of a merged library waits on the signed-in server's titles before showing without them, so
+// a slow read never holds the grid back. The copies still find their cards, only which server's copy leads may differ.
+const PREFERRED_WAIT_MS = 1500;
 
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
@@ -70,6 +82,9 @@ const FOLDER_DETAIL_TYPES = ['Series', 'BoxSet', 'Playlist', 'MusicAlbum', 'Musi
 // The plain folders a folder view lists ahead of everything else. The server counts a series as a
 // folder too, so sorting on IsFolder would put every show ahead of every movie.
 const DIRECTORY_TYPES = 'Folder,CollectionFolder,UserView,PhotoAlbum';
+
+// A merged library orders the servers' pages by the dates the sort reads and searches the original titles.
+const MERGED_FIELDS = ',DateCreated,DateLastMediaAdded,PremiereDate,OriginalTitle';
 
 // The inset the stylesheet keeps either side of the grid, both sides added up.
 const GRID_INSET = 174;
@@ -188,6 +203,17 @@ const SERIES_FILTERS = [
 
 const SERIES_STATUS_BY_KEY = {continuing: 'Continuing', ended: 'Ended', unreleased: 'Unreleased'};
 
+const statusFiltersFor = (filters, favoritesOnly) => {
+	const status = [];
+	if (favoritesOnly) status.push('IsFavorite');
+	if (filters.playedFilter === 'watched') status.push('IsPlayed');
+	if (filters.playedFilter === 'unwatched') status.push('IsUnplayed');
+	if (filters.playedFilter === 'inProgress') status.push('IsResumable');
+	if (filters.likedFilter === 'liked') status.push('Likes');
+	if (filters.likedFilter === 'disliked') status.push('Dislikes');
+	return status;
+};
+
 // The line under a card's title. Detailed sub headings spell out the year, age
 // rating, runtime, resolution and score, while the plain setting keeps the year
 // on its own.
@@ -256,10 +282,30 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	const {api, serverUrl, serverType} = useAuth();
 	const {settings, updateSetting} = useSettings();
 	const libraryServerType = library?._serverType || serverType;
+	// A merged library reads every server's libraries of its type as one.
+	const mergedType = library?._mergedType || mergedLibraryType(library?.Id);
+	const isMerged = Boolean(mergedType);
+	const [mergedSources, setMergedSources] = useState(null);
+	// The server libraries the merged one spans, asked again on the next load while a server hasn't answered.
+	const mergedLookupRef = useRef({libraryId: null, sources: null, complete: false});
+	const mergedReadersRef = useRef([]);
+	// The card shown for each title match key, which later copies fold into.
+	const copyHoldersRef = useRef(new Map());
+	// The card focus moves to when the card it was on is folded into it, known by server and id.
+	const refocusCardRef = useRef(null);
+	// Holds other servers' copies back for the signed-in server's own card. Null while a filter is on, since that
+	// server's copy could be filtered out.
+	const preferredRef = useRef(null);
+	// Every server's titles by match key, read in the background as a merged library opens, so a card learns of a copy
+	// paging hasn't reached.
+	const copyIndexRef = useRef(null);
+	// Gives the cards already up the copies the index holds for them, once it's in.
+	const joinIndexedCopiesRef = useRef(null);
+	const renderedKeysRef = useRef(new Set());
 
 	const effectiveApi = useMemo(() => {
 		if (library?._serverUrl && library?._serverAccessToken) {
-			return createApiForServer(library._serverUrl, library._serverAccessToken, library._serverUserId);
+			return createApiForServer(library._serverUrl, library._serverAccessToken, library._serverUserId, library._serverType);
 		}
 		return api;
 	}, [library, api]);
@@ -288,6 +334,23 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	const isSquareDefault = isMusicLibrary || isPlaylistLibrary;
 
 	const [allItems, setAllItems] = useState([]);
+	const allItemsRef = useRef(allItems);
+	allItemsRef.current = allItems;
+	joinIndexedCopiesRef.current = (index) => {
+		const holders = copyHoldersRef.current;
+		const isShown = (copy) => renderedKeysRef.current.has(copyKey(copy));
+		// Worked out once, outside the state update, since joining changes the cards it's handed. A card on screen can
+		// be a copy of the object the fold holds, drawn again when it took on a copy, so the copies go to the fold's own
+		// object, which every key of the title leads to.
+		const grown = new Set();
+		allItemsRef.current.forEach((card) => {
+			const keys = titleMatchKeys(card);
+			const holder = keys.map((key) => holders.get(key)).find(Boolean) || card;
+			if (joinIndexedCopies(holder, index, holders, isShown)) grown.add(copyKey(holder));
+		});
+		// A card that took on a copy is a new object, so it draws again with its server count.
+		if (grown.size) setAllItems((prev) => prev.map((card) => (grown.has(copyKey(card)) ? {...card} : card)));
+	};
 	const [isLoading, setIsLoading] = useState(true);
 	const [totalCount, setTotalCount] = useState(0);
 	// What the ratings filter dropped from the fetched pages, so the count shown leaves it out.
@@ -326,7 +389,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	// The first page waits for what this device saved, rather than fetching with the defaults and
 	// again once the saved values land.
 	const storageReady = folderViewLoaded && sortKeyLoaded && sortOrderLoaded && filtersLoaded;
-	const [searchQuery, setSearchQuery] = useState(() => restoredBookGrid?.search || '');
+	const [searchQuery, setSearchQuery] = useState(() => restoredBookGrid?.search || (!settingsPreview && returnTo?.libraryId === libraryId && returnTo.search) || '');
 	const showCardText = settings.libraryCardTitles !== false;
 	const showAlphabet = settings.showAlphabeticalFilters === true;
 	// A style this app doesn't know, say one a newer client synced, reads as Classic.
@@ -340,7 +403,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	const isFilterMode = isGenreMode || isStudioMode;
 	// Folder view belongs to the plain browse of a library. Home videos and untyped libraries start
 	// in it and everything else starts flat, until it's switched for that library.
-	const canFolderView = library != null && !isFilterMode && !musicGridView && !bookGridView;
+	const canFolderView = library != null && !isFilterMode && !musicGridView && !bookGridView && !isMerged;
 	const isFolderView = (canFolderView && (folderView === 'on' || (folderView !== 'off' && (isMixedContentLibrary || isHomeVideosLibrary)))) ||
 		Boolean(bookGridView?.folders);
 	const [folderStack, setFolderStack] = useState(() => (!settingsPreview && returnTo?.libraryId === libraryId && returnTo.folderStack) || []);
@@ -375,6 +438,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	const playlistGrouped = isPlaylistLibrary && playlistGroupingOn && !isFolderView;
 	const groupedActive = (canGroup && groupBy !== 'none') || playlistGrouped;
 
+	// The kinds of server the grid reads from: each one a merged library spans once they're known, else its own.
+	const sourceServerTypes = isMerged && mergedSources ? mergedSources.map((source) => source.server._serverType || 'jellyfin') : [libraryServerType];
 	const sortKeys = librarySortKeys({
 		songs: isSongs,
 		music: isMusicLibrary,
@@ -382,7 +447,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		books: isBookLibrary,
 		folders: isFolderView,
 		movieOrSeries: isMovieLibrary || isSeriesLibrary,
-		myRating: Boolean(settings.useMoonfinPlugin) && libraryServerType !== 'plex'
+		myRating: Boolean(settings.useMoonfinPlugin) && libraryServerType !== 'plex' && !isMerged,
+		plex: sourceServerTypes.includes('plex')
 	});
 	// Folders come first until something else is picked, and a saved sort this library doesn't
 	// offer goes back to that, or to the name sort everywhere else.
@@ -407,11 +473,12 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		if (!query) return syncedItems;
 		const folded = foldedNamesRef.current;
 		if (folded.source !== allItems) {
-			folded.names = allItems.map((item) => foldForSearch(item.SortName || item.Name || ''));
+			// A merged card also answers to each copy's title and the original title they share.
+			folded.names = allItems.map((item) => foldForSearch(isMerged ? mergedSearchText(item) : (item.SortName || item.Name || '')));
 			folded.source = allItems;
 		}
 		return syncedItems.filter((item, index) => folded.names[index].indexOf(query) !== -1);
-	}, [allItems, syncedItems, searchQuery]);
+	}, [allItems, syncedItems, searchQuery, isMerged]);
 
 	const [playlistCategories, setPlaylistCategories] = useState({});
 	const playlistResolveRef = useRef({});
@@ -449,7 +516,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 
 	const getItemTypeForLibrary = useCallback(() => {
 		const groupCollections = Boolean(settings.groupItemsIntoCollections);
-		if (!library) return groupCollections ? 'Movie,Series,BoxSet' : 'Movie,Series';
+		// A library with no id only names the server a genre or studio from another one is browsed on.
+		if (!library?.Id) return groupCollections ? 'Movie,Series,BoxSet' : 'Movie,Series';
 		const collectionType = library.CollectionType?.toLowerCase();
 
 		switch (collectionType) {
@@ -487,7 +555,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		if (isGenreMode) {
 			return groupCollections ? 'Playlist,Episode,Season,Folder' : 'BoxSet,Playlist,Episode,Season,Folder';
 		}
-		if (!library) return '';
+		if (!library?.Id) return '';
 		const collectionType = library.CollectionType?.toLowerCase();
 
 		if ((collectionType === 'movies' || collectionType === 'tvshows') && !groupCollections) {
@@ -497,6 +565,101 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		if (isMixedContentLibrary || collectionType === 'homevideos') return DIRECTORY_TYPES;
 		return '';
 	}, [library, isGenreMode, isMixedContentLibrary, settings.groupItemsIntoCollections]);
+
+	// The server libraries a merged library spans. A lookup some server missed is made again on the next load.
+	const ensureMergedSources = useCallback(async () => {
+		const lookup = mergedLookupRef.current;
+		if (lookup.libraryId === library?.Id && lookup.complete && lookup.sources) return lookup.sources;
+		const {sources, complete} = await connectionPool.getMergedLibrarySources(mergedType);
+		if (!sources.length) {
+			if (lookup.libraryId === library?.Id && lookup.sources) return lookup.sources;
+			throw new Error(`No server answered for ${library?.Id}`);
+		}
+		mergedLookupRef.current = {libraryId: library?.Id, sources, complete};
+		setMergedSources(sources);
+		return sources;
+	}, [library, mergedType]);
+
+	// Every title the first server of a merged library holds, which is the signed-in one whenever it has this library.
+	const readPreferredCopies = useCallback(async (sources, params) => {
+		const serverId = sources[0].server._serverId;
+		const own = sources.filter((source) => source.server._serverId === serverId);
+		if (own.length === sources.length) return null;
+		try {
+			const read = await Promise.all(own.map((source) => readSharedTitles(source, params)));
+			return new PreferredCopies(serverId, new Set(read.flat().flatMap(titleMatchKeys)));
+		} catch {
+			// Without the list, the first copy shown keeps the card.
+			return null;
+		}
+	}, []);
+
+	// Every server's titles by match key. A server that doesn't answer is left out of it, and its copies come up as
+	// paging reaches them, the way they did without the index.
+	const readTitleIndex = useCallback(async (sources, params) => {
+		const read = await Promise.all(sources.map((source) => readSharedTitles(source, params).catch(() => null)));
+		return indexCopies(read.filter(Boolean).flat());
+	}, []);
+
+	// The next page of a merged library, read from every server and merged in the sort's order.
+	const fetchMergedPage = useCallback(async (startIndex, params, generation) => {
+		// A later page keeps reading the servers the first one did. A server that answers again only joins on the next
+		// load, since the readers already paging can't take it on partway.
+		const current = mergedLookupRef.current;
+		const sources = startIndex > 0 && current.libraryId === library?.Id && current.sources
+			? current.sources
+			: await ensureMergedSources();
+		// A newer load started while the sources were looked up, and the paging state is now its own.
+		if (generation !== fetchGenerationRef.current) return {Items: [], TotalRecordCount: 0};
+		if (startIndex === 0) {
+			mergedReadersRef.current = createMergedReaders(sources);
+			copyHoldersRef.current = new Map();
+			renderedKeysRef.current = new Set();
+			preferredRef.current = null;
+			copyIndexRef.current = null;
+		}
+		// Held here, since a reload swaps in new readers while this one waits.
+		const readers = mergedReadersRef.current;
+		// An old TV skips the reads of every title, and copies fold as paging reaches them.
+		const readsTitles = startIndex === 0 && readsEveryTitle();
+		if (readsTitles) {
+			// In the background, so the first page shows as soon as it's read. The cards already up learn of their
+			// copies once it's in.
+			readTitleIndex(sources, params).then((index) => {
+				// Another load, of this library or another one, took over while the index was read.
+				if (readers !== mergedReadersRef.current || generation !== fetchGenerationRef.current) return;
+				copyIndexRef.current = index;
+				joinIndexedCopiesRef.current?.(index);
+			}, () => {});
+		}
+		const preferred = readsTitles && !hasActiveFilters(filtersRef.current) ? readPreferredCopies(sources, params) : null;
+		const shared = {...params, Fields: params.Fields + MERGED_FIELDS};
+		delete shared.ParentId;
+		const compare = mergedSortComparator(params.SortBy, params.SortOrder === 'Descending');
+		const result = await takeMergedPage(readers, params.Limit || 150, compare, (source, start, limit) => (
+			source.api.getItems({...shared, ParentId: source.libraryId, StartIndex: start, Limit: limit})
+		));
+		if (preferred) {
+			// Given a moment, not waited on: a slow read lets the first page show, and its copies still fold together.
+			const isCurrent = () => readers === mergedReadersRef.current && generation === fetchGenerationRef.current;
+			const TOO_SLOW = {};
+			let timer = null;
+			const late = new Promise((resolve) => {
+				timer = setTimeout(() => resolve(TOO_SLOW), PREFERRED_WAIT_MS);
+			});
+			const copies = await Promise.race([preferred, late]);
+			clearTimeout(timer);
+			if (copies !== TOO_SLOW) {
+				if (isCurrent()) preferredRef.current = copies;
+			} else {
+				// The pages after it hold copies back for the signed-in server's card once its titles are in.
+				preferred.then((arrived) => {
+					if (isCurrent()) preferredRef.current = arrived;
+				}, () => {});
+			}
+		}
+		return result;
+	}, [ensureMergedSources, readPreferredCopies, readTitleIndex, library]);
 
 	const loadItems = useCallback(async (startIndex = 0, append = false) => {
 		if (!library && !genreFilter && !studioFilter) return;
@@ -514,8 +677,78 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 
 		// Paging runs on what the server sent, while the list and count leave out what the ratings
 		// filter dropped.
+		let shownNothing = false;
 		const showPage = (fetched) => {
 			const allowed = withoutBlockedItems(fetched);
+			if (isMerged) {
+				// A copy joins the card already shown for its title, so the count shrinks with it like any other dropped row.
+				const rendered = renderedKeysRef.current;
+				const fresh = allowed.filter((item) => {
+					const key = copyKey(item);
+					if (rendered.has(key)) return false;
+					rendered.add(key);
+					return true;
+				});
+				// A card already on screen that takes on a copy is replaced with a new object, so it draws again with its
+				// server count.
+				const grown = new Set();
+				// A card folded into another, once a copy showed the two to be one title, comes off the screen.
+				const absorbed = new Set();
+				// The card focus is on, when it's in the grid, so focus can follow it if it's folded away.
+				const focusedIndex = Number(Spotlight.getCurrent()?.dataset?.index);
+				const focusedCard = Number.isInteger(focusedIndex) ? itemsRef.current[focusedIndex] : null;
+				const focusedKey = focusedCard ? copyKey(focusedCard) : null;
+				const noteGrown = (holder, card) => {
+					const holderKey = copyKey(holder);
+					grown.add(holderKey);
+					if (!card) return;
+					absorbed.add(card);
+					// Focus follows the card it's on, or the one it already moved to, through every fold to the card left.
+					const cardKey = copyKey(card);
+					if (focusedKey && (cardKey === focusedKey || cardKey === refocusCardRef.current)) refocusCardRef.current = holderKey;
+				};
+				const thisPage = new Set(fresh);
+				let shown = foldCopies(fresh, copyHoldersRef.current, preferredRef.current, noteGrown);
+				// A copy waiting for a card that never came, such as one hidden from this user, gets its own card once the
+				// list runs out.
+				if (preferredRef.current && mergedReadersDrained(mergedReadersRef.current)) {
+					const waiting = preferredRef.current.takeAllWaiting();
+					waiting.forEach((item) => thisPage.add(item));
+					shown = shown.concat(foldCopies(waiting, copyHoldersRef.current, null, noteGrown));
+				}
+				// A card from an earlier page that was folded away comes off the screen, and counts as dropped the way a
+				// copy that joined a card does.
+				let takenDown = 0;
+				if (absorbed.size) {
+					// The grid keeps focus by position, so a card taken down ahead of the focused one would slide focus
+					// onto the next title. Focus goes back to its own card, by key, once the list has changed.
+					if (focusedKey && !refocusCardRef.current) refocusCardRef.current = focusedKey;
+					shown = shown.filter((item) => !absorbed.has(item));
+					absorbed.forEach((card) => {
+						if (!thisPage.has(card)) takenDown++;
+					});
+				}
+				// The index, once in, gives each new card the copies paging hasn't reached.
+				if (copyIndexRef.current) {
+					const isShown = (copy) => renderedKeysRef.current.has(copyKey(copy));
+					shown.forEach((card) => joinIndexedCopies(card, copyIndexRef.current, copyHoldersRef.current, isShown));
+				}
+				shownNothing = shown.length === 0 && fetched.length > 0;
+				setBlockedCount(prev => (append ? prev : 0) + fetched.length - shown.length + takenDown);
+				setAllItems(prev => {
+					if (!append) return shown;
+					// The holders keep the first object, while the list may hold a copy drawn since, so a card is known by
+					// server and id.
+					const absorbedKeys = new Set(Array.from(absorbed, copyKey));
+					const kept = (grown.size || absorbedKeys.size)
+						? prev
+							.filter((item) => !absorbedKeys.has(copyKey(item)))
+							.map((item) => (grown.has(copyKey(item)) ? {...item} : item))
+						: prev;
+					return [...kept, ...shown];
+				});
+				return;
+			}
 			setBlockedCount(prev => (append ? prev : 0) + fetched.length - allowed.length);
 			setAllItems(prev => {
 				if (!append) return allowed;
@@ -526,13 +759,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		};
 
 		try {
-			const statusFilters = [];
-			if (favoritesOnly) statusFilters.push('IsFavorite');
-			if (filters.playedFilter === 'watched') statusFilters.push('IsPlayed');
-			if (filters.playedFilter === 'unwatched') statusFilters.push('IsUnplayed');
-			if (filters.playedFilter === 'inProgress') statusFilters.push('IsResumable');
-			if (filters.likedFilter === 'liked') statusFilters.push('Likes');
-			if (filters.likedFilter === 'disliked') statusFilters.push('Dislikes');
+			const statusFilters = statusFiltersFor(filters, favoritesOnly);
 			const seriesStatusParam = SERIES_STATUS_BY_KEY[filters.seriesFilter] || null;
 			const extraParams = buildFilterParams({
 				...filters,
@@ -602,7 +829,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 
 				const collectionType = library?.CollectionType?.toLowerCase();
 				const groupCollections = Boolean(settings.groupItemsIntoCollections);
-				if (isGenreMode || collectionType === 'movies' || collectionType === 'tvshows') {
+				if (isGenreMode || isStudioMode || collectionType === 'movies' || collectionType === 'tvshows') {
 					params.CollapseBoxSetItems = groupCollections;
 				}
 
@@ -662,6 +889,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 						EnableTotalRecordCount: true,
 						Fields: 'PrimaryImageAspectRatio,ItemCounts'
 					});
+				} else if (isMerged) {
+					result = await fetchMergedPage(startIndex, params, generation);
 				} else {
 					result = await effectiveApi.getItems(params);
 				}
@@ -673,16 +902,28 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 					newItems = newItems.filter(item => !excludedList.includes(item.Type));
 				}
 
-				apiFetchIndexRef.current = append ? apiFetchIndexRef.current + (result.Items?.length || 0) : (result.Items?.length || 0);
 				if (generation !== fetchGenerationRef.current) return;
+				apiFetchIndexRef.current = append ? apiFetchIndexRef.current + (result.Items?.length || 0) : (result.Items?.length || 0);
 				showPage(newItems);
 				setTotalCount(result.TotalRecordCount || 0);
 			}
 		} catch (err) { console.error('[Library] loadItems error:', err); } finally {
-			setIsLoading(false);
-			loadingMoreRef.current = false;
+			// A page for a list that has since been reloaded leaves the new list's state alone.
+			if (generation === fetchGenerationRef.current) {
+				setIsLoading(false);
+				loadingMoreRef.current = false;
+				// A merged page that only held copies of titles already shown, or ones waiting for their own server's
+				// card, leaves nothing to scroll to, so the next page is read straight away.
+				if (shownNothing) {
+					setTimeout(() => {
+						if (generation === fetchGenerationRef.current && !loadingMoreRef.current) {
+							loadItemsRef.current?.(apiFetchIndexRef.current, true);
+						}
+					}, 0);
+				}
+			}
 		}
-	}, [isPlaylistLibrary, effectiveApi, library, genreFilter, studioFilter, sortKey, sortAscending, effectiveOrder, favoritesOnly, filters, openedGenre, parentId, isFolderView, currentFolderId, currentFolderCollectionType, isMusicLibrary, musicContentType, bookGridView, getItemTypeForLibrary, getExcludeItemTypes, settings.groupItemsIntoCollections, isGenreMode]);
+	}, [fetchMergedPage, isMerged, isPlaylistLibrary, effectiveApi, library, genreFilter, studioFilter, sortKey, sortAscending, effectiveOrder, favoritesOnly, filters, openedGenre, parentId, isFolderView, currentFolderId, currentFolderCollectionType, isMusicLibrary, musicContentType, bookGridView, getItemTypeForLibrary, getExcludeItemTypes, settings.groupItemsIntoCollections, isGenreMode, isStudioMode]);
 
 	loadItemsRef.current = loadItems;
 
@@ -754,6 +995,12 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		scrollToGroupRow(rowIndex + 1);
 	}, [scrollToGroupRow]);
 
+	// Another library starts without the last one's servers.
+	useEffect(() => {
+		setMergedSources(null);
+		mergedLookupRef.current = {libraryId: null, sources: null, complete: false};
+	}, [library?.Id]);
+
 	useEffect(() => {
 		if (isBrowseHome) {
 			setIsLoading(false);
@@ -776,6 +1023,19 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	useEffect(() => {
 		let cancelled = false;
 		setFacetValues(null);
+		if (isMerged) {
+			// The values every server's library holds, once the first load has found the servers.
+			if (!mergedSources || isBrowseHome) return undefined;
+			const types = getItemTypeForLibrary();
+			Promise.all(mergedSources.map((source) => (
+				source.api.getQueryFilters ? source.api.getQueryFilters(source.libraryId, types).catch(() => null) : null
+			))).then((values) => {
+				if (!cancelled) setFacetValues(mergeFacetValues(values));
+			});
+			return () => {
+				cancelled = true;
+			};
+		}
 		if (!effectiveApi?.getQueryFilters || isBrowseHome) return undefined;
 		effectiveApi.getQueryFilters(parentId, getItemTypeForLibrary())
 			.then(values => {
@@ -785,7 +1045,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		return () => {
 			cancelled = true;
 		};
-	}, [effectiveApi, parentId, isBrowseHome, getItemTypeForLibrary]);
+	}, [effectiveApi, parentId, isBrowseHome, getItemTypeForLibrary, isMerged, mergedSources]);
 
 	// The libraries a genre browse can be narrowed to, which are the ones genres are browsed in.
 	useEffect(() => {
@@ -862,6 +1122,26 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		landedRef.current = false;
 	}, [library]);
 
+	// How many photos and videos the open folder holds, so the viewer can show an exact total before the rest of
+	// the folder has loaded. Only a folder view lists a folder's own items, so it is the only one this covers. A
+	// search is matched here on what's loaded, which the server's count can't know about, so it goes without one.
+	const countPhotos = useCallback(() => {
+		if (!isFolderView || !currentFolderId || searchQuery.trim()) return;
+		const statusFilters = statusFiltersFor(filters, favoritesOnly);
+		effectiveApi.getItems({
+			ParentId: currentFolderId,
+			IncludeItemTypes: 'Photo,Video',
+			Limit: 1,
+			EnableTotalRecordCount: true,
+			...(statusFilters.length > 0 ? {Filters: statusFilters.join(',')} : {}),
+			...buildFilterParams({...filters, genreFilters: genreFilter ? [] : openedGenre ? [openedGenre] : filters.genreFilters})
+		}).then((result) => {
+			if (result && result.TotalRecordCount > 0) {
+				window.dispatchEvent(new CustomEvent('moonfin:libraryPhotoCount', {detail: result.TotalRecordCount}));
+			}
+		}).catch(() => {});
+	}, [isFolderView, currentFolderId, effectiveApi, favoritesOnly, filters, genreFilter, openedGenre, searchQuery]);
+
 	const handleItemClick = useCallback((ev) => {
 		const itemIndex = ev.currentTarget?.dataset?.index;
 		if (itemIndex === undefined) return;
@@ -878,7 +1158,19 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 				return;
 			}
 			if (item.Type === 'Photo' && onViewPhoto) {
-				onViewPhoto(item, itemsRef.current);
+				// A slideshow can take the library off screen for a video, so it can note where to come back to.
+				// The viewer pages in the rest of the folder as it nears the end of what's loaded.
+				onViewPhoto(item, itemsRef.current, {
+					loaded: apiFetchIndexRef.current,
+					total: totalCount,
+					noteReturn: (itemId) => {
+						// An item a rebuilt library hasn't loaded yet pages in until it turns up. The search goes
+						// with it, or the rebuilt library would hand the slideshow the whole folder.
+						const at = itemsRef.current.findIndex((entry) => entry.Id === itemId);
+						returnTo = {libraryId, itemId, index: at >= 0 ? at : Infinity, folderStack, search: searchQuery};
+					}
+				});
+				if (apiFetchIndexRef.current < totalCount) countPhotos();
 			} else {
 				returnTo = {libraryId, itemId: item.Id, index, folderStack};
 				bookGridReturn = bookGridView ? {libraryId, view: bookGridView, genre: openedGenre, search: searchQuery} : null;
@@ -887,9 +1179,68 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 				onSelectItem?.(item);
 			}
 		}
-	}, [isFolderView, onSelectItem, onViewPhoto, libraryId, bookGridView, folderStack, openedGenre, searchQuery, handleOpenBookGrid, musicScreen, bookScreen]);
+	}, [isFolderView, onSelectItem, onViewPhoto, libraryId, bookGridView, folderStack, openedGenre, searchQuery, handleOpenBookGrid, musicScreen, bookScreen, totalCount, countPhotos]);
 
 	const {getScrollTo: getGridScrollTo, quickReturn, scrollTo: scrollGridTo} = useQuickReturnGrid('library-grid');
+
+	// The photo viewer closing on a photo other than the one it opened on lands on that photo's tile. The grid
+	// already has focus, so taking it again reports nothing and the header would stay on the old item. A library
+	// rebuilt after a video may not have that photo's page yet, so it pages on until the photo turns up.
+	const focusWantedRef = useRef(null);
+	const focusWanted = useCallback(() => {
+		const id = focusWantedRef.current;
+		if (!id) return;
+		const index = itemsRef.current.findIndex((entry) => entry.Id === id);
+		if (index >= 0) {
+			focusWantedRef.current = null;
+			scrollGridTo({index, focus: true});
+			setFocusedItem(itemsRef.current[index]);
+		} else if (apiFetchIndexRef.current > 0 && apiFetchIndexRef.current < totalCount) {
+			loadItemsRef.current?.(apiFetchIndexRef.current, true);
+		} else {
+			focusWantedRef.current = null;
+		}
+	}, [scrollGridTo, totalCount]);
+	// Focus stays on its title when cards ahead of it are taken down, and follows a card folded into another to that one.
+	useEffect(() => {
+		const key = refocusCardRef.current;
+		if (!key) return;
+		refocusCardRef.current = null;
+		const index = items.findIndex((entry) => copyKey(entry) === key);
+		if (index >= 0) {
+			scrollGridTo({index, focus: true});
+			setFocusedItem(items[index]);
+		}
+	}, [items, scrollGridTo]);
+	useEffect(() => {
+		const onFocusItem = (ev) => {
+			focusWantedRef.current = ev.detail;
+			focusWanted();
+		};
+		window.addEventListener('moonfin:focusLibraryItem', onFocusItem);
+		return () => window.removeEventListener('moonfin:focusLibraryItem', onFocusItem);
+	}, [focusWanted]);
+	useEffect(() => {
+		focusWanted();
+	}, [items, focusWanted]);
+
+	// The photo viewer reads on through the folder as it nears the end of what's loaded, one page at a time like
+	// scrolling would, and is told what the grid has after each one. This runs on whichever Library is on screen,
+	// so the viewer carries on when the library was rebuilt after a video.
+	useEffect(() => {
+		const onLoadMore = () => {
+			if (apiFetchIndexRef.current > 0 && apiFetchIndexRef.current < totalCount && loadItemsRef.current) {
+				loadItemsRef.current(apiFetchIndexRef.current, true);
+			}
+		};
+		window.addEventListener('moonfin:libraryLoadMore', onLoadMore);
+		return () => window.removeEventListener('moonfin:libraryLoadMore', onLoadMore);
+	}, [totalCount]);
+
+	useEffect(() => {
+		if (!totalCount) return;
+		window.dispatchEvent(new CustomEvent('moonfin:libraryItems', {detail: {items, loaded: apiFetchIndexRef.current, total: totalCount}}));
+	}, [items, totalCount]);
 
 	const handleScrollStop = useCallback(() => {
 		if (apiFetchIndexRef.current < totalCount && !isLoading && !loadingMoreRef.current) {
@@ -1313,7 +1664,9 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 				imgApiType = wide;
 			}
 		}
-		const imageUrl = imageId ? getImageUrl(effectiveServerUrl, imageId, imgApiType, isBanner ? {maxWidth: bannerWidth, quality: 70} : {maxHeight: 300, quality: 70}) : null;
+		// A merged library shows each item from its own server.
+		const itemServerUrl = item._serverUrl || effectiveServerUrl;
+		const imageUrl = imageId ? getImageUrl(itemServerUrl, imageId, imgApiType, isBanner ? {maxWidth: bannerWidth, quality: 70} : {maxHeight: 300, quality: 70}) : null;
 
 		return (
 			<div className={css.itemCardInner}>
@@ -1357,9 +1710,10 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 						</div>
 					</div>
 				)}
+				<MergedServerBadge item={item} style={{top: posterHeight - 38, bottom: 'auto'}} />
 				<PosterLabels
 					item={item}
-					serverUrl={effectiveServerUrl}
+					serverUrl={itemServerUrl}
 					top={item.UserData?.IsFavorite ? 40 : 8}
 					topRight={item.UserData?.Played ? 40 : 8}
 					height={posterHeight}
@@ -1587,8 +1941,11 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	// Emby's items query has no 4K flag and its series status holds only
 	// continuing and ended, so those options stay out of the panel there.
 	// Plex can't filter on series status, likes, subtitles, trailers, extras, theme media, 3D or disc source.
-	const onPlex = libraryServerType === 'plex';
-	const supported = (options) => options.filter(o => (!o.jellyfinOnly || libraryServerType !== 'emby') && !(onPlex && o.plexless));
+	// A merged library only offers a filter every server can apply, since one that ignored it would fill the list with
+	// what it was meant to leave out.
+	const filterServerTypes = sourceServerTypes;
+	const onPlex = filterServerTypes.includes('plex');
+	const supported = (options) => options.filter(o => (!o.jellyfinOnly || !filterServerTypes.includes('emby')) && !(onPlex && o.plexless));
 	const musicTitle = musicGridView ? MUSIC_TITLES[musicContentType]?.() : null;
 	const displayName = genreFilter || studioFilter || musicTitle || library?.Name || '';
 	const titleProps = {isFolderView, folderStack, rootName: library?.Name, displayName, shownCount, onBreadcrumb: handleFolderBreadcrumb};
@@ -1608,8 +1965,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 
 	const backdropUrl = useMemo(() => {
 		if (!backdropsEnabled || !backdropId) return '';
-		return getImageUrl(effectiveServerUrl, backdropId, 'Backdrop', {maxWidth: 1920, quality: 80, tag: backdropTag});
-	}, [backdropsEnabled, backdropId, backdropTag, effectiveServerUrl]);
+		return getImageUrl(focusedItem?._serverUrl || effectiveServerUrl, backdropId, 'Backdrop', {maxWidth: 1920, quality: 80, tag: backdropTag});
+	}, [backdropsEnabled, backdropId, backdropTag, effectiveServerUrl, focusedItem?._serverUrl]);
 
 	if (!library && !genreFilter && !studioFilter) {
 		return (
@@ -1753,7 +2110,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 										</span>
 									))}
 								</div>
-								<RatingsRow item={focusedItem} serverUrl={effectiveServerUrl} pluginEnabled={isMdblistEnabled(settings)} />
+								<RatingsRow item={focusedItem} serverUrl={focusedItem?._serverUrl || effectiveServerUrl} pluginEnabled={isMdblistEnabled(settings)} />
 							</>
 						)}
 					</div>
@@ -1838,6 +2195,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 									onNavigateUp={handleGroupNavigateUp}
 									onNavigateDown={handleGroupNavigateDown}
 									posterLabels
+									hideWatchProgress={settings.hideLibraryWatchProgress === true}
+									hideUnwatchedCount={settings.hideLibraryUnwatchedCount === true}
 								/>
 							))}
 						</div>

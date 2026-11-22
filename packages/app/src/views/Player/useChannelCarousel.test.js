@@ -9,8 +9,9 @@ jest.mock('../../services/jellyfinApi', () => ({
 	api: {getLiveTvChannels: () => Promise.resolve({Items: []})}
 }));
 
+const mockSetChannelFavorite = jest.fn();
 jest.mock('../../services/channelCarouselPrewarm', () => ({
-	createChannelCarouselPrewarm: () => ({store: {}, tuned: () => {}, dispose: () => {}})
+	createChannelCarouselPrewarm: () => ({store: {setChannelFavorite: mockSetChannelFavorite}, tuned: () => {}, dispose: () => {}})
 }));
 
 jest.mock('../../services/liveTvLastChannel', () => ({setLiveTvLastChannelId: () => {}}));
@@ -90,4 +91,12 @@ test('picking another channel while a switch is running does nothing', () => {
 	const {result, onSwitchChannel} = setup();
 	act(() => result.current.carouselProps.onSelect(channelA));
 	expect(onSwitchChannel).toHaveBeenCalledTimes(1);
+});
+
+test('a favorite set in the player shows in the lineup and the warm guide data', () => {
+	const {result} = setup();
+	act(() => result.current.markChannelFavorite('b', true));
+	expect(result.current.carouselProps.channels.find((channel) => channel.Id === 'b').UserData.IsFavorite).toBe(true);
+	expect(result.current.carouselProps.channels.find((channel) => channel.Id === 'a').UserData).toBeUndefined();
+	expect(mockSetChannelFavorite).toHaveBeenCalledWith('b', true);
 });

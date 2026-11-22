@@ -5,6 +5,8 @@ import $L from '@enact/i18n/$L';
 
 import CoreDialog from '../CoreDialog';
 import PagedText from '../PagedText';
+import {downloadOtaUpdate} from '../../services/versionChecker';
+import {relaunchApp} from '../../utils/appLifecycle';
 import {KEYS} from '../../utils/keys';
 import {renderReleaseNotes} from '../../utils/releaseNotes';
 import {MaterialIcon} from '../icons/materialIcons';
@@ -20,12 +22,17 @@ const NOTES_ID = 'update-notes-dialog';
 // notes open here instead, and either way the update counts as seen once this closes.
 const UpdateNotification = ({updateInfo, formattedNotes, onDismiss}) => {
 	const [showNotes, setShowNotes] = useState(false);
+	// Offer, downloading, ready or failed, for a sideloaded TV build that updates in place.
+	const [stage, setStage] = useState('offer');
+	const [progress, setProgress] = useState(0);
 	const open = Boolean(updateInfo);
+	const ota = updateInfo?.ota;
 	const htmlNotes = useMemo(() => renderReleaseNotes(formattedNotes), [formattedNotes]);
 
 	useEffect(() => {
 		if (!open) setShowNotes(false);
-	}, [open]);
+		setStage(ota?.ready ? 'ready' : 'offer');
+	}, [open, ota]);
 
 	// This can open while the screen behind is still loading and taking focus for itself, which
 	// Spotlight lets happen since only moves that start inside the dialog are fenced off. Every
@@ -49,11 +56,40 @@ const UpdateNotification = ({updateInfo, formattedNotes, onDismiss}) => {
 
 	const handleShowNotes = useCallback(() => setShowNotes(true), []);
 
+	const handleDownload = useCallback(() => {
+		setProgress(0);
+		setStage('downloading');
+		downloadOtaUpdate(ota.manifest, setProgress).then(() => setStage('ready'), () => setStage('failed'));
+	}, [ota]);
+
+	// The download can't be stopped halfway, so the panel stays until it ends.
+	const handleClose = useCallback(() => {
+		if (stage !== 'downloading') onDismiss();
+	}, [stage, onDismiss]);
+
+	// One row that changes as the update moves along, so focus never has to jump to a new one.
+	const action = !ota ? null : {
+		offer: {icon: 'downloadRounded', label: $L('Download Update'), onClick: handleDownload},
+		downloading: {
+			icon: 'downloadRounded',
+			label: progress < 1 ? $L('Downloading {percent}%').replace('{percent}', Math.round(progress * 100)) : $L('Installing Update'),
+			onClick: null
+		},
+		ready: {icon: 'restartAltRounded', label: $L('Restart to Update'), onClick: relaunchApp},
+		failed: {icon: 'downloadRounded', label: $L('Download Failed, Try Again'), onClick: handleDownload}
+	}[stage];
+
 	const title = open ? $L('v{version} Available').replace('{version}', updateInfo.latestVersion) : '';
 
 	return (
 		<>
-			<CoreDialog open={open && !showNotes} onClose={onDismiss} title={title} showCancel spotlightId={UPDATE_ID}>
+			<CoreDialog open={open && !showNotes} onClose={handleClose} title={title} showCancel={stage !== 'downloading'} spotlightId={UPDATE_ID}>
+				{action && (
+					<SpottableDiv className={css.option} onClick={action.onClick}>
+						<MaterialIcon name={action.icon} className={css.optionIcon} />
+						<span className={css.optionLabel}>{action.label}</span>
+					</SpottableDiv>
+				)}
 				<SpottableDiv className={css.option} onClick={handleShowNotes}>
 					<MaterialIcon name="articleOutlined" className={css.optionIcon} />
 					<span className={css.optionLabel}>{$L('Read Release Notes')}</span>
@@ -61,7 +97,7 @@ const UpdateNotification = ({updateInfo, formattedNotes, onDismiss}) => {
 			</CoreDialog>
 			<CoreDialog
 				open={open && showNotes}
-				onClose={onDismiss}
+				onClose={handleClose}
 				title={title}
 				spotlightId={NOTES_ID}
 				className={css.notesPanel}

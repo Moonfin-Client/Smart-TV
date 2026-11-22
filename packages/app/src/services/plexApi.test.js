@@ -2,6 +2,7 @@ import {createPlexApi, plexClientProfile} from './plexApi';
 import {corsFreeFetch} from './secureFetch';
 
 jest.mock('./secureFetch', () => ({corsFreeFetch: jest.fn()}));
+jest.mock('./plexMoonbase', () => ({findPlexMoonbase: async () => 'http://plex:32500'}));
 
 const device = {appName: 'Moonfin for webOS', appVersion: '2.10.0', deviceName: 'LG Smart TV', deviceId: 'dev-1'};
 const plex = createPlexApi({
@@ -94,6 +95,18 @@ describe('items', () => {
 			{Id: '7', Name: 'The Mask', Type: 'Movie', ProductionYear: 1994, ImageTags: {Primary: '/library/metadata/7/thumb/1'}},
 			{Id: 'person-12345', Name: 'Jim Carrey', Type: 'Person', ImageTags: {Primary: 'https://metadata-static.plex.tv/p.jpg'}}
 		]);
+	});
+
+	test('Moonbase similar items come from Moonbase for Plex and map like any Plex item', async () => {
+		corsFreeFetch.mockImplementation(() => reply({Items: [
+			{ratingKey: '9', key: '/library/metadata/9', type: 'movie', title: 'Liar Liar', year: 1997}
+		], TotalRecordCount: 1}));
+		const result = await plex.getMoonfinSimilar('7', 30);
+		const [url] = urls();
+		expect(url.split('?')[0]).toBe('http://plex:32500/Moonfin/Items/7/Similar');
+		expect(query(url)).toMatchObject({limit: '30', 'X-Plex-Token': 'tok'});
+		expect(result.Items).toMatchObject([{Id: '9', Name: 'Liar Liar', Type: 'Movie', ProductionYear: 1997}]);
+		expect(result.TotalRecordCount).toBe(1);
 	});
 
 	test('continue watching splits into resume and next up', async () => {

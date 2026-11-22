@@ -7,9 +7,18 @@ on:
       - '[0-9]+.[0-9]+.[0-9]+*'
   pull_request:
     branches: [main]
+  # Fires only once a merge queue is enabled on main.
+  merge_group:
 
 permissions:
   contents: write
+
+# A new push to a pull request replaces its running build. Every other run
+# gets a group of its own, so tags, manual runs and merge groups never queue
+# or cancel.
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # ───────────────────────────────────────────────
@@ -18,8 +27,9 @@ jobs:
   build-webos:
     name: Build webOS
     runs-on: ubuntu-26.04
-    outputs:
-      result: ${{ steps.build.outcome }}
+    env:
+      MOONFIN_OTA_URL: https://github.com/${{ github.repository }}/releases/download
+      MOONFIN_OTA_PUBLIC_KEY: scripts/ota/public.pem
     steps:
       - uses: actions/checkout@v5
 
@@ -31,6 +41,17 @@ jobs:
       - name: Install dependencies
         run: npm ci --force
 
+      # Tagged builds sign the in-app update with a key only CI holds. Without the
+      # secret the packages still build, just without update files to attach.
+      - name: Load the update signing key
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          KEY: ${{ secrets.MOONFIN_OTA_SIGNING_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then
+            printf '%s\n' "$KEY" > "$RUNNER_TEMP/ota-signing.pem"
+            echo "MOONFIN_OTA_SIGNING_KEY=$RUNNER_TEMP/ota-signing.pem" >> "$GITHUB_ENV"
+          fi
       - name: Build webOS
         id: build
         run: npm run build:webos
@@ -41,6 +62,7 @@ jobs:
           name: webos
           path: |
             Moonfin_webOS_*.ipk
+            moonfin-ota-webos.*
             packages/build-webos/org.moonfin.webos.manifest.json
 
   # ───────────────────────────────────────────────
@@ -49,8 +71,9 @@ jobs:
   build-tizen:
     name: Build Tizen
     runs-on: ubuntu-26.04
-    outputs:
-      result: ${{ steps.build.outcome }}
+    env:
+      MOONFIN_OTA_URL: https://github.com/${{ github.repository }}/releases/download
+      MOONFIN_OTA_PUBLIC_KEY: scripts/ota/public.pem
     steps:
       - uses: actions/checkout@v5
 
@@ -62,6 +85,15 @@ jobs:
       - name: Install dependencies
         run: npm ci --force
 
+      - name: Load the update signing key
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          KEY: ${{ secrets.MOONFIN_OTA_SIGNING_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then
+            printf '%s\n' "$KEY" > "$RUNNER_TEMP/ota-signing.pem"
+            echo "MOONFIN_OTA_SIGNING_KEY=$RUNNER_TEMP/ota-signing.pem" >> "$GITHUB_ENV"
+          fi
       - name: Build Tizen (all variants)
         id: build
         run: npm run build:tizen:all
@@ -70,7 +102,9 @@ jobs:
         if: success()
         with:
           name: tizen
-          path: Moonfin_Tizen_*.wgt
+          path: |
+            Moonfin_Tizen_*.wgt
+            moonfin-ota-tizen.*
 
   # ───────────────────────────────────────────────
   # Vega VPKG and shell checks
@@ -79,8 +113,6 @@ jobs:
     name: Build Vega
     # Deadsnakes doesn't build Python 3.8 for the amd64v3 packages the 26.04 runners install from.
     runs-on: ubuntu-24.04
-    outputs:
-      result: ${{ steps.build.outcome }}
     steps:
       - uses: actions/checkout@v5
 
@@ -128,8 +160,6 @@ jobs:
   build-xbox:
     name: Build Xbox
     runs-on: windows-latest
-    outputs:
-      result: ${{ steps.build.outcome }}
     steps:
       - uses: actions/checkout@v5
 
@@ -175,29 +205,6 @@ jobs:
           path: Moonfin_Xbox_Store_*.msixupload
 
   # ───────────────────────────────────────────────
-  # Jest suite
-  # ───────────────────────────────────────────────
-  test:
-    name: Test
-    runs-on: ubuntu-26.04
-    outputs:
-      result: ${{ steps.jest.outcome }}
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: lts/*
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci --force
-
-      - name: Run tests
-        id: jest
-        run: npm test --workspace @moonfin/app
-
-  # ───────────────────────────────────────────────
   # Save PR build outcomes for pr-comment workflow
   # ───────────────────────────────────────────────
   save-pr-results:
@@ -206,20 +213,21 @@ jobs:
     # the comment workflow has nothing to read, so the run that most needs a comment
     # is the one that never gets one.
     if: always() && github.event_name == 'pull_request'
-    needs: [build-webos, build-tizen, build-vega, build-xbox, test]
+    needs: [build-webos, build-tizen, build-vega, build-xbox]
     runs-on: ubuntu-26.04
     steps:
+      # The job's result, not its build step's, so a check after the build that
+      # fails (the Vega shell's) doesn't show as a passing platform.
       - name: Write outcomes.json
         run: |
           cat > outcomes.json <<EOF
           {
             "pr_number": ${{ github.event.pull_request.number }},
             "sha": "${{ github.event.pull_request.head.sha }}",
-            "webos": "${{ needs.build-webos.outputs.result }}",
-            "tizen": "${{ needs.build-tizen.outputs.result }}",
-            "vega": "${{ needs.build-vega.outputs.result }}",
-            "xbox": "${{ needs.build-xbox.outputs.result }}",
-            "tests": "${{ needs.test.outputs.result }}"
+            "webos": "${{ needs.build-webos.result }}",
+            "tizen": "${{ needs.build-tizen.result }}",
+            "vega": "${{ needs.build-vega.result }}",
+            "xbox": "${{ needs.build-xbox.result }}"
           }
           EOF
 
@@ -252,4 +260,6 @@ jobs:
             Moonfin_Tizen_*.wgt
             Moonfin_Vega_*.vpkg
             Moonfin_Xbox_*.zip
+            moonfin-ota-*.json
+            moonfin-ota-*.bin
             packages/build-webos/org.moonfin.webos.manifest.json

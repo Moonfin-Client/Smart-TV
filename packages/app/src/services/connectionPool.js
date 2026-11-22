@@ -7,9 +7,70 @@
 import * as multiServerManager from './multiServerManager';
 import {createApiForServer} from './jellyfinApi';
 import {withoutBlockedItems} from './parentalControls';
+import {profileProof, siloSessionOfAccount} from './siloSession';
 import {deduplicateMediaItems} from '../utils/mediaDedup';
+import {foldCopies} from '../utils/mergedCopies';
 import {latestMediaFetchLimitForCollection} from '../utils/latestMediaRowNormalizer';
 import {searchLibrary} from '../utils/searchGroups';
+
+// The server an item came from, carried on it so it can be reached again.
+const serverTags = (server) => ({
+	_serverId: server.serverId,
+	_serverName: server.name,
+	_serverUrl: server.url,
+	_serverUserId: server.userId,
+	_serverAccessToken: server.accessToken,
+	_serverType: server.serverType || 'jellyfin'
+});
+
+// Just the server fields `serverTags` puts on an item.
+const tagsOf = (item) => Object.keys(serverTags({})).reduce((tags, key) => ({...tags, [key]: item[key]}), {});
+
+const timeOf = (value) => {
+	const time = value ? new Date(value).getTime() : NaN;
+	return Number.isNaN(time) ? 0 : time;
+};
+
+// Whether a Silo profile would ask for its PIN now: it has one, and no proof of it that's still good is kept.
+const siloNeedsPin = (account) => account.siloHasPin === true &&
+	!profileProof(siloSessionOfAccount(account.url, account.siloAccountId), account.userId);
+
+// The account each server is read with: the signed-in one on its own server, elsewhere the first saved account with a
+// token, or for Silo the most recently used profile that can act without asking for its PIN. A server with none of
+// those is left out. One account per server keeps a title several servers hold to one copy per server, and marking it
+// watched from here never reaches another saved account.
+export const oneAccountPerServer = (servers, active) => {
+	const activeServerId = active?.serverId || active?.id;
+	const byServer = new Map();
+	(servers || []).forEach((server) => {
+		if (!byServer.has(server.serverId)) byServer.set(server.serverId, []);
+		byServer.get(server.serverId).push(server);
+	});
+	const chosen = [];
+	byServer.forEach((accounts, serverId) => {
+		const usable = accounts.filter((entry) => entry.accessToken);
+		let picked = serverId === activeServerId ? usable.find((entry) => entry.userId === active?.userId) : null;
+		if (!picked) {
+			picked = (accounts[0]?.serverType === 'silo')
+				? usable.filter((entry) => !siloNeedsPin(entry)).sort((a, b) => timeOf(b.lastConnected) - timeOf(a.lastConnected))[0]
+				: usable[0];
+		}
+		if (picked) chosen.push(picked);
+	});
+	return chosen;
+};
+
+/**
+ * The accounts every multi-server read goes through, one per server.
+ * @returns {Promise<Array>} One saved account per server
+ */
+export const getLoggedInServers = async () => {
+	const [servers, active] = await Promise.all([
+		multiServerManager.getAllServersArray(),
+		multiServerManager.getActiveServer()
+	]);
+	return oneAccountPerServer(servers, active);
+};
 
 /**
  * Execute a request to all servers and aggregate results
@@ -18,7 +79,7 @@ import {searchLibrary} from '../utils/searchGroups';
  * @returns {Promise<Array>} Aggregated results from all servers
  */
 export const executeAll = async (apiFn, options = {}) => {
-	const servers = await multiServerManager.getAllServersArray();
+	const servers = await getLoggedInServers();
 
 	if (servers.length === 0) {
 		console.warn('[ConnectionPool] No servers configured');
@@ -42,25 +103,9 @@ export const executeAll = async (apiFn, options = {}) => {
 
 			// Tag results with server info
 			if (Array.isArray(data)) {
-				return data.map(item => ({
-					...item,
-					_serverId: server.serverId,
-					_serverName: server.name,
-					_serverUrl: server.url,
-					_serverUserId: server.userId,
-					_serverAccessToken: server.accessToken,
-					_serverType: server.serverType || 'jellyfin'
-				}));
+				return data.map(item => ({...item, ...serverTags(server)}));
 			} else if (data && typeof data === 'object') {
-				return [{
-					...data,
-					_serverId: server.serverId,
-					_serverName: server.name,
-					_serverUrl: server.url,
-					_serverUserId: server.userId,
-					_serverAccessToken: server.accessToken,
-					_serverType: server.serverType || 'jellyfin'
-				}];
+				return [{...data, ...serverTags(server)}];
 			}
 			return [];
 		} catch (err) {
@@ -85,6 +130,9 @@ export const executeAll = async (apiFn, options = {}) => {
 	// Deduplicate if requested, by provider identity or a plain field
 	if (dedupe === 'provider') {
 		processedResults = deduplicateMediaItems(processedResults);
+	} else if (dedupe === 'fold') {
+		// Merged libraries keep the other servers' copies on the card instead of dropping them.
+		processedResults = foldCopies(processedResults);
 	} else if (dedupe) {
 		const seen = new Set();
 		processedResults = processedResults.filter(item => {
@@ -169,13 +217,54 @@ const groupLibrariesByServer = (libraries) => libraries
  * Get libraries from all servers
  * @returns {Promise<Array>} All libraries tagged with server info
  */
-export const getLibrariesFromAllServers = async () => {
-	const libraries = await executeAll(async (api) => {
-		const result = await api.getLibraries();
-		return result.Items || [];
-	});
 
-	return groupLibrariesByServer(libraries);
+/**
+ * Every server's libraries, and whether every server answered, so a caller can try again for a server that was slow
+ * to come up and would otherwise stay missing, and with it the libraries merged across it, until the next reload.
+ * @returns {Promise<{libraries: Array, complete: boolean}>}
+ */
+export const readLibrariesFromAllServers = async () => {
+	const servers = await getLoggedInServers();
+	let complete = true;
+	const perServer = await Promise.all(servers.map(async (server) => {
+		try {
+			const api = createApiForServer(server.url, server.accessToken, server.userId, server.serverType || 'jellyfin');
+			const result = await api.getLibraries();
+			return (result?.Items || []).map((library) => ({...library, ...serverTags(server)}));
+		} catch (err) {
+			console.warn(`[ConnectionPool] Libraries lookup failed on ${server.name}:`, err);
+			complete = false;
+			return [];
+		}
+	}));
+	return {libraries: groupLibrariesByServer(withoutBlockedItems(perServer.flat())), complete};
+};
+
+export const getLibrariesFromAllServers = async () => (await readLibrariesFromAllServers()).libraries;
+
+/**
+ * The server libraries a merged library of `collectionType` reads, the active server's first so a tie in the sort
+ * shows that copy. A server that doesn't answer is left out, and `complete` says whether every one answered.
+ * @param {string} collectionType - 'movies' or 'tvshows'
+ * @returns {Promise<{sources: Array<{api: Object, libraryId: string, server: Object}>, complete: boolean}>}
+ */
+export const getMergedLibrarySources = async (collectionType) => {
+	const [{libraries, complete}, active] = await Promise.all([
+		readLibrariesFromAllServers(),
+		multiServerManager.getActiveServer()
+	]);
+	const activeId = active?.serverId || active?.id;
+	const sources = libraries
+		.filter((library) => (library.CollectionType || '').toLowerCase() === collectionType)
+		.map((library) => ({
+			api: createApiForServer(library._serverUrl, library._serverAccessToken, library._serverUserId, library._serverType),
+			libraryId: library.Id,
+			server: tagsOf(library)
+		}));
+	return {sources: [
+		...sources.filter((source) => source.server._serverId === activeId),
+		...sources.filter((source) => source.server._serverId !== activeId)
+	], complete};
 };
 
 /**
@@ -213,7 +302,7 @@ export const getLatestItemsFromAllServers = async (libraryId = null) => {
  * @returns {Promise<Array>} Array of {lib, latest} objects
  */
 export const getLatestPerLibraryFromAllServers = async (excludedLibraryIds = [], excludedCollectionTypes = []) => {
-	const servers = await multiServerManager.getAllServersArray();
+	const servers = await getLoggedInServers();
 
 	if (servers.length === 0) {
 		return [];
@@ -293,7 +382,7 @@ export const getLatestPerLibraryFromAllServers = async (excludedLibraryIds = [],
 export const getRandomItemsFromAllServers = async (contentType = 'both', limit = 10, libraryIds = []) => {
 	// Calculate per-server limit to get roughly equal distribution
 	// Fetch a bit more from each to account for potential duplicates
-	const servers = await multiServerManager.getAllServersArray();
+	const servers = await getLoggedInServers();
 	const serverCount = servers.length;
 	const perServerLimit = Math.ceil((limit * 1.5) / Math.max(serverCount, 1));
 
@@ -326,10 +415,11 @@ export const getRandomItemsFromAllServers = async (contentType = 'both', limit =
 	);
 };
 
-// Runs one search on every server and ranks the answers by how well they match the query.
-const searchEveryServer = async (query, limit, search, cut = true) => {
+// Runs one search on every server and ranks the answers by how well they match the query. With `fold`, a title several
+// servers hold is one result carrying the others as copies, as merged libraries show it.
+const searchEveryServer = async (query, limit, search, cut = true, fold = false) => {
 	// Calculate per-server limit for distribution
-	const servers = await multiServerManager.getAllServersArray();
+	const servers = await getLoggedInServers();
 	const serverCount = servers.length;
 	const perServerLimit = Math.ceil((limit * 1.5) / Math.max(serverCount, 1));
 
@@ -351,7 +441,7 @@ const searchEveryServer = async (query, limit, search, cut = true) => {
 
 				return aName.localeCompare(bName);
 			},
-			dedupe: 'provider',
+			dedupe: fold ? 'fold' : 'provider',
 			limit: cut ? limit : null
 		}
 	);
@@ -364,9 +454,9 @@ const searchEveryServer = async (query, limit, search, cut = true) => {
  * @param {number} limit - Results to ask for, shared between the servers
  * @returns {Promise<Array>} Search results from all servers
  */
-export const searchAllServers = (query, limit = 20) =>
+export const searchAllServers = (query, limit = 20, {foldCopies: fold = false} = {}) =>
 	searchEveryServer(query, limit, (api, perServerLimit, server) =>
-		searchLibrary(api, query, perServerLimit, server.serverType || 'jellyfin'), false);
+		searchLibrary(api, query, perServerLimit, server.serverType || 'jellyfin'), false, fold);
 
 /**
  * Search people across all servers
@@ -480,7 +570,7 @@ export const getGenresFromAllServers = async (parentId = null) => {
  * @returns {Promise<Object>} {Items: Array, TotalRecordCount: number}
  */
 export const getGenreItemsFromAllServers = async (params) => {
-	const servers = await multiServerManager.getAllServersArray();
+	const servers = await getLoggedInServers();
 
 	if (servers.length === 0) {
 		return { Items: [], TotalRecordCount: 0 };
@@ -578,7 +668,9 @@ const connectionPool = {
 	getResumeItemsFromAllServers,
 	getNextUpFromAllServers,
 	getLibrariesFromAllServers,
+	readLibrariesFromAllServers,
 	getAllLibrariesFromAllServers,
+	getMergedLibrarySources,
 	getUserConfigFromAllServers,
 	updateUserConfigOnServer,
 	getLatestItemsFromAllServers,

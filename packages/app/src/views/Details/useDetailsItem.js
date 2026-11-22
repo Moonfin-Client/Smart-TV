@@ -21,6 +21,7 @@ import * as userDataSync from '../../services/userDataSync';
 import {useUserDataVersion} from '../../hooks/useUserDataSync';
 import {isStreamlessStaticSource, probedSources} from '../../utils/placeholderSource';
 import {mergeEpisodeCast, mergeEpisodePeople, resolveParentCast} from '../../utils/episodeCast';
+import {boxSetPeople} from './detailsMedia';
 
 // Everything the screen shows about one item. The item itself is fetched first and rendered
 // on its own, then the rows that hang off it fill in behind, because waiting for all of them
@@ -55,6 +56,9 @@ const seedToShow = (candidate, id) => {
 // it ends up with.
 const SIMILAR_LIMIT = 20;
 
+const COLLECTION_PAGE_SIZE = 50;
+const COLLECTION_TITLES_QUERY = {SortBy: 'ProductionYear,SortName', SortOrder: 'Ascending'};
+
 const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, settings, recommendationsSupported, seerrEnabled, tagWithServerInfo, skip}) => {
 	const seedRef = useRef(initialItem);
 	seedRef.current = initialItem;
@@ -79,7 +83,12 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 	const collectionEntriesRef = useRef(null);
 	// Read when the scan lands, so a sort picked while it was still running holds.
 	const collectionSortRef = useRef(DEFAULT_SORT);
+	// How far the collection's own titles have been read. A new object per collection, so a page
+	// that lands after the screen moved on can tell and is dropped.
+	const titlesRef = useRef(null);
 	seerrEnabledRef.current = seerrEnabled;
+	// Counts Next Up requests, so an older answer that lands late can't replace a newer one.
+	const nextUpRequestRef = useRef(0);
 
 	const [item, setItem] = useState(() => seedToShow(initialItem, itemId));
 	// Whether what is on screen is still the row it was opened from rather than the record
@@ -98,6 +107,8 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 	const [nextUp, setNextUp] = useState([]);
 	const [nextEpisode, setNextEpisode] = useState(null);
 	const [collectionItems, setCollectionItems] = useState([]);
+	// Every title in the collection, unpaged and without people, which Play and Shuffle take.
+	const [collectionMembers, setCollectionMembers] = useState([]);
 	const [missingCollectionItems, setMissingCollectionItems] = useState([]);
 	const [parentCollections, setParentCollections] = useState([]);
 	const [similarSource, setSimilarSource] = useState('jellyfin');
@@ -136,6 +147,35 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		}
 	}, [effectiveApi, tagWithServerInfo]);
 
+	// Reads the next page of the collection's own titles onto the ones already in. A failed read
+	// leaves the paging where it was, so the next ask tries again.
+	const readCollectionTitles = useCallback(async (titles) => {
+		titles.loading = true;
+		const data = await effectiveApi.getItems({
+			ParentId: itemId,
+			...COLLECTION_TITLES_QUERY,
+			StartIndex: titles.fetched,
+			Limit: COLLECTION_PAGE_SIZE,
+			Fields: 'PrimaryImageAspectRatio,ProductionYear,ProviderIds,People'
+		}).catch(() => null);
+		titles.loading = false;
+		if (!data || titles !== titlesRef.current) return;
+		const page = data.Items || [];
+		titles.fetched += page.length;
+		// A server that leaves the total out would strand the list on its first page, so a full page
+		// is taken to mean there's more.
+		titles.more = typeof data.TotalRecordCount === 'number'
+			? titles.fetched < data.TotalRecordCount
+			: page.length === COLLECTION_PAGE_SIZE;
+		const visible = tagWithServerInfo(withoutBlockedItems(page));
+		if (visible.length) setCollectionItems((prev) => [...prev, ...visible]);
+	}, [effectiveApi, itemId, tagWithServerInfo]);
+
+	const loadMoreCollectionTitles = useCallback(() => {
+		const titles = titlesRef.current;
+		if (titles && titles.more && !titles.loading) readCollectionTitles(titles);
+	}, [readCollectionTitles]);
+
 	// Starts the playlist over in a new order, and paging waits until its first page is in.
 	const startCollectionPlaylist = useCallback(async (index, generation) => {
 		collectionIndexRef.current = index;
@@ -166,7 +206,10 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		setExtras([]);
 		setCast([]);
 		setNextUp([]);
+		nextUpRequestRef.current += 1;
 		setCollectionItems([]);
+		setCollectionMembers([]);
+		titlesRef.current = null;
 		setMissingCollectionItems([]);
 		collectionIndexRef.current = [];
 		collectionFetchedRef.current = 0;
@@ -293,13 +336,14 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 					// since the viewer walks the selector and would otherwise wait at every step.
 					const style = settingsRef.current?.detailScreenStyle;
 					const wantsEpisodes = ['v4', 'v5', 'v6', 'v7', 'v9'].indexOf(style) >= 0;
+					const nextUpRequest = ++nextUpRequestRef.current;
 					const [seasonsData, nextUpData, episodesData] = await Promise.all([
 						effectiveApi.getSeasons(itemId).catch(() => null),
 						effectiveApi.getNextUp(1, itemId).catch(() => null),
 						wantsEpisodes ? effectiveApi.getEpisodes(itemId).catch(() => null) : null
 					]);
 					if (seasonsData) setSeasons(tagWithServerInfo(withoutBlockedItems(seasonsData.Items || [], fallbackRating)));
-					if (nextUpData?.Items?.length > 0) setNextUp(tagWithServerInfo(nextUpData.Items));
+					if (nextUpData?.Items?.length > 0 && nextUpRequest === nextUpRequestRef.current) setNextUp(tagWithServerInfo(nextUpData.Items));
 					if (episodesData) setSeriesEpisodes(tagWithServerInfo(withoutBlockedItems(episodesData.Items || [], fallbackRating)));
 				}
 
@@ -345,16 +389,22 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 				}
 
 				if (data.Type === 'BoxSet') {
-					const collectionData = await effectiveApi.getItems({
-						ParentId: data.Id,
-						SortBy: 'ProductionYear,SortName',
-						SortOrder: 'Ascending',
-						Fields: 'PrimaryImageAspectRatio,ProductionYear,ProviderIds'
-					}).catch(() => null);
+					// The rows read a page at a time. Play, Shuffle and Seerr's missing titles need the whole
+					// membership, which is read once without the people that make a page heavy.
+					titlesRef.current = {fetched: 0, more: false, loading: false};
+					const [collectionData] = await Promise.all([
+						effectiveApi.getItems({
+							ParentId: data.Id,
+							...COLLECTION_TITLES_QUERY,
+							Fields: 'PrimaryImageAspectRatio,ProductionYear,ProviderIds'
+						}).catch(() => null),
+						readCollectionTitles(titlesRef.current)
+					]);
+					if (cancelled) return;
 					boxSetMembers = collectionData?.Items || [];
 					if (collectionData) {
 						const tagged = tagWithServerInfo(withoutBlockedItems(collectionData.Items || []));
-						setCollectionItems(tagged);
+						setCollectionMembers(tagged);
 						if (tagged.length > 0 && seerrEnabledRef.current) {
 							fetchMissingCollectionItems({
 								boxSet: data,
@@ -533,7 +583,7 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		};
 		loadItem();
 		return () => { cancelled = true; };
-	}, [effectiveApi, itemId, tagWithServerInfo, skip, startCollectionPlaylist]);
+	}, [effectiveApi, itemId, tagWithServerInfo, skip, startCollectionPlaylist, readCollectionTitles]);
 
 	const chooseCollectionSort = useCallback((option) => {
 		if (option === collectionSortRef.current) return;
@@ -615,6 +665,9 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 	const removeFromCollection = useCallback(async (member) => {
 		if (item?.Type !== 'BoxSet') return;
 		const previousCollection = collectionItems;
+		const previousMembers = collectionMembers;
+		const titles = titlesRef.current;
+		const previousTitlesFetched = titles && titles.fetched;
 		const previousPlaylist = playlistItems;
 		const previousIndex = collectionIndexRef.current;
 		const previousEntries = collectionEntriesRef.current;
@@ -626,6 +679,9 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		// hole opened behind it. Stepping one that sits ahead would read an id twice.
 		const position = previousIndex.indexOf(member.Id);
 		setCollectionItems(previousCollection.filter((entry) => entry.Id !== member.Id));
+		setCollectionMembers(previousMembers.filter((entry) => entry.Id !== member.Id));
+		// Removing a title that's already loaded shifts the server's next page back by one.
+		if (titles && previousCollection.some((entry) => entry.Id === member.Id)) titles.fetched -= 1;
 		setPlaylistItems(previousPlaylist.filter((entry) => entry.Id !== member.Id));
 		collectionIndexRef.current = previousIndex.filter((id) => id !== member.Id);
 		collectionEntriesRef.current = previousEntries && previousEntries.filter((entry) => entry.id !== member.Id);
@@ -637,6 +693,8 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 			await effectiveApi.removeFromCollection(item.Id, [member.Id]);
 		} catch (err) {
 			setCollectionItems(previousCollection);
+			setCollectionMembers(previousMembers);
+			if (titles) titles.fetched = previousTitlesFetched;
 			setPlaylistItems(previousPlaylist);
 			collectionIndexRef.current = previousIndex;
 			collectionEntriesRef.current = previousEntries;
@@ -651,7 +709,7 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		if (Array.isArray(order) && order.indexOf(member.Id) !== -1) {
 			await effectiveApi.saveCollectionOrder(item.Id, order.filter((id) => id !== member.Id)).catch(() => {});
 		}
-	}, [item, collectionItems, playlistItems, collectionCustomOrder, effectiveApi]);
+	}, [item, collectionItems, collectionMembers, playlistItems, collectionCustomOrder, effectiveApi]);
 
 	const refreshItem = useCallback(async () => {
 		try {
@@ -663,6 +721,27 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 			console.error('[Details] Error refreshing item', err);
 		}
 	}, [effectiveApi, itemId, tagWithServerInfo]);
+
+	// Marking a whole series or season reaches every episode under it, which the server doesn't report one by
+	// one, so the page reads its seasons, episodes and next up again.
+	const reloadEpisodes = useCallback(async () => {
+		const type = item?.Type;
+		if (type !== 'Series' && type !== 'Season') return;
+		const keep = (data) => tagWithServerInfo(withoutBlockedItems(data.Items || [], item.OfficialRating));
+		const nextUpRequest = ++nextUpRequestRef.current;
+		const [seasonsData, episodesData, seriesData, nextUpData] = await Promise.all([
+			type === 'Series' ? effectiveApi.getSeasons(item.Id).catch(() => null) : null,
+			type === 'Season' ? effectiveApi.getEpisodes(item.SeriesId, item.Id).catch(() => null) : null,
+			type === 'Series' && seriesEpisodes.length ? effectiveApi.getEpisodes(item.Id).catch(() => null) : null,
+			type === 'Series' ? effectiveApi.getNextUp(1, item.Id).catch(() => null) : null
+		]);
+		const lists = [seasonsData, episodesData, seriesData, nextUpData].filter(Boolean);
+		userDataSync.recordFromServer(lists.flatMap((data) => data.Items || []));
+		if (seasonsData) setSeasons(keep(seasonsData));
+		if (episodesData) setEpisodes(keep(episodesData));
+		if (seriesData) setSeriesEpisodes(keep(seriesData));
+		if (nextUpData && nextUpRequest === nextUpRequestRef.current) setNextUp(tagWithServerInfo(nextUpData.Items || []));
+	}, [item, seriesEpisodes.length, effectiveApi, tagWithServerInfo]);
 
 	// Everything here was fetched once, and the watched state can move under it on this set or
 	// another one, so the screen draws from it with what's known now laid over it.
@@ -677,12 +756,27 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		nextUp: userDataSync.applyAll(nextUp),
 		nextEpisode: userDataSync.apply(nextEpisode),
 		collectionItems: userDataSync.applyAll(collectionItems),
+		collectionMembers: userDataSync.applyAll(collectionMembers),
 		parentCollections: userDataSync.applyToRows(parentCollections),
 		albumTracks: userDataSync.applyAll(albumTracks),
 		artistAlbums: userDataSync.applyAll(artistAlbums),
 		playlistItems: userDataSync.applyAll(playlistItems)
-	}), [item, seasons, episodes, seriesEpisodes, similar, extras, nextUp, nextEpisode, collectionItems, // eslint-disable-line react-hooks/exhaustive-deps
+	}), [item, seasons, episodes, seriesEpisodes, similar, extras, nextUp, nextEpisode, collectionItems, collectionMembers, // eslint-disable-line react-hooks/exhaustive-deps
 		parentCollections, albumTracks, artistAlbums, playlistItems, userDataVersion]);
+
+	// Only the server knows which episode comes next once a watched state moves, so a series asks
+	// again. A failed request keeps the Next Up already shown.
+	const itemType = item?.Type;
+	useEffect(() => {
+		if (!userDataVersion || skip || itemType !== 'Series') return;
+		const request = ++nextUpRequestRef.current;
+		effectiveApi.getNextUp(1, itemId).then((data) => {
+			if (request === nextUpRequestRef.current) setNextUp(tagWithServerInfo(data?.Items || []));
+		}, () => {});
+	}, [userDataVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+
+	// A collection has no people of its own, so it shows its titles', which grow as pages load.
+	const people = useMemo(() => (itemType === 'BoxSet' ? boxSetPeople(collectionItems) : cast), [itemType, collectionItems, cast]);
 
 	return {
 		...synced,
@@ -690,12 +784,13 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		isSeed,
 		isLoading,
 		isBlocked,
-		cast,
+		cast: people,
 		missingCollectionItems,
 		similarSource,
 		similarLoaded,
 		playListsLoaded,
 		loadMoreCollectionItems,
+		loadMoreCollectionTitles,
 		removeFromCollection,
 		collectionIndexRef,
 		collectionSort,
@@ -710,7 +805,8 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		setSelectedAudioIndex,
 		selectedSubtitleIndex,
 		setSelectedSubtitleIndex,
-		refreshItem
+		refreshItem,
+		reloadEpisodes
 	};
 };
 

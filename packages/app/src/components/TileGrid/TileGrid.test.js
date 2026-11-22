@@ -135,6 +135,22 @@ describe('TileGrid', () => {
 		expect(Spotlight.focus).toHaveBeenCalledWith('grid');
 	});
 
+	test('lets the page jump it to a tile far down a long list, scrolling to it', () => {
+		let scrollTo;
+		const {grid, focusedTile, track} = setup({
+			dataSize: 5000,
+			cbScrollTo: (fn) => {
+				scrollTo = fn;
+			}
+		});
+		fireEvent.focus(grid);
+		act(() => scrollTo({index: 3000, focus: true}));
+		expect(grid.getAttribute('data-index')).toBe('3000');
+		expect(grid.getAttribute('data-scrolled')).toBe('true');
+		expect(focusedTile().textContent).toBe('3000');
+		expect(track().style.transform).not.toBe('translateY(0px)');
+	});
+
 	test('focuses the tile under a pointer without scrolling', () => {
 		const {grid, track} = setup();
 		fireEvent.focus(grid);

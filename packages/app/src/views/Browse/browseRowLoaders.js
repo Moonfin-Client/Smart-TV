@@ -16,7 +16,11 @@ import {collapseLatestTvItems} from '../../utils/latestMediaRowNormalizer';
 import {isPickedRow, isPickedRowShown, isSameServer} from '../../utils/pickedRows';
 import mapBounded from '../../utils/mapBounded';
 import {studioLogoIndex} from '../Details/studioLogos';
-import {pageableRow, readFoldedHead} from './rowPaging';
+import {studioRowSortBy} from '../../utils/studioRowSort';
+import {FULL_ROW_READ, pageableRow, readFoldedHead} from './rowPaging';
+import * as gamesApi from '../../services/gamesApi';
+import {isGameLibrary, refreshGameLibraries, resolveGameLibraryId} from '../../utils/gameLibrary';
+import {gameHeadline} from '../../utils/gameArt';
 
 // How many sections from the top load with Home. A picked row below them waits until Home comes
 // near it, so a Home with hundreds of collections doesn't fetch them all up front.
@@ -94,16 +98,71 @@ const expandPlaylistsToItems = async (api, playlists, limit, usePlaylistOrder, s
 
 // A library's Recently Added, read `limit` cards long. The server's list has no start index, so a
 // longer row is asked for again, and a show's new episodes fold into one card for the series.
-const readLatestHead = (api, lib) => (limit) => readFoldedHead(
+const readLatestHead = (api, lib, hideWatched) => (limit) => readFoldedHead(
 	(size) => api.getLatest(lib.Id, size),
-	(latest) => normalizeLatestMediaItems(latest, {collectionType: lib.CollectionType, limit: 0}),
+	(latest) => normalizeLatestMediaItems(latest, {collectionType: lib.CollectionType, limit: 0, hideWatched}),
 	limit,
-	latestMediaFetchLimitForCollection(lib.CollectionType, limit, Infinity)
+	latestMediaFetchLimitForCollection(lib.CollectionType, limit, Infinity, hideWatched),
+	hideWatched ? FULL_ROW_READ : undefined
 );
+
+// The first read of a library's Recently Added. With watched titles hidden a full read can still
+// leave the row short, so it's read once more as far as FULL_ROW_READ.
+const readLatest = async (api, lib, hideWatched) => {
+	const limit = latestMediaFetchLimitForCollection(lib.CollectionType, 16, undefined, hideWatched);
+	const latest = await api.getLatest(lib.Id, limit);
+	if (!hideWatched || !Array.isArray(latest) || latest.length < limit ||
+		normalizeLatestMediaItems(latest, {collectionType: lib.CollectionType, hideWatched}).length >= 16) {
+		return latest;
+	}
+	return api.getLatest(lib.Id, FULL_ROW_READ).catch(() => latest);
+};
+
+// A game library's row comes from Moonbase, since the server itself can't see the games. A server
+// without the route leaves the row out.
+const readGameRow = async (lib, released) => {
+	const libraryId = resolveGameLibraryId(lib);
+	const games = await gamesApi.getRecentGames(libraryId, released).catch(() => []);
+	if (!Array.isArray(games) || games.length === 0) return null;
+	const library = {...lib, Id: libraryId};
+	return {
+		gameRow: {
+			id: `${released ? 'recently-released' : 'latest'}-${lib.Id}`,
+			title: released
+				? $L('Recently Released {libraryName}').replace('{libraryName}', lib.Name)
+				: $L('Recently Added {libraryName}').replace('{libraryName}', lib.Name),
+			items: games.map((game) => {
+				const name = gameHeadline(game.title, game.fileName);
+				return {
+					...game,
+					title: name,
+					Id: game.id,
+					// What Classic's info area reads for the focused card.
+					Name: name,
+					ProductionYear: game.year,
+					Overview: game.overview,
+					// The info line's text slot, so it reads "1985 • NES".
+					Genres: game.system ? [game.system] : [],
+					isGame: true,
+					_library: library,
+					_aspect: game.boxart?.width > 0 && game.boxart?.height > 0 ? game.boxart.width / game.boxart.height : null
+				};
+			}),
+			library: lib,
+			type: 'game',
+			isGameRow: true,
+			isLatestRow: !released,
+			isRecentlyReleasedRow: released
+		}
+	};
+};
 
 export const loadLatestAndRecentlyReleased = async (ctx) => {
 	const {api, appendRows, eligibleLibraries, settings} = ctx;
+	const hideWatched = settings.hideWatchedInRecentRows === true;
 	try {
+		await refreshGameLibraries();
+		const isGames = (lib) => isGameLibrary(lib.Id, lib.CollectionType, lib.Name);
 		let includeItemTypes = 'Movie,Series';
 		switch (settings.recentlyReleasedSeriesType) {
 			case 'season': {
@@ -118,28 +177,30 @@ export const loadLatestAndRecentlyReleased = async (ctx) => {
 
 		const [latestResults, recentlyReleasedResults] = await Promise.all([
 			Promise.all(
-				eligibleLibraries.map(lib =>
-					api.getLatest(lib.Id, latestMediaFetchLimitForCollection(lib.CollectionType, 16))
+				eligibleLibraries.map(lib => (isGames(lib) ? readGameRow(lib, false) :
+					readLatest(api, lib, hideWatched)
 						.then(latest => ({lib, latest}))
-						.catch(() => null)
+						.catch(() => null))
 				)
 			),
 			Promise.all(
-				eligibleLibraries.map(lib =>
-					api.getRecentlyReleased(lib.Id, 16, includeItemTypes)
+				eligibleLibraries.map(lib => (isGames(lib) ? readGameRow(lib, true) :
+					api.getRecentlyReleased(lib.Id, 16, includeItemTypes, settings.hideWatchedInRecentRows)
 						.then(latest => ({lib, latest}))
-						.catch(() => null)
+						.catch(() => null))
 				)
 			)
 		]);
 
 		const rows = [];
+		// Game rows hold games, not media, so they never merge with a library's.
+		const gameRows = (results) => results.filter((r) => r?.gameRow).map((r) => r.gameRow);
 		if (settings.mergeRecentRowsByType) {
 			const latestEntries = latestResults
 				.filter((r) => r && r.latest?.length > 0)
 				.map((r) => ({
 					lib: r.lib,
-					items: normalizeLatestMediaItems(r.latest, {collectionType: r.lib?.CollectionType, limit: 16})
+					items: normalizeLatestMediaItems(r.latest, {collectionType: r.lib?.CollectionType, limit: 16, hideWatched})
 				}));
 			for (const merged of mergeRecentRows(latestEntries, 'DateCreated')) {
 				rows.push({
@@ -162,12 +223,14 @@ export const loadLatestAndRecentlyReleased = async (ctx) => {
 					isRecentlyReleasedRow: true
 				});
 			}
-			appendRows(rows);
+			appendRows([...rows, ...gameRows(latestResults), ...gameRows(recentlyReleasedResults)]);
 			return;
 		}
 		for (const result of latestResults) {
-			if (result && result.latest?.length > 0) {
-				const items = normalizeLatestMediaItems(result.latest, {collectionType: result.lib?.CollectionType, limit: 16});
+			if (result?.gameRow) {
+				rows.push(result.gameRow);
+			} else if (result && result.latest?.length > 0) {
+				const items = normalizeLatestMediaItems(result.latest, {collectionType: result.lib?.CollectionType, limit: 16, hideWatched});
 				if (items.length > 0) {
 					const libraryTitle = result.lib.Name;
 					const rowId = `latest-${result.lib.Id}`;
@@ -178,12 +241,14 @@ export const loadLatestAndRecentlyReleased = async (ctx) => {
 						library: result.lib,
 						type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
 						isLatestRow: true
-					}, {Items: items, hasMore: true}, 16, readLatestHead(api, result.lib)));
+					}, {Items: items, hasMore: true}, 16, readLatestHead(api, result.lib, hideWatched)));
 				}
 			}
 		}
 		for (const result of recentlyReleasedResults) {
-			if (result && result.latest?.Items?.length > 0) {
+			if (result?.gameRow) {
+				rows.push(result.gameRow);
+			} else if (result && result.latest?.Items?.length > 0) {
 				const libraryTitle = result.lib.Name;
 				const rowId = `recently-released-${result.lib.Id}`;
 				const lib = result.lib;
@@ -194,7 +259,7 @@ export const loadLatestAndRecentlyReleased = async (ctx) => {
 					library: lib,
 					type: lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
 					isRecentlyReleasedRow: true
-				}, result.latest, 16, (limit) => api.getRecentlyReleased(lib.Id, limit, includeItemTypes)));
+				}, result.latest, 16, (limit) => api.getRecentlyReleased(lib.Id, limit, includeItemTypes, settings.hideWatchedInRecentRows)));
 			}
 		}
 		appendRows(rows);
@@ -246,10 +311,10 @@ export const withStudioLogos = (studios, logoList, serverUrl, token) => {
 	});
 };
 
-const loadStudios = async (ctx) => {
+export const loadStudios = async (ctx) => {
 	const {api, appendRows, studiosEnabled, settings, serverUrl} = ctx;
 	if (!studiosEnabled) return;
-	const sortBy = apiSortBy(settings.studiosRowSortBy || 'SortName');
+	const sortBy = studioRowSortBy(settings.studiosRowSortBy);
 	try {
 		const logos = settings.useMoonfinPlugin && api.getStudioLogos ? api.getStudioLogos().catch(() => null) : null;
 		const result = await api.getStudios(20, sortBy, resolveSortOrder(sortBy, settings.studiosRowSortOrder)).catch(() => null);
@@ -266,7 +331,7 @@ const loadStudios = async (ctx) => {
 	}
 };
 
-const loadFavorites = async (ctx) => {
+export const loadFavorites = async (ctx) => {
 	const {api, appendRows, favoriteSortBy, favoriteSortOrder, settings} = ctx;
 	if (!settings.displayFavoritesRows) return;
 	try {
@@ -303,7 +368,7 @@ const loadFavorites = async (ctx) => {
 	}
 };
 
-const loadGenres = async (ctx) => {
+export const loadGenres = async (ctx) => {
 	const {api, appendRows, genresIncludeTypes, genresSortBy, genresSortOrder, settings} = ctx;
 	if (!settings.displayGenresRows) return;
 	try {
@@ -312,7 +377,8 @@ const loadGenres = async (ctx) => {
 			let enrichedItems = genresResult.Items;
 			const genresSortByLower = (settings.genresRowSortBy || 'SortName').toLowerCase();
 			if (genresSortByLower === 'sortname' || genresSortByLower === 'name') {
-				enrichedItems = [...enrichedItems].sort((a, b) => (a.Name || '').localeCompare(b.Name || ''));
+				const direction = genresSortOrder === 'Descending' ? -1 : 1;
+				enrichedItems = [...enrichedItems].sort((a, b) => direction * (a.Name || '').localeCompare(b.Name || ''));
 			} else if (genresSortByLower === 'random') {
 				enrichedItems = [...enrichedItems].sort(() => Math.random() - 0.5);
 			}
@@ -408,7 +474,11 @@ const loadGenres = async (ctx) => {
 	}
 };
 
-const loadPlaylistsAndMusic = async (ctx) => {
+export const onNowRow = (result) => (result?.Items?.length > 0
+	? {id: 'onnow', title: $L('On Now'), items: result.Items, type: 'landscape'}
+	: null);
+
+export const loadPlaylistsAndMusic = async (ctx) => {
 	const {api, appendRows, audioAlbumsEnabled, audioArtistsEnabled, audioPlaylistsEnabled, audioRowsSortBy, audioRowsSortOrder, onNowEnabled, playlistsSortBy, playlistsSortOrder, recordingsEnabled, resumeAudioEnabled, settings} = ctx;
 	const readArtists = (limit) => readMusicArtists(api, audioRowsSortBy, audioRowsSortOrder, limit);
 	const readAlbums = (limit) => readMusicAlbums(api, audioRowsSortBy, audioRowsSortOrder, limit);
@@ -477,14 +547,8 @@ const loadPlaylistsAndMusic = async (ctx) => {
 				type: 'landscape'
 			});
 		}
-		if (onNowResult?.Items?.length > 0) {
-			rows.push({
-				id: 'onnow',
-				title: $L('On Now'),
-				items: onNowResult.Items,
-				type: 'landscape'
-			});
-		}
+		const onNow = onNowRow(onNowResult);
+		if (onNow) rows.push(onNow);
 		appendRows(rows);
 	} catch (e) {
 		console.warn('[Browse] Failed to load playlists/music:', e);
@@ -506,8 +570,8 @@ const pickedRowSource = async (ctx, row) => {
 // A picked row's first `limit` cards, as a list result.
 const loadPickedRowItems = async (ctx, api, row, limit) => {
 	const {settings} = ctx;
-	// Silo sends a section's whole row at once, in its own order.
-	if (row.source === 'server') return (await api.getServerHomeSectionItems(row.itemId, PICKED_ROW_LIMIT))?.Items || [];
+	// Silo sends a section's whole row at once, in its own order, and counts it.
+	if (row.source === 'server') return (await api.getServerHomeSectionItems(row.itemId, limit)) || {Items: []};
 	if (row.source === 'collections') {
 		return {Items: await loadCollectionRowItems(api, row.itemId, {
 			limit,
@@ -565,9 +629,12 @@ const fetchPluginSectionRow = async (ctx, row) => {
 			title: row.name,
 			items: first.Items,
 			type: 'portrait',
-			isPluginRow: true
+			isPluginRow: true,
+			// What the row's See All card opens.
+			collection: row.source === 'collections' ? tagged([{Id: row.itemId, Name: row.name, Type: 'BoxSet'}])[0] : undefined
 		}, first, PICKED_ROW_LIMIT, readHead);
-	} catch (_error) {
+	} catch (e) {
+		console.warn(`[Browse] Failed to load the ${row.source} row ${row.itemId}:`, e);
 		return null;
 	}
 };

@@ -1,5 +1,5 @@
 import {rem} from '../../utils/rootScale';
-import {CORE_ICON_PATHS} from '../../views/Settings/settingsCoreIcons';
+import {coreIconPath} from '../../utils/coreIconPaths';
 import {POSTER_LABEL_FLAGS} from './posterLabelFlags';
 
 // How one label draws, matching the admin page's preview.
@@ -15,7 +15,7 @@ const FALLBACK_COLOR = '#2563EB';
 const LINE_HEIGHT = 1.2;
 
 // The server names icons the way Material does. An unknown name draws no icon.
-const knownIcon = (icon) => (typeof CORE_ICON_PATHS[icon] === 'string' ? icon : null);
+const knownIcon = (icon) => (typeof coreIconPath(icon) === 'string' ? icon : null);
 
 const SIZES = {small: 0.8, medium: 1, large: 1.25, xlarge: 1.5};
 

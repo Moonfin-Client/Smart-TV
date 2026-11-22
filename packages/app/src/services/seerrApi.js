@@ -1,9 +1,9 @@
-import {isWebOS, isLegacyTizen} from '../platform';
+import {isLegacyWebOS, isLegacyTizen} from '../platform';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
 import {mediaServerQueue} from '../utils/requestQueue';
 import {normalizeWatchlistBody} from './seerrApi.watchlistShape';
 import {sharePending} from '../utils/sharePending';
-import {isPlexUrl} from '../utils/plexUrls';
+import {isPlexUrl, plexServerOf} from '../utils/plexUrls';
 import {isSiloLogin, moonbaseEndpoint} from './moonbaseEndpoint';
 import {createApiForServer, getUserId} from './jellyfinApi';
 import {createSiloSeerr} from './siloSeerr';
@@ -13,9 +13,22 @@ let moonfinMode = false;
 let jellyfinServerUrl = null;
 let jellyfinAccessToken = null;
 
-// webOS 4 and legacy Tizen builds (<=3.0) can fail HTTPS validation for image.tmdb.org,
-// so use HTTP on those devices.
-const shouldUseHttp = isWebOS() || isLegacyTizen();
+// TVs before webOS 5, and Tizen 3 and older, may not trust the Let's Encrypt root behind some
+// image.tmdb.org servers, so they start on HTTP and switch once a picture loads over HTTPS.
+let tmdbProto = isLegacyWebOS() || isLegacyTizen() ? 'http' : 'https';
+let tmdbHttpsTried = false;
+
+const tmdbUrl = (url) => {
+	if (tmdbProto === 'http' && !tmdbHttpsTried && typeof window !== 'undefined' && window.Image) {
+		tmdbHttpsTried = true;
+		const probe = new window.Image();
+		probe.onload = () => {
+			tmdbProto = 'https';
+		};
+		probe.src = url.replace(/^http:/, 'https:');
+	}
+	return url;
+};
 
 export const setMoonfinConfig = (serverUrl, token) => {
 	jellyfinServerUrl = serverUrl?.replace(/\/+$/, '');
@@ -36,7 +49,7 @@ const siloSeerrNow = () => {
 	if (siloSeerr?.server !== jellyfinServerUrl) {
 		// Silo's request routes name the acting profile, read at call time since it can switch.
 		const silo = () => createApiForServer(jellyfinServerUrl, jellyfinAccessToken, getUserId(), 'silo');
-		siloSeerr = {server: jellyfinServerUrl, ...createSiloSeerr({call: (path, options) => silo().siloCall(path, options), baseUrl: jellyfinServerUrl})};
+		siloSeerr = {server: jellyfinServerUrl, ...createSiloSeerr({call: (path, options) => silo().siloCall(path, options), library: silo, baseUrl: jellyfinServerUrl})};
 	}
 	return siloSeerr;
 };
@@ -48,13 +61,9 @@ const siloSeerrReady = async () => {
 	return siloSeerrNow();
 };
 
-const fetchRequest = async (params) => {
-	const {url, method = 'GET', headers = {}, body, timeout = 15000} = params;
-	// Plex never has the plugin, so its requests are answered here instead of going out.
-	if (isPlexUrl(url)) return {success: true, status: 404, headers: {}, body: ''};
-
+const sendRequest = async ({url, method = 'GET', headers = {}, body, timeout = 15000, fetch: send}) => {
 	try {
-		const response = await mediaServerQueue.run(() => fetchWithTimeout(url, {
+		const response = await mediaServerQueue.run(() => (send || fetchWithTimeout)(url, {
 			method,
 			headers,
 			body: body || undefined
@@ -81,12 +90,23 @@ const fetchRequest = async (params) => {
 	}
 };
 
+// Plex can't run plugins, so a plugin route on a Plex server goes to Moonbase for Plex beside it, and a server
+// without one answers as one without the plugin. The companion's address is sent as it is, since it can sit under
+// the Plex server's own address behind a proxy.
+const fetchRequest = async (params) => {
+	const plex = plexServerOf(params.url);
+	if (!plex) return sendRequest(params);
+	const endpoint = await moonbaseEndpoint(plex.base, plex.token, 'plex');
+	if (!endpoint) return {success: true, status: 404, headers: {}, body: ''};
+	return sendRequest({...params, url: `${endpoint.base}${params.url.slice(plex.base.length)}`, headers: {...params.headers, ...endpoint.headers}, fetch: endpoint.fetch});
+};
+
 // A request to one of Moonbase's own routes, signed the way this server wants. A server without Moonbase answers as one
 // without the plugin.
 const moonbaseFetch = async (sUrl, sToken, path, params) => {
 	const endpoint = await moonbaseEndpoint(sUrl, sToken);
 	if (!endpoint) return {success: true, status: 404, headers: {}, body: ''};
-	return fetchRequest({...params, url: `${endpoint.base}${path}`, headers: {...params.headers, ...endpoint.headers}});
+	return sendRequest({...params, url: `${endpoint.base}${path}`, headers: {...params.headers, ...endpoint.headers}, fetch: endpoint.fetch});
 };
 
 // What a server said went wrong, capped. The message ends up in the diagnostic
@@ -181,13 +201,17 @@ const moonfinAuthRequest = async (url, method, headers, body, timeout = 15000) =
 	if (!result.success) throw new Error(result.error || 'Network error');
 	if (result.status >= 400) {
 		let errorMessage = `Moonfin request failed: ${result.status}`;
+		let errorCode = null;
 		if (result.body) {
 			try {
-				errorMessage = errorDetail(JSON.parse(result.body)) || errorMessage;
+				const parsed = JSON.parse(result.body);
+				errorMessage = errorDetail(parsed) || errorMessage;
+				errorCode = parsed?.errorCode || null;
 			} catch (e) { void e; }
 		}
 		const error = new Error(errorMessage);
 		error.status = result.status;
+		if (errorCode) error.code = errorCode;
 		throw error;
 	}
 
@@ -227,7 +251,8 @@ export const getMoonfinStatus = async () => {
 	}
 };
 
-export const moonfinLogin = async (username, password, authType = 'jellyfin') => {
+// A Plex account signs in with its plex.tv token (authToken), through Moonbase for Plex.
+export const moonfinLogin = async (username, password, authType = 'jellyfin', authToken = null) => {
 	if (!jellyfinServerUrl || !jellyfinAccessToken) {
 		throw new Error('Moonfin not configured');
 	}
@@ -238,7 +263,7 @@ export const moonfinLogin = async (username, password, authType = 'jellyfin') =>
 		const status = await silo.status();
 		return {success: status.authenticated, ...status};
 	}
-	const normalizedAuthType = authType === 'local' ? 'local' : 'jellyfin';
+	const normalizedAuthType = authType === 'local' || authType === 'plex' ? authType : 'jellyfin';
 
 	return moonfinAuthRequest(
 `${jellyfinServerUrl}/Moonfin/Seerr/Login`,
@@ -248,7 +273,7 @@ export const moonfinLogin = async (username, password, authType = 'jellyfin') =>
 	'Accept': 'application/json',
 	'Authorization': `MediaBrowser Token="${jellyfinAccessToken}"`
 },
-JSON.stringify({username, password, authType: normalizedAuthType}),
+JSON.stringify(normalizedAuthType === 'plex' ? {authType: 'plex', authToken} : {username, password, authType: normalizedAuthType}),
 30000
 	);
 };
@@ -378,6 +403,53 @@ export const getMoonfinMessages = async (serverUrl, token) => {
 	} catch (e) {
 		throw new Error('Invalid response from Moonfin Messages');
 	}
+};
+
+// Radarr or Sonarr's own queue for one title, read through Moonbase. Only a 200 says
+// anything about the title. Every other answer means the plugin can't see the arr
+// (no admin Seerr session, no arr set up, the arr down), so it comes back as null
+// rather than as an empty queue. Silo's requests have no arr behind them.
+export const getArrQueue = async (service, id) => {
+	if (!jellyfinServerUrl || !jellyfinAccessToken || !id) return null;
+	if (await siloSeerrReady()) return null;
+	const isMovie = service === 'radarr';
+	const path = `/Moonfin/Seerr/${isMovie ? 'Radarr' : 'Sonarr'}/Queue?${isMovie ? 'tmdbId' : 'tvdbId'}=${encodeURIComponent(id)}`;
+	const result = await moonbaseFetch(jellyfinServerUrl, jellyfinAccessToken, path, {
+		method: 'GET',
+		headers: {'Accept': 'application/json'},
+		timeout: 15000
+	});
+	if (!result.success || result.status !== 200 || !result.body) return null;
+	try {
+		const parsed = JSON.parse(result.body);
+		return parsed && typeof parsed === 'object' && Array.isArray(parsed.items) ? parsed : null;
+	} catch (e) {
+		return null;
+	}
+};
+
+// Takes a stuck download out of the arr's queue and blocklists the release, so the
+// arr searches for another one. Admin only. A 404 means it already left the queue,
+// which is what was wanted, so it counts as done.
+export const removeArrQueueItem = async (service, queueId) => {
+	if (!jellyfinServerUrl || !jellyfinAccessToken) {
+		throw new Error('Moonfin not configured');
+	}
+	const path = `/Moonfin/Seerr/${service === 'radarr' ? 'Radarr' : 'Sonarr'}/Queue/${encodeURIComponent(queueId)}`;
+	const result = await moonbaseFetch(jellyfinServerUrl, jellyfinAccessToken, path, {
+		method: 'DELETE',
+		headers: {'Accept': 'application/json'},
+		timeout: 30000
+	});
+	if (!result.success) throw new Error(result.error || 'Network error');
+	if (result.status === 404 || (result.status >= 200 && result.status < 300)) return true;
+	let message = `Moonfin queue removal failed: ${result.status}`;
+	try {
+		message = errorDetail(JSON.parse(result.body)) || message;
+	} catch (e) { void e; }
+	const error = new Error(message);
+	error.status = result.status;
+	throw error;
 };
 
 export const getMoonfinConfig = async (serverUrl, token) => {
@@ -571,13 +643,46 @@ export const saveMoonfinProfile = async (profileName, profile, serverUrl, token)
 	return true;
 };
 
+// The Seerr notification choices Moonbase keeps for this user. It filters the in-app notices by them, and phone
+// pushes too. Null when the server has no Moonbase to ask.
+export const getMoonfinNotificationPrefs = async (serverUrl, token) => {
+	const result = await moonbaseFetch(serverUrl, token, '/Moonfin/Notifications/Prefs', {
+		method: 'GET',
+		headers: {'Accept': 'application/json'},
+		timeout: 15000
+	});
+	if (!result.success) throw new Error(result.error || 'Network error');
+	if (result.status === 404) return null;
+	if (result.status >= 400) {
+		const error = new Error(`Moonfin notification prefs fetch failed: ${result.status}`);
+		error.status = result.status;
+		throw error;
+	}
+	return JSON.parse(result.body);
+};
+
+export const saveMoonfinNotificationPrefs = async (prefs, serverUrl, token) => {
+	const result = await moonbaseFetch(serverUrl, token, '/Moonfin/Notifications/Prefs', {
+		method: 'POST',
+		headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+		body: JSON.stringify(prefs),
+		timeout: 15000
+	});
+	if (!result.success) throw new Error(result.error || 'Network error');
+	if (result.status >= 400) {
+		const error = new Error(`Moonfin notification prefs save failed: ${result.status}`);
+		error.status = result.status;
+		throw error;
+	}
+	return true;
+};
+
 export const subscribeMoonfinSettingsStream = (serverUrl, token, onEvent, onError) => {
 	const sUrl = (serverUrl || jellyfinServerUrl || '').replace(/\/+$/, '');
 	const sToken = token || jellyfinAccessToken;
 	if (!sUrl || !sToken) {
 		throw new Error('Server URL and token required');
 	}
-	if (isPlexUrl(sUrl)) throw new Error('Plex servers have no settings stream');
 	// Silo can't stream a plugin's answer, so settings arrive at sign-in and on a manual sync.
 	if (isSiloLogin(sUrl, sToken)) throw new Error('Silo servers have no settings stream');
 
@@ -602,13 +707,13 @@ export const subscribeMoonfinSettingsStream = (serverUrl, token, onEvent, onErro
 		}
 	};
 
-	const connectWithEventSource = () => {
+	const connectWithEventSource = (base) => {
 		const EventSourceCtor = typeof globalThis !== 'undefined' ? globalThis.EventSource : undefined;
 		if (typeof EventSourceCtor === 'undefined') {
 			return false;
 		}
 
-		const streamUrl = `${sUrl}/Moonfin/Settings/Stream?ApiKey=${encodeURIComponent(sToken)}`;
+		const streamUrl = `${base}/Moonfin/Settings/Stream?${isPlexUrl(sUrl) ? 'X-Plex-Token' : 'ApiKey'}=${encodeURIComponent(sToken)}`;
 		try {
 			eventSource = new EventSourceCtor(streamUrl);
 		} catch (error) {
@@ -638,11 +743,15 @@ export const subscribeMoonfinSettingsStream = (serverUrl, token, onEvent, onErro
 
 	const run = async () => {
 		try {
-			const response = await fetch(`${sUrl}/Moonfin/Settings/Stream`, {
+			// On Plex this is Moonbase for Plex. The shell only hands a body over once it's whole, so the stream takes the
+			// page's own fetch, which the companion lets any origin use.
+			const endpoint = await moonbaseEndpoint(sUrl, sToken);
+			if (!endpoint) throw new Error('No Moonbase on this server');
+			const response = await fetch(`${endpoint.base}/Moonfin/Settings/Stream`, {
 				method: 'GET',
 				headers: {
 					'Accept': 'text/event-stream',
-					'Authorization': `MediaBrowser Token="${sToken}"`
+					...endpoint.headers
 				},
 				signal: controller?.signal
 			});
@@ -654,7 +763,7 @@ export const subscribeMoonfinSettingsStream = (serverUrl, token, onEvent, onErro
 			}
 
 			if (!response.body || typeof response.body.getReader !== 'function') {
-				if (connectWithEventSource()) {
+				if (connectWithEventSource(endpoint.base)) {
 					return;
 				}
 				throw new Error('Moonfin settings stream is not supported on this device');
@@ -859,6 +968,23 @@ export const getSonarrServers = async () => {
 
 export const getSonarrServerDetails = async (serverId) => {
 	return request(`/service/sonarr/${serverId}`);
+};
+
+// Sonarr's matches for a series TMDB has no TVDB id for, as Seerr's own request modal lists them. A
+// match without a TVDB id is no use for the request, so it's left out. Null when there's no Sonarr to
+// ask: a Seerr with none set up answers 404, and Silo adds series itself. Any other failure is thrown,
+// since Sonarr is there and would drop a request sent without the match.
+export const lookupSonarrSeries = async (tmdbId) => {
+	if (await siloSeerrReady()) return null;
+	let found;
+	try {
+		found = await request(`/service/sonarr/lookup/${tmdbId}`);
+	} catch (err) {
+		if (err.status === 404) return null;
+		throw err;
+	}
+	return (Array.isArray(found) ? found : [])
+		.filter((e) => e && typeof e.tvdbId === 'number' && e.tvdbId > 0 && typeof e.title === 'string');
 };
 
 // Full Radarr/Sonarr connection settings (hostname, port, apiKey, useSsl,
@@ -1127,6 +1253,8 @@ export const requestTv = async (tmdbId, options = {}) => {
 	if (options.serverId != null) body.serverId = options.serverId;
 	if (options.profileId != null) body.profileId = options.profileId;
 	if (options.rootFolder != null) body.rootFolder = options.rootFolder;
+	// Only set when TMDB has no TVDB id for the series and the viewer picked Sonarr's match.
+	if (options.tvdbId != null) body.tvdbId = options.tvdbId;
 
 	return request('/request', {
 		method: 'POST',
@@ -1200,23 +1328,23 @@ export const getMediaStatus = async (mediaType, tmdbId) => {
 
 export const getImageUrl = (path, size = 'w500') => {
 	if (!path) return null;
-	const proto = shouldUseHttp ? 'http' : 'https';
+	const proto = tmdbProto;
 	const normalizedPath = String(path).trim();
 
 	// Already a full TMDB URL - fix the protocol
 	if (normalizedPath.startsWith('http://image.tmdb.org') || normalizedPath.startsWith('https://image.tmdb.org')) {
-		return normalizedPath.replace(/^https?/, proto);
+		return tmdbUrl(normalizedPath.replace(/^https?/, proto));
 	}
 
 	// Another site's picture, like the IMDb charts' own posters, is used as it is.
 	if (/^https?:\/\//i.test(normalizedPath)) return normalizedPath;
 
 	if (normalizedPath.startsWith('/t/p/')) {
-		return `${proto}://image.tmdb.org${normalizedPath}`;
+		return tmdbUrl(`${proto}://image.tmdb.org${normalizedPath}`);
 	}
 
 	const filePath = normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`;
-	return `${proto}://image.tmdb.org/t/p/${size}${filePath}`;
+	return tmdbUrl(`${proto}://image.tmdb.org/t/p/${size}${filePath}`);
 };
 
 export const proxyImage = async (imageUrl) => {
@@ -1241,6 +1369,8 @@ export default {
 	moonfinLogout,
 	moonfinValidate,
 	moonfinPing,
+	getArrQueue,
+	removeArrQueueItem,
 	getMoonfinConfig,
 	getMoonfinSettings,
 	getMoonfinThemes,
@@ -1268,6 +1398,7 @@ export default {
 	getRadarrServerDetails,
 	getSonarrServers,
 	getSonarrServerDetails,
+	lookupSonarrSeries,
 	getSiloCalendar,
 	getArrCalendar,
 	getRadarrSettings,

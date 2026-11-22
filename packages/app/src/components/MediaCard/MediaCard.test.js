@@ -314,15 +314,30 @@ describe('MediaCard text in classic home rows', () => {
 });
 
 describe('MediaCard Seerr status', () => {
-	const dot = () => document.querySelector('[class~="seerrBadge"]');
+	const dot = () => document.querySelector('[class~="dot"]');
 	const banner = () => document.querySelector('[class~="banner"]');
 	const art = () => document.querySelector('[data-card-art]');
 	const drawPoster = (item, props) => render(<MediaCard item={item} serverUrl="http://server" rowImageType="poster" {...props} />);
 
 	it('keeps the corner dot in badge mode', () => {
 		drawPoster(seerrMovie({mediaInfo: {status: 4}}));
-		expect(dot().className).toContain('seerr4');
+		expect(dot().className).toContain('partial');
 		expect(banner()).toBeNull();
+	});
+
+	it('draws a check in the dot of a title that is available', () => {
+		drawPoster(seerrMovie({mediaInfo: {status: 5}}));
+		expect(dot().className).toContain('available');
+		expect(dot().querySelector('path').getAttribute('d')).toMatch(/^M9 16\.17/);
+	});
+
+	it('moves the dot below a server name and leaves it in the corner otherwise', () => {
+		const {unmount} = drawPoster(seerrMovie({mediaInfo: {status: 5}}));
+		expect(dot().style.top).toBe('');
+		unmount();
+		drawPoster(seerrMovie({mediaInfo: {status: 5}, _serverName: 'Basement'}), {showServerBadge: true});
+		expect(screen.getByText('Basement')).toBeTruthy();
+		expect(dot().style.top).not.toBe('');
 	});
 
 	it('shows no dot for a title Seerr has no status for', () => {
@@ -388,5 +403,23 @@ describe('MediaCard with its own overlay', () => {
 		const owned = {Id: 'm1', Name: 'Owned', Type: 'Movie', ImageTags: {Primary: 'p'}, _external: true, _resolvedFromExternal: true, _externalBackdropUrl: BACKDROP};
 		render(<MediaCard item={owned} serverUrl="http://server" cardType="landscape" rowImageType="backdrop" />);
 		expect(document.querySelector('img').getAttribute('src')).toBe(BACKDROP);
+	});
+});
+
+describe('MediaCard with the Home poster toggles', () => {
+	const started = {Id: 's1', Name: 'Started', Type: 'Series', ImageTags: {Primary: 'p'}, UserData: {PlayedPercentage: 40, UnplayedItemCount: 3}};
+	const marks = () => ({
+		progress: document.querySelector('[class~="progressBar"]') !== null,
+		count: document.querySelector('[class~="unplayedCount"]') !== null
+	});
+
+	it('takes off only the mark each toggle names', () => {
+		mockSettings = {};
+		const {rerender} = render(<MediaCard item={started} serverUrl="http://server" />);
+		expect(marks()).toEqual({progress: true, count: true});
+		rerender(<MediaCard item={started} serverUrl="http://server" hideWatchProgress />);
+		expect(marks()).toEqual({progress: false, count: true});
+		rerender(<MediaCard item={started} serverUrl="http://server" hideUnwatchedCount />);
+		expect(marks()).toEqual({progress: true, count: false});
 	});
 });

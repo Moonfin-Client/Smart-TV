@@ -35,7 +35,7 @@ export const sortLabel = (key, music) => {
 	return (SORTS[key] || SORTS.SortName).label();
 };
 
-export const librarySortKeys = ({songs, music, series, books, folders, movieOrSeries, myRating}) => {
+export const librarySortKeys = ({songs, music, series, books, folders, movieOrSeries, myRating, plex}) => {
 	if (folders) {
 		return ['SortName', 'DateCreated', 'PremiereDate', 'OfficialRating', 'DatePlayed', 'PlayCount', 'CriticRating', 'CommunityRating', 'Runtime', 'Random', 'FoldersFirst'];
 	}
@@ -46,7 +46,8 @@ export const librarySortKeys = ({songs, music, series, books, folders, movieOrSe
 		myRating && 'MyRating',
 		'SortName',
 		'DateCreated',
-		series && 'DateLastContentAdded',
+		// Plex has no newest episode date to sort shows on.
+		series && !plex && 'DateLastContentAdded',
 		'PremiereDate',
 		// Group By covers parental rating better than a sort does, so the libraries offering it
 		// drop the duplicate.

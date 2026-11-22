@@ -5,6 +5,7 @@
 // Each call answers with one of the results below, and a locked answer carries how long to wait.
 
 import {createApiForServer, getAuthHeaderFor} from './jellyfinApi';
+import {moonbaseEndpoint} from './moonbaseEndpoint';
 import {platformFetch} from './secureFetch';
 import {legacyAuthHeader} from '../utils/serverRoutes';
 
@@ -21,13 +22,22 @@ const DEFAULT_RETRY_SECONDS = 30;
 
 const unavailable = {result: PIN_UNAVAILABLE};
 
-const request = async ({serverUrl, accessToken, serverType}, method, path, body) => {
-	// Silo keeps its own profile PINs, and Moonbase for Silo has none of these routes.
-	if (serverType === 'silo') return {status: 404, data: null};
+// Plex can't keep PINs, so they're kept by Moonbase for Plex, the companion beside it. The account doesn't have to be
+// the one signed in, since the PIN is asked for before a saved account is switched to.
+const endpointFor = async ({serverUrl, accessToken, serverType}) => {
+	if (serverType === 'plex') return moonbaseEndpoint(serverUrl, accessToken, 'plex');
 	const auth = getAuthHeaderFor(serverType, accessToken);
-	const headers = {Authorization: auth, ...legacyAuthHeader(serverType, auth)};
+	return {base: serverUrl, headers: {Authorization: auth, ...legacyAuthHeader(serverType, auth)}};
+};
+
+const request = async (account, method, path, body) => {
+	// Silo keeps its own profile PINs, and Moonbase for Silo has none of these routes.
+	if (account.serverType === 'silo') return {status: 404, data: null};
+	const endpoint = await endpointFor(account);
+	if (!endpoint) return {status: 404, data: null};
+	const headers = {...endpoint.headers};
 	if (body) headers['Content-Type'] = 'application/json';
-	const res = await platformFetch(`${serverUrl}/Moonfin/${path}`, {
+	const res = await (endpoint.fetch || platformFetch)(`${endpoint.base}/Moonfin/${path}`, {
 		method,
 		headers,
 		body: body ? JSON.stringify(body) : undefined

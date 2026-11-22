@@ -3,10 +3,12 @@
 // Neutral colors only. The accent comes in inline from the theme palette, since themed
 // rules on device don't come through CSS variables.
 
+// It grows to fill the column because older engines resolve height 100% to 0 inside a flex item.
 .preview {
 	display: flex;
 	flex-direction: column;
-	height: 100%;
+	flex: 1 1 auto;
+	min-height: 0;
 }
 
 .header {

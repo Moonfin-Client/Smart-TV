@@ -1,30 +1,30 @@
-# ─────────────────────────────────────────────────────────────
-# Moonfin Smart-TV — PR Comment Workflow
-# ─────────────────────────────────────────────────────────────
-#
-# Triggered by: workflow_run (after the Build workflow completes on a PR)
-#
-# Security:
-#   Runs in the context of the base repo with PR write access.
-#   NEVER checks out or executes code from the PR branch —
-#   only reads the build-results artifact uploaded by the
-#   (sandboxed) build workflow.
-# ─────────────────────────────────────────────────────────────
-
 name: PR Comment
+
+# Posts one status comment on a pull request and rewrites it in place on every
+# new commit. Checks, Build and Coverage report separately, so this runs when
+# any of them completes and rebuilds the whole comment from the latest results
+# of all three for that commit. It runs on workflow_run rather than
+# pull_request so it still has write access on pull requests from forks.
+# It never checks out the PR branch, it only reads the results artifacts the
+# workflows uploaded.
 
 on:
   workflow_run:
-    workflows: [Build]
+    workflows: [Checks, Build, Coverage]
     types: [completed]
 
 permissions:
   pull-requests: write
   actions: read
 
+# Two of the workflows can finish for the same commit at the same time. One
+# update waits for the other instead of the two interleaving.
+concurrency:
+  group: pr-comment-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
 jobs:
   comment:
-    name: Post Build Results
     runs-on: ubuntu-26.04
     if: >-
       github.event.workflow_run.event == 'pull_request' &&
@@ -32,120 +32,401 @@ jobs:
        github.event.workflow_run.conclusion == 'failure')
 
     steps:
+      # The run that triggered this is one of the three. The others are the
+      # other workflows' latest finished runs for the same commit, if they have
+      # finished yet. For Coverage it's the latest run whatever its state, so
+      # the comment can say it's still running.
+      - name: Find the Checks, Build and Coverage runs
+        id: runs
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const run = context.payload.workflow_run;
+            const latestRuns = async (workflow_id, status) => {
+              // A branch from before a workflow existed has no runs of it, and
+              // the repository may not know the workflow at all.
+              try {
+                return (await github.rest.actions.listWorkflowRuns({
+                  owner,
+                  repo,
+                  workflow_id,
+                  head_sha: run.head_sha,
+                  event: 'pull_request',
+                  ...(status ? { status } : {}),
+                  per_page: 10,
+                })).data.workflow_runs;
+              } catch (error) {
+                core.info(`No ${workflow_id} runs: ${error.message}`);
+                return [];
+              }
+            };
+            // A cancelled run has no results to show, so it counts as not
+            // finished yet.
+            const finished = (r) => r.conclusion === 'success' || r.conclusion === 'failure';
+            const checksRun = run.name === 'Checks' ? run : (await latestRuns('checks.yml', 'completed')).find(finished);
+            const buildRun = run.name === 'Build' ? run : (await latestRuns('build.yml', 'completed')).find(finished);
+            const coverageRun = (await latestRuns('coverage.yml'))[0] || (run.name === 'Coverage' ? run : undefined);
+            // A cancelled run left nothing, and a newer push replaces it.
+            core.setOutput('coverage_state', !coverageRun ? ''
+              : coverageRun.status !== 'completed' ? 'running'
+              : finished(coverageRun) ? 'done' : 'unfinished');
+            const set = (name, r) => {
+              core.setOutput(`${name}_run_id`, r ? String(r.id) : '');
+              core.setOutput(`${name}_run_number`, r ? String(r.run_number) : '');
+              core.setOutput(`${name}_conclusion`, r ? r.conclusion : '');
+            };
+            set('checks', checksRun);
+            set('build', buildRun);
+            set('coverage', coverageRun);
+
+      # Each of these is missing when its workflow hasn't finished yet, or when
+      # the job that uploads it died first. The comment still posts and says so.
       - name: Download build results
-        id: results
+        if: steps.runs.outputs.build_run_id != ''
         continue-on-error: true
         uses: actions/download-artifact@v7
         with:
           name: build-results
           path: build-results
-          run-id: ${{ github.event.workflow_run.id }}
+          run-id: ${{ steps.runs.outputs.build_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download test results
+        if: steps.runs.outputs.checks_run_id != ''
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          name: test-results
+          path: test-results
+          run-id: ${{ steps.runs.outputs.checks_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download lint results
+        if: steps.runs.outputs.checks_run_id != ''
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          name: lint-results
+          path: lint-results
+          run-id: ${{ steps.runs.outputs.checks_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download coverage results
+        if: steps.runs.outputs.coverage_state == 'done'
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          name: coverage-results
+          path: coverage-results
+          run-id: ${{ steps.runs.outputs.coverage_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Post PR comment
-        if: steps.results.outcome == 'success'
         uses: actions/github-script@v8
+        env:
+          CHECKS_RUN_ID: ${{ steps.runs.outputs.checks_run_id }}
+          CHECKS_RUN_NUMBER: ${{ steps.runs.outputs.checks_run_number }}
+          CHECKS_CONCLUSION: ${{ steps.runs.outputs.checks_conclusion }}
+          BUILD_RUN_ID: ${{ steps.runs.outputs.build_run_id }}
+          BUILD_RUN_NUMBER: ${{ steps.runs.outputs.build_run_number }}
+          COVERAGE_RUN_ID: ${{ steps.runs.outputs.coverage_run_id }}
+          COVERAGE_RUN_NUMBER: ${{ steps.runs.outputs.coverage_run_number }}
+          COVERAGE_STATE: ${{ steps.runs.outputs.coverage_state }}
         with:
           script: |
             const fs = require('fs');
 
-            const outcomes = JSON.parse(fs.readFileSync('build-results/outcomes.json', 'utf8'));
-            const prNumber = outcomes.pr_number;
-            const sha      = outcomes.sha;
-            const webos    = outcomes.webos;
-            const tizen    = outcomes.tizen;
-            const vega     = outcomes.vega;
-            const xbox     = outcomes.xbox;
-            // A build from before the suite was wired in reports no outcome, which is
-            // not the same as the tests failing.
-            const tests    = outcomes.tests;
-
-            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.payload.workflow_run.id}`;
-            const artifactsUrl = `${runUrl}#artifacts`;
-
-            const icon  = (r) => r === 'success' ? '✅' : r === 'failure' ? '❌' : '⚠️';
-            const label = (r) => r === 'success' ? 'Passed' : r === 'failure' ? 'Failed' : 'Skipped';
-
-            const overallSuccess = webos === 'success' && tizen === 'success' &&
-              (vega === undefined || vega === 'success') &&
-              (xbox === undefined || xbox === 'success') &&
-              (tests === undefined || tests === 'success');
-
-            const marker = '<!-- moonfin-build-result -->';
-            const lines  = [marker];
-
-            if (overallSuccess) {
-              lines.push(
-                '## ✅ Build Successful',
-                '',
-                'All platform builds and the test suite passed. You can download the artifacts below.',
-                '',
-                `| Platform | Status | Artifact |`,
-                `|---|---|---|`,
-                `| **webOS** | ✅ Passed | [Moonfin_webOS_*.ipk](${artifactsUrl}) |`,
-                `| **Tizen Regular** | ✅ Passed | [Moonfin_Tizen_Regular_*.wgt](${artifactsUrl}) |`,
-                `| **Tizen Oblong** | ✅ Passed | [Moonfin_Tizen_Oblong_*.wgt](${artifactsUrl}) |`,
-                `| **Tizen Legacy** | ✅ Passed | [Moonfin_Tizen_Legacy_*.wgt](${artifactsUrl}) |`,
-              );
-              if (vega !== undefined) {
-                lines.push(`| **Vega** | ${icon(vega)} ${label(vega)} | [Moonfin_Vega_*.vpkg](${artifactsUrl}) |`);
+            const readJson = (path) => {
+              try {
+                const value = JSON.parse(fs.readFileSync(path, 'utf8'));
+                return value && typeof value === 'object' ? value : null;
+              } catch (_) {
+                return null;
               }
-              if (xbox !== undefined) {
-                lines.push(`| **Xbox** | ${icon(xbox)} ${label(xbox)} | [Moonfin_Xbox_*.zip](${artifactsUrl}) |`);
-              }
+            };
+            const outcomes = readJson('build-results/outcomes.json');
+            const tests = readJson('test-results/test-results.json');
+            const lint = readJson('lint-results/lint-results.json');
+            const coverage = readJson('coverage-results/coverage.json');
+
+            // The artifacts were produced by the pull request's own code, so
+            // numbers are clamped and names are escaped before they reach a
+            // comment posted with the repository's token.
+            const clamp = (n) => Number.isFinite(Number(n)) ? Math.max(0, Math.floor(Number(n))) : 0;
+            const escapeText = (value) => String(value)
+              .replace(/[`\r\n|]/g, ' ')
+              .replace(/@/g, '@​')
+              .slice(0, 200);
+            const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const sha = context.payload.workflow_run.head_sha;
+            const runUrl = (id) => `${context.serverUrl}/${owner}/${repo}/actions/runs/${id}`;
+            const checksRunId = process.env.CHECKS_RUN_ID;
+            const buildRunId = process.env.BUILD_RUN_ID;
+
+            // A workflow_run event from a fork doesn't name its pull request,
+            // so the number comes from whichever results file is there. It is
+            // only used when that pull request's head is still this commit,
+            // which also keeps a slow run for an older push from overwriting
+            // the comment for a newer one.
+            const prNumber = [outcomes, tests, lint, coverage]
+              .map(results => Number(results?.pr_number))
+              .find(n => Number.isSafeInteger(n) && n > 0);
+            if (!prNumber) {
+              core.info('No workflow left a pull request number, nothing to post.');
+              return;
+            }
+            let pull;
+            try {
+              ({ data: pull } = await github.rest.pulls.get({ owner, repo, pull_number: prNumber }));
+            } catch (error) {
+              core.info(`Couldn't read pull request #${prNumber}: ${error.message}`);
+              return;
+            }
+            if (pull.head.sha !== sha) {
+              core.info(`#${prNumber} is at ${pull.head.sha} now, not ${sha}. The newer commit's runs post the comment.`);
+              return;
+            }
+
+            const artifacts = new Map();
+            if (buildRunId) {
+              const { data: list } = await github.rest.actions.listWorkflowRunArtifacts({
+                owner,
+                repo,
+                run_id: Number(buildRunId),
+                per_page: 100,
+              });
+              list.artifacts.forEach(a => artifacts.set(a.name, a));
+            }
+
+            const rows = [
+              { platform: 'webOS', job: 'webos', artifact: 'webos', files: 'Moonfin_webOS_*.ipk' },
+              { platform: 'Tizen', job: 'tizen', artifact: 'tizen', files: 'Moonfin_Tizen_*.wgt (Regular, Oblong, Legacy)' },
+              { platform: 'Vega',  job: 'vega',  artifact: 'vega',  files: 'Moonfin_Vega_*.vpkg' },
+              { platform: 'Xbox',  job: 'xbox',  artifact: 'xbox',  files: 'Moonfin_Xbox_*.zip' },
+            ];
+
+            // Without outcomes.json, an artifact still proves its build passed,
+            // but a missing one proves nothing.
+            const statusOf = (row) => {
+              if (!buildRunId) return 'running';
+              const result = outcomes?.[row.job];
+              if (result === 'success' || artifacts.has(row.artifact)) return 'success';
+              return outcomes ? result : 'unknown';
+            };
+            const badge = { success: '✅ Passed', failure: '❌ Failed', running: '⏳ Running', unknown: '⚠️ No result' };
+            const artifactCell = (row) => {
+              const artifact = artifacts.get(row.artifact);
+              return artifact ? `[${row.files}](${runUrl(buildRunId)}/artifacts/${artifact.id})` : 'n/a';
+            };
+
+            // Checks is 'running' until it has a finished run for this commit.
+            const checks = checksRunId ? process.env.CHECKS_CONCLUSION : 'running';
+            const statuses = rows.map(statusOf);
+            const buildsPassed = Boolean(buildRunId) && statuses.every(s => s === 'success');
+            const buildResultsMissing = Boolean(buildRunId) && !outcomes;
+            const lintClean = lint?.eslint === 'success' && lint?.css === 'success';
+            const checksPassed = checks === 'success' && Boolean(tests) && lintClean;
+            const passed = buildsPassed && checksPassed;
+
+            const testLines = [];
+            if (checks === 'running') {
+              testLines.push('**Tests** ⏳ running');
+            } else if (checksPassed) {
+              testLines.push(`**Tests** ✅ ${clamp(tests.passed)} passed, lint clean`);
             } else {
-              lines.push(
-                '## ❌ Build Failed',
-                '',
-                `| Check | Status |`,
-                `|---|---|`,
-                `| **webOS build** | ${icon(webos)} ${label(webos)} |`,
-                `| **Tizen build** | ${icon(tizen)} ${label(tizen)} |`,
-              );
-              if (vega !== undefined) {
-                lines.push(`| **Vega build** | ${icon(vega)} ${label(vega)} |`);
+              const failedCount = clamp(tests?.failed);
+              if (!tests) {
+                testLines.push('**Tests** ⚠️ did not run, see the Checks run');
+              } else if (failedCount > 0) {
+                testLines.push(`**Tests** ❌ ${failedCount} failed, ${clamp(tests.passed)} passed`);
+                const listed = (Array.isArray(tests.failures) ? tests.failures : []).slice(0, 20);
+                const more = clamp(tests.more_failures) +
+                  Math.max(0, (Array.isArray(tests.failures) ? tests.failures.length : 0) - listed.length);
+                const names = listed.map(name => `- \`${escapeText(name)}\``);
+                if (more > 0) names.push(`- and ${more} more, see the Checks run`);
+                testLines.push('', '<details><summary>Failing tests</summary>', '', ...names, '', '</details>');
+              } else if (clamp(tests.run_status) !== 0) {
+                testLines.push('**Tests** ❌ the run crashed before reporting, see the Checks run');
+              } else {
+                testLines.push(`**Tests** ✅ ${clamp(tests.passed)} passed`);
               }
-              if (xbox !== undefined) {
-                lines.push(`| **Xbox build** | ${icon(xbox)} ${label(xbox)} |`);
-              }
-              if (tests !== undefined) {
-                lines.push(`| **Tests** | ${icon(tests)} ${label(tests)} |`);
+              testLines.push('');
+              if (!lint) {
+                testLines.push('**Lint** ⚠️ did not run, see the Checks run');
+              } else if (lintClean) {
+                testLines.push('**Lint** ✅ clean');
+              } else {
+                // Skipped means the install failed before lint could run.
+                const what = [
+                  lint.eslint === 'failure' && 'enact lint found problems, marked in Files changed',
+                  lint.eslint !== 'success' && lint.eslint !== 'failure' && 'enact lint did not run, see the Checks run',
+                  lint.css !== 'success' && 'the CSS check found rules the oldest TVs drop, see the Checks run',
+                ].filter(Boolean);
+                testLines.push(`**Lint** ❌ ${what.join(', and ')}`);
               }
             }
 
-            lines.push(
+            // How many of the lines the pull request changed under
+            // packages/app/src some test runs, from the Coverage workflow.
+            // Nothing shows on a branch from before it existed, or when no app
+            // source changed. It never changes the headline.
+            const coverageState = process.env.COVERAGE_STATE;
+            const coverageLines = [];
+            const asList = (value) => (Array.isArray(value) ? value : []);
+            const coverageStatus = String(coverage?.status ?? '');
+            if (coverageState === 'running') {
+              coverageLines.push('**Coverage** ⏳ running, this comment updates when it finishes');
+            } else if (coverageState === 'unfinished') {
+              coverageLines.push('**Coverage** ⚠️ the run was cancelled before it finished');
+            } else if (coverageState === 'done' && (!coverage || coverageStatus === 'error')) {
+              coverageLines.push('**Coverage** ⚠️ did not run, see the Coverage run log');
+            } else if (coverageStatus === 'ok') {
+              const total = clamp(coverage.lines);
+              const run = Math.min(clamp(coverage.lines_run), total);
+              const ownRun = Math.min(clamp(coverage.own_run), run);
+              const files = asList(coverage.files).filter(f => f && typeof f === 'object').slice(0, 15);
+              // 'stopped' is the result from before the full suite ran, left
+              // when the run timed out. 'lost' means the full suite wrote no
+              // coverage.
+              const partial = coverage.partial === 'stopped' || coverage.partial === 'lost';
+              const failing = clamp(coverage.tests_failed) > 0;
+              // 🟢 from 75% of the measurable changed lines, 🔴 under 25%.
+              // The headline only grades 5 lines or more, since 1 of 2 says
+              // little, and not a partial result. Measurable, because a line
+              // counts only where a statement starts: a closing bracket or the
+              // second line of a long expression has no record.
+              const grade = (r, n) => r >= n * 0.75 ? '🟢' : r < n * 0.25 ? '🔴' : '🟡';
+              let line;
+              if (total === 0) {
+                line = '**Coverage** 🧪 no measurable changed lines';
+              } else {
+                const mark = partial ? '⚠️' : total >= 5 ? grade(run, total) : '🧪';
+                const lines = plural(total, 'measurable changed line', 'measurable changed lines');
+                line = run === total
+                  ? `**Coverage** ${mark} tests run all ${lines}`
+                  : `**Coverage** ${mark} tests run ${run} of ${lines} (${Math.floor((100 * run) / total)}%)`;
+                // Only when it adds something: most pull requests' own tests
+                // run what the whole suite runs.
+                if (coverage.own_tests === 'ran' && ownRun !== run) {
+                  line += ` · ${ownRun} by this PR's own tests`;
+                } else if (coverage.own_tests === 'none' && run < total) {
+                  line += ' · this PR changes no tests';
+                }
+              }
+              if (coverage.partial === 'stopped') {
+                line += ' · partial, the run stopped before the full suite, so this may be low';
+              } else if (coverage.partial === 'lost') {
+                line += ' · partial, the full suite wrote no coverage, so this may be low';
+              }
+              if (failing) line += ' · some tests fail on this branch, so this may be low';
+              coverageLines.push(line);
+
+              // The biggest files, visible rather than folded away. The exact
+              // lines are marked in Files changed, so the comment doesn't list
+              // line numbers.
+              const gapsLeft = files.some(f => clamp(f.run) < clamp(f.lines));
+              if (gapsLeft) {
+                // The last two parts of the path, so it stays short but two
+                // files with the same name in different folders differ.
+                const shortName = (path) => String(path ?? '').split('/').slice(-2).join('/');
+                const bar = (r, n) => {
+                  const filled = r >= n ? 10 : r <= 0 ? 0 : Math.min(9, Math.max(1, Math.round((10 * r) / n)));
+                  return '🟩'.repeat(filled) + '⬜'.repeat(10 - filled);
+                };
+                const shown = files.slice(0, 5);
+                const fileRows = shown.map(f => {
+                  const name = `\`${escapeText(shortName(f.file))}\``;
+                  const n = clamp(f.lines);
+                  const r = Math.min(clamp(f.run), n);
+                  return `| ${grade(r, n)} | ${name} | ${bar(r, n)} ${r} of ${n} |`;
+                });
+                // The files not shown, as one row with what's left of the totals.
+                const rest = files.length - shown.length + clamp(coverage.more_files);
+                if (rest > 0) {
+                  const restLines = Math.max(0, total - shown.reduce((n, f) => n + clamp(f.lines), 0));
+                  const restRun = Math.min(restLines, Math.max(0, run - shown.reduce((n, f) => n + clamp(f.run), 0)));
+                  const sum = restLines > 0 ? `${bar(restRun, restLines)} ${restRun} of ${restLines}` : '';
+                  fileRows.push(`| ${restLines > 0 ? grade(restRun, restLines) : ''} | and ${plural(rest, 'more file', 'more files')} | ${sum} |`);
+                }
+                const where = clamp(coverage.annotated) > 0 ? ' The biggest stretches no test runs are marked in Files changed.' : '';
+                coverageLines.push('', '| | File | Changed lines tests run |', '|---|---|---|', ...fileRows, '',
+                  `<sub>A line counts when any test runs it, which doesn't mean a test checks what it does.${where}</sub>`);
+              }
+            }
+
+            // Checks usually reports first, Build takes longer.
+            let headline;
+            let summary;
+            if (!buildRunId && !checksRunId) {
+              // Coverage finished first.
+              headline = '## ⏳ Checks Running';
+              summary = 'Lint, tests and platform builds are still running, this comment updates when they finish.';
+            } else if (!buildRunId) {
+              headline = checksPassed ? '## ✅ Checks Passed' : '## ❌ Checks Failed';
+              summary = checksPassed
+                ? 'Lint and tests passed. The platform builds are still running, this comment updates when they finish.'
+                : 'Lint or tests failed. The platform builds are still running, this comment updates when they finish.';
+            } else if (checks === 'running' && buildsPassed) {
+              headline = '## ⏳ Checks Running';
+              summary = 'All platform builds passed. Lint and tests are still running, this comment updates when they finish.';
+            } else if (passed) {
+              headline = '## ✅ Build Successful';
+              summary = 'All platform builds, lint and tests passed. You can download the artifacts below.';
+            } else if (buildResultsMissing) {
+              headline = checksPassed ? '## ⚠️ Build Results Missing' : '## ❌ Checks Failed';
+              summary = (checksPassed ? '' : 'Lint or tests failed. ') +
+                'Build finished without reporting its results. Any platform without an artifact is unaccounted for. Check the build run.';
+            } else if (buildsPassed) {
+              headline = '## ❌ Checks Failed';
+              summary = 'All platform builds passed, but lint or tests did not.';
+            } else {
+              headline = '## ❌ Build Failed';
+              summary = 'One or more platform builds failed. Artifacts are listed for the platforms that did build.';
+            }
+
+            const runLink = (name, id, number) =>
+              id ? `[${name} #${clamp(number)}](${runUrl(Number(id))})` : '⏳ Running';
+
+            const marker = '<!-- moonfin-build-result -->';
+            const body = [
+              marker,
+              headline,
               '',
-              `| Property | Value |`,
-              `|---|---|`,
+              summary,
+              '',
+              ...testLines,
+              ...(coverageLines.length > 0 ? ['', ...coverageLines] : []),
+              '',
+              '| Platform | Status | Artifact |',
+              '|---|---|---|',
+              ...rows.map((row, i) => `| **${row.platform}** | ${badge[statuses[i]] || '⚠️ Skipped'} | ${artifactCell(row)} |`),
+              '',
+              '| Property | Value |',
+              '|---|---|',
               `| **Commit** | \`${sha.substring(0, 7)}\` |`,
-              `| **Workflow run** | [Build #${context.payload.workflow_run.run_number}](${runUrl}) |`,
-            );
+              `| **Checks run** | ${runLink('Checks', checksRunId, process.env.CHECKS_RUN_NUMBER)} |`,
+              `| **Build run** | ${runLink('Build', buildRunId, process.env.BUILD_RUN_NUMBER)} |`,
+              ...(coverageState ? [`| **Coverage run** | ${runLink('Coverage', process.env.COVERAGE_RUN_ID, process.env.COVERAGE_RUN_NUMBER)} |`] : []),
+            ].join('\n');
 
-            const body = lines.join('\n');
-
-            // Paginated because the marker falls off the first page once a pull request
-            // collects more than 30 comments, which would post a second comment instead
-            // of updating the first.
+            // Paginated because the marker comment falls off the first page once
+            // a pull request collects more than 30 comments, which would post a
+            // second comment instead of updating the first.
             const comments = await github.paginate(github.rest.issues.listComments, {
-              owner:        context.repo.owner,
-              repo:         context.repo.repo,
+              owner,
+              repo,
               issue_number: prNumber,
-              per_page:     100,
+              per_page: 100,
             });
 
             const existing = comments.find(c => c.body?.includes(marker));
             if (existing) {
-              await github.rest.issues.updateComment({
-                owner:      context.repo.owner,
-                repo:       context.repo.repo,
-                comment_id: existing.id,
-                body,
-              });
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
             } else {
-              await github.rest.issues.createComment({
-                owner:        context.repo.owner,
-                repo:         context.repo.repo,
-                issue_number: prNumber,
-                body,
-              });
+              await github.rest.issues.createComment({ owner, repo, issue_number: prNumber, body });
             }

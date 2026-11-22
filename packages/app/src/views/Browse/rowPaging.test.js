@@ -46,6 +46,14 @@ describe('row paging', () => {
 		expect(nearRowEnd(-1, 3)).toBe(false);
 	});
 
+	// A collection's rows ask from eight titles out, and Frost's seven-wide grid from two rows out.
+	it('asks from further out when the row says so', () => {
+		expect(nearRowEnd(41, 50, 8)).toBe(false);
+		expect(nearRowEnd(42, 50, 8)).toBe(true);
+		expect(nearRowEnd(35, 50, 14)).toBe(false);
+		expect(nearRowEnd(36, 50, 14)).toBe(true);
+	});
+
 	it('adds a page only to the row it was read for', () => {
 		const readHead = jest.fn();
 		const rows = [{id: 'latest-1', items: cards(0, 2), readHead, hasMore: true}, {id: 'latest-1', items: cards(0, 2), readHead: jest.fn(), hasMore: true}];
@@ -93,5 +101,15 @@ describe('row paging', () => {
 		expect(head.Items.map((card) => card.Id)).toEqual(['s', 'f']);
 		expect(head.hasMore).toBe(false);
 		expect(readRaw.mock.calls.map(([size]) => size)).toEqual([32, 64, 128]);
+	});
+});
+
+describe('a folded read with a higher ceiling', () => {
+	test('keeps doubling past the usual ceiling until the row fills', async () => {
+		const raw = Array.from({length: 1000}, (_, i) => ({Id: `i${i}`, keep: i >= 300}));
+		const readRaw = jest.fn(async (size) => raw.slice(0, size));
+		const head = await readFoldedHead(readRaw, (items) => items.filter((item) => item.keep), 16, 64, 500);
+		expect(readRaw.mock.calls.map(([size]) => size)).toEqual([64, 128, 256, 500]);
+		expect(head.Items).toHaveLength(16);
 	});
 });

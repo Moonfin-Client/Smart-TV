@@ -3,11 +3,25 @@ import $L from '@enact/i18n/$L';
 import {DETAIL_HIDDEN_KEY, hiddenSet} from '../../../utils/buttonLayout';
 import {formatDuration, getImageUrl} from '../../../utils/helpers';
 
-// The item types Stage draws. Everything else, a person, an album or a collection, goes to Modern,
-// which already knows how to lay those out.
-const STAGE_TYPES = ['Movie', 'Series', 'Season', 'Episode', 'Video', 'MusicVideo'];
+// The item types Stage, Premiere, Quick Look and Frost draw. Everything else, a person, an album or a
+// playlist, goes to Modern, which already knows how to lay those out.
+const STAGE_TYPES = ['Movie', 'Series', 'Season', 'Episode', 'Video', 'MusicVideo', 'BoxSet'];
 
 export const drawsStage = (type) => STAGE_TYPES.indexOf(type) >= 0;
+
+// A collection's own titles split into its movies, its shows and the rest, each in the order they
+// came and only when it has any. Anything that isn't a collection has none.
+export const collectionGroups = (item, items = []) => {
+	if (item?.Type !== 'BoxSet') return [];
+	return [
+		{id: 'movies', title: $L('Movies'), items: items.filter((entry) => entry.Type === 'Movie')},
+		{id: 'series', title: $L('Series'), items: items.filter((entry) => entry.Type === 'Series')},
+		{id: 'other', title: $L('Other'), items: items.filter((entry) => entry.Type !== 'Movie' && entry.Type !== 'Series')}
+	].filter((group) => group.items.length);
+};
+
+// What a collection's titles go by: its one kind when it holds only one, and Items otherwise.
+export const collectionLabel = (groups) => (groups.length === 1 ? groups[0].title : $L('Items'));
 
 // Play, three circles and the ellipsis are what fit under the poster, so that's the most the row
 // shows whatever the button count setting says.

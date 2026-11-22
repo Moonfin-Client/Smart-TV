@@ -63,6 +63,41 @@ describe('device profile', () => {
 		expect(tizen.hls.features).toEqual([]);
 	});
 
+	test('a channel cap for one codec stays on that codec, a cap for every codec is the setting', () => {
+		// Tizen's profile: PCM only in stereo everywhere, AAC in stereo only in TS on sets before Tizen 6.
+		const profile = {
+			DirectPlayProfiles: [{Type: 'Video', Container: 'mkv,mp4,ts', VideoCodec: 'hevc', AudioCodec: 'aac,ac3,eac3,pcm_s16le'}],
+			TranscodingProfiles: [{Type: 'Video', Container: 'ts', Protocol: 'hls', VideoCodec: 'hevc', AudioCodec: 'ac3'}],
+			CodecProfiles: [
+				{Type: 'VideoAudio', Container: 'ts,mpegts', Codec: 'aac', Conditions: [{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2'}]},
+				{Type: 'VideoAudio', Codec: 'pcm_s16le', Conditions: [{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2'}]}
+			]
+		};
+		const ceilings = ['codec_channel_ceilings_v1'];
+		const {deliveries} = siloCapabilitiesFromDeviceProfile(profile, undefined, ceilings);
+		// The original file can be TS, and so can Silo's HLS encodes; the remux can't.
+		for (const name of ['original_http', 'hls']) expect(deliveries[name].max_channels_by_codec).toEqual({aac: 2, pcm_s16le: 2});
+		expect(deliveries.progressive.max_channels_by_codec).toEqual({pcm_s16le: 2});
+		for (const name of ['original_http', 'progressive', 'hls']) expect(deliveries[name].max_channels).toBeUndefined();
+		// The file being played narrows the original's caps to its own container.
+		const mkv = siloCapabilitiesFromDeviceProfile(profile, undefined, ceilings, 'mkv').deliveries;
+		expect(mkv.original_http.max_channels_by_codec).toEqual({pcm_s16le: 2});
+		const ts = siloCapabilitiesFromDeviceProfile(profile, undefined, ceilings, 'mpegts').deliveries;
+		expect(ts.original_http.max_channels_by_codec).toEqual({aac: 2, pcm_s16le: 2});
+
+		const capped = siloCapabilitiesFromDeviceProfile({
+			...profile,
+			CodecProfiles: [...profile.CodecProfiles, {Type: 'VideoAudio', Conditions: [{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2'}]}]
+		}, undefined, ceilings).deliveries;
+		for (const name of ['original_http', 'progressive', 'hls']) expect(capped[name].max_channels).toBe(2);
+
+		// A server without per-codec caps isn't offered the capped codec, so the others still play as they are.
+		const older = siloCapabilitiesFromDeviceProfile(profile, undefined, [], 'mkv').deliveries;
+		expect(older.original_http).toMatchObject({audio_decode_codecs: ['aac', 'ac3', 'eac3']});
+		expect(older.original_http.max_channels).toBeUndefined();
+		expect(older.original_http.max_channels_by_codec).toBeUndefined();
+	});
+
 	test('a TV reports its own HDR as what it shows, a stick or console leaves it unknown', () => {
 		const capabilities = hevcOnly('SDR|HDR10|HLG|DOVI|DOVIWithHDR10');
 		const hdr = capabilities.clientCapabilities.hdr_details;
@@ -163,6 +198,22 @@ describe('sessions', () => {
 		});
 	});
 
+	test("a start sends per-codec channel caps only to a server that takes them", async () => {
+		const DeviceProfile = {
+			DirectPlayProfiles: [{Type: 'Video', Container: 'mkv', VideoCodec: 'h264', AudioCodec: 'eac3,pcm_s16le'}],
+			CodecProfiles: [{Type: 'VideoAudio', Codec: 'pcm_s16le', Conditions: [{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2'}]}]
+		};
+		const original = async (features) => {
+			const {playback, calls} = setup({'GET /api/v2/playback/capabilities': {...capabilities, features}, 'POST /api/v2/playback/start': plan('original_http', 'k1')});
+			await playback.getPlaybackInfo('movie-1', {DeviceProfile});
+			return calls.find((c) => c.path === '/api/v2/playback/start').body.client_playback_context.deliveries.original_http;
+		};
+		expect(await original(['codec_channel_ceilings_v1'])).toMatchObject({max_channels_by_codec: {pcm_s16le: 2}});
+		const older = await original([]);
+		expect(older.max_channels).toBeUndefined();
+		expect(older.audio_decode_codecs).toEqual(['eac3']);
+	});
+
 	test('asked again while it plays, the session is replanned, and a failed original asks for something else', async () => {
 		const {playback, calls} = setup({
 			'GET /api/v2/playback/capabilities': capabilities,
@@ -222,6 +273,72 @@ describe('sessions', () => {
 		expect(stop).toMatchObject({installation_id: 'inst', sequence: 3, position: 70});
 		expect(typeof stop.stop_id).toBe('string');
 		expect(playback.sessionOf('s1')).toBe(null);
+	});
+
+	describe('an admin ending the session', () => {
+		const gone = (code) => () => {
+			throw Object.assign(new Error('Gone'), {status: 410, code});
+		};
+
+		test('a progress refused with 410 playback_session_ended rejects with the item, and nothing more is sent', async () => {
+			const {playback, calls} = setup({
+				'GET /api/v2/playback/capabilities': capabilities,
+				'POST /api/v2/playback/start': plan('original_http', 'k1'),
+				'POST /api/v2/playback/s1/progress': gone('playback_session_ended')
+			});
+			await playback.getPlaybackInfo('movie-1', {});
+			await expect(playback.reportPlaybackProgress({PlaySessionId: 's1', PositionTicks: 600000000}))
+				.rejects.toMatchObject({siloRefused: true, reason: 'playback_session_ended', itemId: 'movie-1', message: 'Playback was ended on the Silo server.'});
+			expect(await playback.reportPlaybackProgress({PlaySessionId: 's1', PositionTicks: 700000000})).toBe(null);
+			await playback.reportPlaybackStopped({PlaySessionId: 's1', PositionTicks: 700000000});
+			expect(calls.filter((c) => c.path.endsWith('/progress'))).toHaveLength(1);
+			expect(calls.some((c) => c.method === 'DELETE')).toBe(false);
+			expect(playback.sessionOf('s1')).toBe(null);
+		});
+
+		test('a progress answered 404 or 410 client_upgrade_required ends the session quietly', async () => {
+			for (const refusal of [() => { throw Object.assign(new Error('Not found'), {status: 404}); }, gone('client_upgrade_required')]) {
+				const {playback} = setup({
+					'GET /api/v2/playback/capabilities': capabilities,
+					'POST /api/v2/playback/start': plan('original_http', 'k1'),
+					'POST /api/v2/playback/s1/progress': refusal
+				});
+				await playback.getPlaybackInfo('movie-1', {});
+				expect(await playback.reportPlaybackProgress({PlaySessionId: 's1', PositionTicks: 600000000})).toBe(null);
+			}
+		});
+
+		test('a replan refused with 410 says the session was ended, and Silo\'s other 410 asks for an update', async () => {
+			const replanned = async (code) => {
+				const {playback} = setup({
+					'GET /api/v2/playback/capabilities': capabilities,
+					'POST /api/v2/playback/start': plan('original_http', 'k1'),
+					'POST /api/v2/playback/s1/replan': gone(code)
+				});
+				await playback.getPlaybackInfo('movie-1', {});
+				return playback.getPlaybackInfo('movie-1', {StartTimeTicks: 6000000000}).catch((err) => err);
+			};
+			expect(await replanned('playback_session_ended')).toMatchObject({reason: 'playback_session_ended', itemId: 'movie-1'});
+			expect(await replanned('client_upgrade_required')).toMatchObject({reason: 'client_upgrade_required'});
+		});
+
+		test("a stop that finds another stop got there first asks why, and says so when it was an admin's", async () => {
+			const stopped = async (progress, stopId) => {
+				const {playback, calls} = setup({
+					'GET /api/v2/playback/capabilities': capabilities,
+					'POST /api/v2/playback/start': plan('original_http', 'k1'),
+					'POST /api/v2/playback/s1/progress': progress,
+					'DELETE /api/v2/playback/s1': ({body}) => ({outcome: 'replayed', stop_id: stopId || body.stop_id})
+				});
+				await playback.getPlaybackInfo('movie-1', {});
+				const answer = await playback.reportPlaybackStopped({PlaySessionId: 's1', PositionTicks: 700000000});
+				return {answer, probes: calls.filter((c) => c.path.endsWith('/progress')).length};
+			};
+			const adminStop = '6f1c9f3e-0000-5000-8000-000000000000';
+			expect(await stopped(gone('playback_session_ended'), adminStop)).toEqual({answer: {endedOnServer: true}, probes: 1});
+			expect(await stopped(() => { throw Object.assign(new Error('Not found'), {status: 404}); }, adminStop)).toEqual({answer: null, probes: 1});
+			expect(await stopped(gone('playback_session_ended'))).toEqual({answer: null, probes: 0});
+		});
 	});
 
 	test('a refusal says why', async () => {

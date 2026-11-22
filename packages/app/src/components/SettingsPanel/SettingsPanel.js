@@ -190,37 +190,42 @@ const LiveSettingsLayout = ({closing, onClose, onLibrariesChanged, onRunSetupWiz
 	const handleQueryChange = useCallback((ev) => setQuery(ev.target.value), []);
 	const clearQuery = useCallback(() => setQuery(''), []);
 
+	// The pill and search field don't change as focus moves down the list, so they skip those renders.
+	const top = useMemo(() => (
+		<div className={css.liveTop} ref={topRef}>
+			<div className={css.liveTitle}>{$L('Settings')}</div>
+			<div className={css.pillWrap} ref={pillRef}>
+				<PillContainer className={css.pill} spotlightId={PILL_ID}>
+					{categories.map((c) => (
+						<PillItem
+							key={c.id}
+							spotlightId={`pill-${c.id}`}
+							data-selected={c.id === category}
+							className={c.id === category ? `${css.pillItem} ${css.pillItemSelected}` : css.pillItem}
+							style={c.id === category ? {backgroundColor: t.accent} : null}
+							onFocus={(ev) => {
+								keepInView(ev.currentTarget, pillRef.current);
+								handlePillFocus(c.id);
+							}}
+							onClick={() => setCategory(c.id)}
+						>
+							{c.label}
+						</PillItem>
+					))}
+				</PillContainer>
+			</div>
+			{!settings.kidsModeEnabled && (
+				<div className={css.searchSlot}>
+					<SearchBar value={query} onChange={handleQueryChange} />
+				</div>
+			)}
+		</div>
+	), [categories, category, t.accent, handlePillFocus, settings.kidsModeEnabled, query, handleQueryChange]);
+
 	return (
 		<div className={closing ? `${css.overlay} ${css.closing}` : css.overlay}>
 			<PanelContainer className={css.livePanel} spotlightId='settings-panel-container'>
-				<div className={css.liveTop} ref={topRef}>
-					<div className={css.liveTitle}>{$L('Settings')}</div>
-					<div className={css.pillWrap} ref={pillRef}>
-						<PillContainer className={css.pill} spotlightId={PILL_ID}>
-							{categories.map((c) => (
-								<PillItem
-									key={c.id}
-									spotlightId={`pill-${c.id}`}
-									data-selected={c.id === category}
-									className={c.id === category ? `${css.pillItem} ${css.pillItemSelected}` : css.pillItem}
-									style={c.id === category ? {backgroundColor: t.accent} : null}
-									onFocus={(ev) => {
-										keepInView(ev.currentTarget, pillRef.current);
-										handlePillFocus(c.id);
-									}}
-									onClick={() => setCategory(c.id)}
-								>
-									{c.label}
-								</PillItem>
-							))}
-						</PillContainer>
-					</div>
-					{!settings.kidsModeEnabled && (
-						<div className={css.searchSlot}>
-							<SearchBar value={query} onChange={handleQueryChange} />
-						</div>
-					)}
-				</div>
+				{top}
 				<div className={css.liveBody}>
 					<div className={css.listColumn} ref={listRef} onFocus={handleListFocus}>
 						<Settings

@@ -21,6 +21,15 @@ export const defaultSettings = {
 	subtitleShadowOpacity: 100,
 	subtitleShadowBlur: 0.1,
 	subtitlePositionAbsolute: 90,
+	subtitleBold: false,
+	// The outline as a percent of its usual width, and a drop shadow whose offset and blur count
+	// in steps of 2% of the text size. The font is one of the downloadable ones, or empty for the app's own.
+	subtitleStrokeWidth: 100,
+	subtitleDropShadow: false,
+	subtitleDropShadowIntensity: 80,
+	subtitleDropShadowOffset: 2,
+	subtitleDropShadowBlur: 2,
+	subtitleFont: '',
 	// White is far brighter in HDR than in SDR, so the HDR text color starts grey.
 	subtitleHdrSeparate: false,
 	subtitleSizeHdr: 'medium',
@@ -33,6 +42,7 @@ export const defaultSettings = {
 	subtitleShadowOpacityHdr: 100,
 	subtitleShadowBlurHdr: 0.1,
 	subtitlePositionAbsoluteHdr: 90,
+	subtitleBoldHdr: false,
 	seekStep: 10,
 	fallbackAudioLanguage: '',
 	preferDefaultAudioTrack: false,
@@ -59,6 +69,7 @@ export const defaultSettings = {
 	mediaSegmentAutoHide: 'off',
 	cinemaModeEpisodesEnabled: false,
 	xboxNativePlayer: true,
+	xboxDolbyVision: true,
 	xboxPassthrough: false,
 	trickPlayMode: 'single',
 	trickPlayPreviewScale: 30,
@@ -143,6 +154,8 @@ export const defaultSettings = {
 	mergeContinueWatchingNextUp: true,
 	continueWatchingDefaultAction: 'details',
 	mergeRecentRowsByType: false,
+	// Unset until chosen, so the account's own setting can fill it in.
+	hideWatchedInRecentRows: null,
 	playlistsGroupByType: true,
 	groupItemsIntoCollections: false,
 	nextUpMaxDays: 365,
@@ -159,7 +172,7 @@ export const defaultSettings = {
 	featuredItemCount: 10,
 	featuredBarStyle: 'moonfin',
 	mediaBarRowPeek: false,
-	featuredTrailerPreview: true,
+	featuredTrailerPreview: false,
 	featuredTrailerMuted: false,
 	trailerVolume: 100,
 	mediaBarTrailerCaptions: false,
@@ -168,10 +181,17 @@ export const defaultSettings = {
 	mediaBarSourceType: 'random',
 	mediaBarNewReleaseBanner: true,
 	mediaBarNewReleaseDays: 30,
+	// Which labels the banner puts on, comma separated. The banner switch still turns them all off, since older
+	// apps only read that.
+	mediaBarNewReleaseKinds: 'newSeries,newSeason,newEpisodes,newMovie',
+	mediaBarNewMovieDays: 120,
+	mediaBarNewMovieDetail: true,
 	mediaBarLibraryIds: [],
 	mediaBarCollectionIds: [],
 	mediaBarExternalLists: [],
 	unifiedLibraryMode: false,
+	// Every server's movie libraries as one Movies library and their show libraries as one TV Shows library.
+	mergeLibrariesByType: false,
 	useMoonfinPlugin: false,
 	// The plugin profile this device syncs with. Empty follows the TV profile. It's a choice
 	// about this device rather than the account, so it never syncs.
@@ -212,6 +232,7 @@ export const defaultSettings = {
 	sinceYouWatchedIncludeWatched: false,
 	// Pulled from the server plugin, never pushed back. Empty until synced.
 	tmdbApiKey: '',
+	mdblistApiKey: '',
 	rewatchIncludeMovies: true,
 	rewatchIncludeShows: true,
 	rewatchIncludeCollections: true,
@@ -250,6 +271,9 @@ export const defaultSettings = {
 	screensaverEnabled: true,
 	screensaverTimeout: 90,
 	screensaverDimmingLevel: 50,
+	screensaverDuringAudio: false,
+	// Minutes, or 0 for never.
+	sleepAfterIdle: 0,
 	screensaverClockMode: 'staticCorner',
 	screensaverMode: 'library',
 	screensaverBackdrop: 'library',
@@ -272,6 +296,9 @@ export const defaultSettings = {
 	useDetailedSubHeadings: true,
 	showMediaDetailsOnLibraryPage: true,
 	libraryCardTitles: true,
+	photoSlideshowInterval: 5,
+	photoSlideshowVideos: true,
+	photoSlideshowVideoSound: true,
 	// Null until someone picks a size, so library grids follow the home card size.
 	libraryPosterSize: null,
 	playlistPosterSize: null,
@@ -282,8 +309,11 @@ export const defaultSettings = {
 	libraryStyle: 'classic',
 	bookLibraryStyle: 'bookstore',
 	showBookDiscoverTab: true,
+	bookFoldersAsSeries: false,
 	musicLibraryStyle: 'immersive',
 	hideBackdropsInLibraries: false,
+	hideLibraryWatchProgress: false,
+	hideLibraryUnwatchedCount: false,
 	useSeriesThumbnails: false,
 	// The server keys, as the other clients store them, so they sync as they are.
 	episodePreviewEnabled: false,
@@ -296,7 +326,7 @@ export const defaultSettings = {
 	homeRowsImageType: 'poster',
 	// Per row overrides keyed by row id. An absent id uses the global type above.
 	homeRowImageTypes: {},
-	homeRowsStyle: 'v2',
+	homeRowsStyle: 'carousel',
 	modernCardsOnMyMediaRow: false,
 	modernCardTransitionSpeed: 'off',
 	detailScreenStyle: 'v9',
@@ -306,6 +336,8 @@ export const defaultSettings = {
 	hideDetailsMediaDescription: false,
 	detailUseSeriesThumbnails: false,
 	hideHomeMediaDescription: false,
+	hideHomeWatchProgress: false,
+	hideHomeUnwatchedCount: false,
 	homeRowOverlay: true,
 	excludedGenres: [],
 	autoAdvance: true,
@@ -315,6 +347,9 @@ export const defaultSettings = {
 	nextUpTimeout: 7,
 	stillWatchingBehavior: 'medium',
 	skipForwardLength: 30000,
+	controlsHideDelay: 5000,
+	// Percent the player controls dim while HDR plays.
+	hdrControlsDimming: 0,
 	unpauseRewind: 0,
 	showDescriptionOnPause: false,
 	// Chosen so the overlay looks unchanged for anyone who never opens the setting.
@@ -358,7 +393,6 @@ export const defaultSettings = {
 	dtsPassthrough: true,
 	dtshdPassthrough: true,
 	truehdPassthrough: true,
-	forceTruehdPassthrough: false,
 	showSeerrButton: true,
 	seerrShowMissingCollectionItems: true,
 	showSeerrAvailabilityBadges: true,
@@ -394,8 +428,9 @@ export const defaultSettings = {
 	// Calendar reminders are a phone feature.
 	calendarReminders: null,
 	performanceMode: 'auto',
-	// Kept on the TV, since the other clients have no such setting.
-	smoothScrolling: true,
+	// Kept on the TV, since the other clients have no such setting. Null follows the
+	// performance tier, see smoothScrollingFor.
+	smoothScrollingChoice: null,
 	keyboardStyle: 'docked',
 	focusBorderColor: '',
 	navbarOpacity: 50,
@@ -403,5 +438,7 @@ export const defaultSettings = {
 	// webOS TLS proxy fallback: when the WebView rejects a server's certificate
 	// (net::ERR_INSECURE_RESPONSE), allow the bundled Node service to fetch with
 	// certificate validation disabled. Off by default; local-only (not synced).
-	allowInsecureCerts: false
+	allowInsecureCerts: false,
+	// webOS only, and kept on the TV rather than synced.
+	keepDevModeAlive: true
 };

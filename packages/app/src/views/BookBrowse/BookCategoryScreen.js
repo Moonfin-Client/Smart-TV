@@ -63,6 +63,7 @@ const BookCategoryScreen = ({style, screen, library, data, showDiscover, overvie
 	const screenId = shown ? shown.id : OVERVIEW;
 	const libraryName = library?.Name || $L('Books');
 	const entries = useMemo(() => navEntries({style, library, data, showDiscover}), [style, library, data, showDiscover]);
+	const {onOpenGrid} = rest;
 	const back = backTarget(style, shown);
 
 	const handleBack = useMemo(() => {
@@ -83,8 +84,9 @@ const BookCategoryScreen = ({style, screen, library, data, showDiscover, overvie
 			return;
 		}
 		const entry = entries.find((option) => option.key === key);
-		if (entry) onOpenScreen(entry.screen);
-	}, [current, screenId, entries, onOpenScreen]);
+		if (entry?.grid) onOpenGrid(entry.grid);
+		else if (entry) onOpenScreen(entry.screen);
+	}, [current, screenId, entries, onOpenScreen, onOpenGrid]);
 
 	const handleNavItem = useCallback((e) => openEntry(e.currentTarget.dataset.key), [openEntry]);
 

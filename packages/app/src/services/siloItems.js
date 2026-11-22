@@ -972,7 +972,8 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources, g
 		return result.Items;
 	};
 
-	const getRecentlyReleased = async (libraryId, limit = 20, includeItemTypes = 'Movie,Series') => {
+	// The app's own Hide Watched answers when it's been set, otherwise the profile's setting does.
+	const getRecentlyReleased = async (libraryId, limit = 20, includeItemTypes = 'Movie,Series', appHidesWatched = null) => {
 		const id = siloLibraryIdOf(libraryId);
 		if (libraryId && !id) return empty(0);
 		const scope = await newestRowScope(id, includeItemTypes, false);
@@ -981,7 +982,7 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources, g
 		const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 		const isoDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
 		const groups = [{match: 'all', rules: [{field: 'release_date', op: 'lt', value: isoDate}]}]
-			.concat((await hidesWatchedOnHome()) ? unplayedGroups() : []);
+			.concat((appHidesWatched ?? await hidesWatchedOnHome()) ? unplayedGroups() : []);
 		return page({
 			...(id ? {library_id: id} : null),
 			type: scope,
@@ -1148,6 +1149,7 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources, g
 		getStudios: async (limit, sortBy, sortOrder) => {
 			const json = await filterValues(null, null, {skip_technical: true});
 			const names = [].concat(json?.networks || [], json?.studios || []).filter((n) => typeof n === 'string' && n.trim()).map((n) => n.trim());
+			if (sortBy === 'Random') return slice(shuffle(namedList(names, true).Items), 0, limit);
 			return namedList(names, true, String(sortOrder || '').toLowerCase() === 'descending', 0, limit);
 		},
 

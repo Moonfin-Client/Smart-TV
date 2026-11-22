@@ -7,6 +7,11 @@ const FADE_DURATION = 1500;
 const FADE_INTERVAL = 50;
 const HOME_ROW_DELAY = 1500;
 
+// The fade-in step that matches the track's current volume. A fresh track is silent and starts at
+// 0, while a fade-out that gets reversed carries on from where it is instead of dropping to silence.
+export const fadeInStartStep = (current, target, steps) =>
+	(target > 0 ? Math.floor(Math.min(steps - 1, Math.max(0, (current / target) * steps))) : 0);
+
 // A Plex theme's id is the path it plays from.
 const buildAudioUrl = (itemId) => {
 	const server = jellyfinApi.getServerUrl();
@@ -20,6 +25,7 @@ export const useThemeMusic = () => {
 	const audioRef = useRef(null);
 	const currentItemIdRef = useRef(null);
 	const fadeTimerRef = useRef(null);
+	const fadingOutRef = useRef(false);
 	const delayTimerRef = useRef(null);
 	const targetVolumeRef = useRef(0);
 	// Set while a card preview plays. The track fades out, and the item that was
@@ -33,6 +39,7 @@ export const useThemeMusic = () => {
 	}, [settings.themeMusicVolume]);
 
 	const clearFade = useCallback(() => {
+		fadingOutRef.current = false;
 		if (fadeTimerRef.current) {
 			clearInterval(fadeTimerRef.current);
 			fadeTimerRef.current = null;
@@ -57,9 +64,8 @@ export const useThemeMusic = () => {
 		clearFade();
 		const target = getTargetVolume();
 		targetVolumeRef.current = target;
-		audio.volume = 0;
 		const steps = FADE_DURATION / FADE_INTERVAL;
-		let step = 0;
+		let step = fadeInStartStep(audio.volume, target, steps);
 		fadeTimerRef.current = setInterval(() => {
 			step++;
 			if (step >= steps) {
@@ -82,6 +88,7 @@ export const useThemeMusic = () => {
 		}
 		const steps = FADE_DURATION / FADE_INTERVAL;
 		let step = 0;
+		fadingOutRef.current = true;
 		fadeTimerRef.current = setInterval(() => {
 			step++;
 			if (step >= steps) {
@@ -100,7 +107,11 @@ export const useThemeMusic = () => {
 			return;
 		}
 
-		if (currentItemIdRef.current === itemId && audioRef.current) return;
+		if (currentItemIdRef.current === itemId && audioRef.current) {
+			// Opening a card starts a fade-out, and the screen it opens can claim the same theme.
+			if (fadingOutRef.current) fadeIn(audioRef.current);
+			return;
+		}
 
 		stopImmediate();
 		currentItemIdRef.current = itemId;
@@ -157,7 +168,7 @@ export const useThemeMusic = () => {
 			clearTimeout(delayTimerRef.current);
 		}
 
-		if (currentItemIdRef.current === itemId && audioRef.current) return;
+		if (currentItemIdRef.current === itemId && audioRef.current && !fadingOutRef.current) return;
 
 		delayTimerRef.current = setTimeout(() => {
 			delayTimerRef.current = null;

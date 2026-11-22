@@ -12,6 +12,7 @@ import {normalizeMediaItem} from '../../utils/seerrHomeRows';
 import {streamingProviders as providersFor} from '../../utils/seerrStreaming';
 import {IDLE, bestSearchMatch, isSeriesPart, seerrTargetFor, seriesTargetFrom} from '../../utils/seerrTarget';
 import useSeerrDetailsData from './useSeerrDetailsData';
+import useSeerrReleaseSwap from './useSeerrReleaseSwap';
 import useSeerrRequests from './useSeerrRequests';
 import useSeerrWatchlist from './useSeerrWatchlist';
 
@@ -28,10 +29,16 @@ const SERIES_PART_HIDES = {
 	hasTabContent: false
 };
 
+// A Seerr card's media type and TMDB id; null for a card with no id, which matches nothing.
+const seerrTitleKey = card => {
+	const {mediaId, mediaType} = card._seerrRaw || {};
+	return mediaId == null ? null : `${mediaType}:${mediaId}`;
+};
+
 // `showsSection` is the viewer's detail sections setting. A piece switched off reads as one
 // Seerr had nothing for, so every style draws and focuses the same set.
 const useSeerrOverlay = ({item, seerrOnly, showsSection, api}) => {
-	const {isEnabled, isAuthenticated, user, displayName} = useSeerr();
+	const {isEnabled, isAuthenticated, user, displayName, pluginInfo} = useSeerr();
 	const ready = isEnabled && isAuthenticated;
 
 	const seriesPart = !seerrOnly && isSeriesPart(item);
@@ -99,11 +106,16 @@ const useSeerrOverlay = ({item, seerrOnly, showsSection, api}) => {
 	// be said out loud, which is why the two errors are kept apart.
 	const [actionError, setActionError] = useState(null);
 	const clearActionError = useCallback(() => setActionError(null), []);
+	// A short word that an action worked, for the screen's toast.
+	const [notice, setNotice] = useState(null);
+	const clearNotice = useCallback(() => setNotice(null), []);
 
 	const data = useSeerrDetailsData({
 		mediaId: target.mediaId,
 		mediaType: target.mediaType,
-		contextUser: user
+		contextUser: user,
+		// Older plugins don't say, and then nothing reads the arr's queue.
+		arrQueueAvailable: pluginInfo?.arrQueueAvailable === true
 	});
 
 	const requests = useSeerrRequests({
@@ -120,6 +132,24 @@ const useSeerrOverlay = ({item, seerrOnly, showsSection, api}) => {
 		status4k: data.status4k
 	});
 
+	// Only the title's own page offers the swap. A season or episode page shows the series-wide
+	// bar, and a button there would act on a download from another season.
+	const swap = useSeerrReleaseSwap({
+		release: seriesPart ? null : data.removableRelease,
+		mediaId: target.mediaId,
+		mediaType: target.mediaType,
+		setDetails: data.setDetails,
+		setError: setActionError,
+		setNotice,
+		onRemoved: data.invalidateArrQueue
+	});
+
+	const {closeTopPopup: closeRequestPopup} = requests;
+	const closeTopPopup = useCallback(
+		() => closeRequestPopup() || swap.showSwapPopup,
+		[closeRequestPopup, swap.showSwapPopup]
+	);
+
 	const watchlist = useSeerrWatchlist({
 		mediaId: target.mediaId,
 		mediaType: target.mediaType,
@@ -130,14 +160,21 @@ const useSeerrOverlay = ({item, seerrOnly, showsSection, api}) => {
 	// library's MediaCard, so they are converted once here rather than in each screen.
 	const showsSimilar = showsSection('seerrSimilar');
 	const showsRecommendations = showsSection('seerrRecommendations');
-	const similarCards = useMemo(
-		() => (showsSimilar ? data.similar.map(normalizeMediaItem) : []),
-		[data.similar, showsSimilar]
-	);
 	const recommendationCards = useMemo(
 		() => (showsRecommendations ? data.recommendations.map(normalizeMediaItem) : []),
 		[data.recommendations, showsRecommendations]
 	);
+	// Seerr's similar titles often repeat its recommendations, and Silo answers both from one
+	// list, so Similar keeps what Recommendations doesn't already show. With Recommendations
+	// switched off it keeps everything.
+	const similarCards = useMemo(() => {
+		if (!showsSimilar) return [];
+		const shown = new Set(recommendationCards.map(seerrTitleKey));
+		return data.similar.map(normalizeMediaItem).filter(card => {
+			const key = seerrTitleKey(card);
+			return key == null || !shown.has(key);
+		}).slice(0, 20);
+	}, [data.similar, showsSimilar, recommendationCards]);
 
 	const streamingProviders = useMemo(
 		() => providersFor(data.details, data.streamingRegion),
@@ -174,6 +211,10 @@ const useSeerrOverlay = ({item, seerrOnly, showsSection, api}) => {
 	return {
 		...data,
 		...requests,
+		...swap,
+		closeTopPopup,
+		notice,
+		clearNotice,
 		// The screen must keep its loading state up while the IMDb id is still becoming
 		// a TMDB id, or it renders empty for the wait.
 		loading: data.loading || resolvingImdb,
@@ -205,6 +246,9 @@ const useSeerrOverlay = ({item, seerrOnly, showsSection, api}) => {
 		showsRequest4k: isActive && (offersRequest4k || requests.canCancel4k),
 		showsReportIssue: isActive && requests.canReportIssue,
 		showsManage: isActive && requests.canManage && requests.pendingRequests.length > 0,
+		// Get a different release shares Manage Requests' place in the row, so it moves and
+		// hides with it.
+		showsManageSlot: isActive && ((requests.canManage && requests.pendingRequests.length > 0) || swap.showsSwapRelease),
 		showsWatchlist: isActive,
 		onWatchlist: watchlist.onWatchlist,
 		toggleWatchlist: watchlist.toggleWatchlist,

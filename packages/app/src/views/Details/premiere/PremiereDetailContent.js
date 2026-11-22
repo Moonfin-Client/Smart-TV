@@ -174,6 +174,7 @@ const PremiereScreen = (props) => {
 	}
 	const stops = [
 		showStop,
+		...page.collectionStops(),
 		framed(page.tracksStop(), $L('Audio & Subtitles')),
 		framed(page.factsStop({weighByText: true}), $L('Details')),
 		...page.rowStops()
@@ -252,8 +253,8 @@ const PremiereScreen = (props) => {
 	);
 };
 
-// Everything that isn't a film, a show or a video goes to Modern, decided before any of Premiere's
-// own hooks run.
+// Everything that isn't a film, a show, a video or a collection goes to Modern, decided before any
+// of Premiere's own hooks run.
 const PremiereDetailContent = (props) => (
 	drawsStage(props.item.Type) ? <PremiereScreen {...props} /> : <ModernDetailContent {...props} />
 );

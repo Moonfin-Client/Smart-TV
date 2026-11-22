@@ -28,6 +28,7 @@ const NETWORK_NO_SOURCE = 3;
 const PLAYS_NATIVELY = /^(application\/(x-mpegurl|vnd\.apple\.mpegurl)|video\/(mp4|x-matroska|quicktime|webm|mp2t)|audio\/)/i;
 
 let element = null;
+let display = null;
 
 const savedSettings = () => {
 	try {
@@ -41,6 +42,11 @@ const savedSettings = () => {
 export const isNativePlayerEnabled = () => nativePlayerAvailable() && savedSettings().xboxNativePlayer !== false;
 
 export const isPassthroughEnabled = () => isNativePlayerEnabled() && savedSettings().xboxPassthrough === true;
+
+export const isDolbyVisionEnabled = () => isNativePlayerEnabled() && savedSettings().xboxDolbyVision !== false;
+
+// What the host last put the display in for the open stream, {ok, mode, reason, hdr}, or null
+export const getNativeDisplay = () => display;
 
 export const isNativeVideoElement = (candidate) => !!candidate && candidate === element;
 
@@ -84,6 +90,8 @@ const createFacade = () => {
 		muted: false,
 		subtitle: -1,
 		systemReader: null,
+		dolbyVision: null,
+		passthrough: false,
 		autoplay: false,
 		playing: [],
 		closing: null
@@ -191,6 +199,9 @@ const createFacade = () => {
 				state.naturalHeight = payload.height || 0;
 				fire('resize');
 				break;
+			case 'display':
+				display = payload;
+				break;
 			case 'error':
 				state.error = {code: Number(payload.code) || 4, message: payload.message || ''};
 				state.networkState = NETWORK_NO_SOURCE;
@@ -221,11 +232,16 @@ const createFacade = () => {
 		state.buffered = [];
 		state.tracks = [];
 		state.selectedTrack = -1;
+		display = null;
 		const hls = /^application\/(x-mpegurl|vnd\.apple\.mpegurl)$/i.test(video.type || '') || /\.m3u8(\?|$)/i.test(url);
 		// The choice holds for this one open, so a stream nobody chose for leaves it to FFmpeg
 		const reader = state.systemReader ? {reader: 'system', fallback: true, hdr10: state.systemReader.hdr10} : {};
 		state.systemReader = null;
-		hostPlayer.openStream(state.session, {url, hls, ...reader, startSeconds, autoplay: !state.paused || state.autoplay, volume: state.volume, muted: state.muted, subtitle: state.subtitle}).catch((err) => {
+		const dolbyVision = state.dolbyVision ? {dolbyVision: state.dolbyVision} : {};
+		state.dolbyVision = null;
+		const passthrough = state.passthrough ? {passthrough: true} : {};
+		state.passthrough = false;
+		hostPlayer.openStream(state.session, {url, hls, ...reader, ...dolbyVision, ...passthrough, startSeconds, autoplay: !state.paused || state.autoplay, volume: state.volume, muted: state.muted, subtitle: state.subtitle}).catch((err) => {
 			onEvent({session: state.session, event: 'error', code: 2, message: err.message});
 		});
 	};
@@ -237,6 +253,7 @@ const createFacade = () => {
 		state.networkState = NETWORK_EMPTY;
 		state.moving = false;
 		state.paused = true;
+		display = null;
 		settlePlays(false);
 		state.closing = session ? hostPlayer.closeStream(session).catch(() => {}) : Promise.resolve();
 	};
@@ -357,6 +374,14 @@ const createFacade = () => {
 	// which only FFmpeg would have read out of the file
 	video.useSystemReaderNative = (on, hdr10) => {
 		state.systemReader = on ? {hdr10: !!hdr10} : null;
+	};
+	// The Dolby Vision profile the next stream opens in, 5, 7 or 8, or null for none
+	video.useDolbyVisionNative = (profile) => {
+		state.dolbyVision = profile || null;
+	};
+	// Whether the next stream's sound goes to the console as it is in the file
+	video.usePassthroughNative = (on) => {
+		state.passthrough = !!on;
 	};
 	// Which of the file's subtitle tracks the host draws, kept across reopens of the stream
 	video.selectSubtitleNative = (index) => {

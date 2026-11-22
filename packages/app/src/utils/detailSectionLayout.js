@@ -62,16 +62,16 @@ export const DETAIL_SECTIONS = [
 	{id: 'playlistOrder', label: 'Playlist order', group: 'collection', styles: [MODERN, SPOTLIGHT, NOUVEAU]}
 ];
 
-// Whether picking `style` can put a section on screen. Minimalist only draws video pages and
-// hands every other page to Spotlight, so it also shows whatever Spotlight does. Stage, Premiere and
-// Frost hand people and collections to Modern the same way, and Quick Look's full page is Modern.
+// Whether picking `style` can put a section on screen. Minimalist only draws video and collection
+// pages and hands every other page to Spotlight, so it also shows whatever Spotlight does on those.
+// Stage, Premiere and Frost hand people to Modern the same way, and Quick Look's full page is Modern.
 const DRAWN_BY_MODERN = ['seerrPersonAppearances', 'seerrPersonCrew'];
 export const isAvailableIn = (section, style) =>
 	section.styles.includes(style) ||
-	(style === MINIMALIST && section.styles.includes(SPOTLIGHT)) ||
+	(style === MINIMALIST && section.id !== 'playlistOrder' && section.styles.includes(SPOTLIGHT)) ||
 	(style === QUICK_LOOK && section.styles.includes(MODERN)) ||
 	((style === STAGE || style === PREMIERE || style === FROST) && section.styles.includes(MODERN) &&
-		(section.group === 'person' || section.group === 'collection' || DRAWN_BY_MODERN.includes(section.id)));
+		(section.group === 'person' || DRAWN_BY_MODERN.includes(section.id)));
 
 // The sections the settings screen lists for a style. The Seerr ones only make sense once the
 // server offers Seerr at all.

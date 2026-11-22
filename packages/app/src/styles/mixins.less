@@ -328,3 +328,40 @@
 // The settings lay out on a canvas 1150 units wide scaled to the screen. At 1080p one unit is this
 // many pixels, so settings sizes are written in those units.
 @dp: 1.66957px;
+
+// A card's top right corner when it shows a server's name: the watched check, the unplayed count and the Seerr marker
+// move below the name, as components/MediaCard/serverNameCorner.js lays it out. A source's name, as Radarr's, keeps the
+// size it always had, so the badges below it sit higher. @banner-top is where the corner starts under the Seerr banner.
+.server-name-corner(@banner-top) {
+	.serverBadge.sourceBadge {
+		padding: 4px 8px;
+		font-size: 12px;
+		max-width: 120px;
+	}
+
+	.belowServerBadge.seerrBadge,
+	.belowServerBadge.watchedBadge,
+	.belowServerBadge.unplayedCount {
+		top: 44px;
+	}
+
+	.belowServerBadge.belowSourceBadge.seerrBadge,
+	.belowServerBadge.belowSourceBadge.watchedBadge,
+	.belowServerBadge.belowSourceBadge.unplayedCount {
+		top: 34px;
+	}
+
+	.underSeerrBanner {
+		.belowServerBadge.seerrBadge,
+		.belowServerBadge.watchedBadge,
+		.belowServerBadge.unplayedCount {
+			top: @banner-top + 36px;
+		}
+
+		.belowServerBadge.belowSourceBadge.seerrBadge,
+		.belowServerBadge.belowSourceBadge.watchedBadge,
+		.belowServerBadge.belowSourceBadge.unplayedCount {
+			top: @banner-top + 26px;
+		}
+	}
+}
