@@ -400,7 +400,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// A replan can be another version, or know a runtime the first plan didn't, so a reopened stream takes the title's
 	// length from its plan as the first load does.
 	const takeRunTime = useCallback((result) => {
-		if (result?.runTimeTicks === undefined) return;
+		if (result?.runTimeTicks == null) return;
 		runTimeRef.current = result.runTimeTicks || 0;
 		setDuration(runTimeRef.current / 10000000);
 	}, []);
