@@ -387,6 +387,10 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 	requestsRef.current = requests;
 	// The failed Silo request waiting on its Remove confirm.
 	const [removeTarget, setRemoveTarget] = useState(null);
+	const removeTargetRef = useRef(removeTarget);
+	removeTargetRef.current = removeTarget;
+	// Counts removals, so a page read that was out during one starts again from where the server's list now is.
+	const removalsRef = useRef(0);
 	const [issues, setIssues] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
@@ -489,17 +493,23 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 		loadingMoreRef.current = true;
 		const filter = tab === 'requests' ? requestFilter : issueFilter;
 		const current = tab === 'requests' ? requests : issues;
+		const removalsAtStart = removalsRef.current;
 		try {
-			const {results, raw} = await loadPage(tab, filter, current.length);
-			const seen = {};
-			current.forEach((item) => {
-				seen[item.id] = true;
-			});
-			const fresh = results.filter((item) => !seen[item.id]);
+			let {results, raw} = await loadPage(tab, filter, current.length);
+			// Each removal meanwhile moved the server's list up by one, past the page that was asked for.
+			const removedSince = removalsRef.current - removalsAtStart;
+			if (removedSince > 0) ({results, raw} = await loadPage(tab, filter, Math.max(current.length - removedSince, 0)));
+			const append = (prev) => {
+				const seen = {};
+				prev.forEach((item) => {
+					seen[item.id] = true;
+				});
+				return [...prev, ...results.filter((item) => !seen[item.id])];
+			};
 			if (tab === 'requests') {
-				setRequests((prev) => [...prev, ...fresh]);
+				setRequests(append);
 			} else {
-				setIssues((prev) => [...prev, ...fresh]);
+				setIssues(append);
 			}
 			setHasMore(raw.length >= PAGE_SIZE);
 		} catch (err) {
@@ -625,7 +635,8 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 	}, [patchRequest]);
 
 	// Deletes a failed Silo request once confirmed. Silo refuses one that was retried or got a copy meanwhile, and the
-	// tile is then read again to show where it stands. The removed tile had focus, so the one now in its place takes it.
+	// tile is then read again to show where it stands. The removed tile had focus, so the one now in its place takes it,
+	// unless another Remove confirm opened while Silo answered.
 	const closeRemove = useCallback(() => setRemoveTarget(null), []);
 	const confirmRemove = useCallback(async () => {
 		const target = removeTarget;
@@ -639,12 +650,16 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 			console.error('[SeerrRequests] Remove failed:', err.message);
 			const fresh = err.status === 409 ? await seerrApi.getRequest(target.id).catch(() => null) : null;
 			if (fresh) patchRequest(fresh);
-			setTimeout(() => Spotlight.focus(`[data-spotlight-id="request-${Math.max(at, 0)}"]`), 150);
+			setTimeout(() => {
+				if (!removeTargetRef.current) Spotlight.focus(`[data-spotlight-id="request-${Math.max(at, 0)}"]`);
+			}, 150);
 			return;
 		}
+		removalsRef.current += 1;
 		const left = requestsRef.current.length - 1;
 		setRequests((prev) => prev.filter((r) => r.id !== target.id));
 		setTimeout(() => {
+			if (removeTargetRef.current) return;
 			if (left > 0) Spotlight.focus(`[data-spotlight-id="request-${Math.min(Math.max(at, 0), left - 1)}"]`);
 			else Spotlight.focus('hub-filters');
 		}, 150);
