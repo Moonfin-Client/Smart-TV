@@ -4,8 +4,15 @@
 export const PICK_SOURCES = {
 	collections: {section: 'collection', gate: 'displayCollectionsRows'},
 	genres: {section: 'genre', gate: 'displayGenresRows'},
-	playlists: {section: 'playlist', gate: 'displayPlaylistsRows'}
+	playlists: {section: 'playlist', gate: 'displayPlaylistsRows'},
+	// A Silo home section (Recommended for you, Seasonal picks and the rest), by its id, or as Moonbase's admin defaults
+	// name one, `type:<section type>`, which stands for the profile's first section of that type. Silo only.
+	server: {section: 'server', gate: null}
 };
+
+export const isServerSectionRow = (row) => Boolean(row && row.source === 'server' && row.itemId);
+// Moonbase can't know a server's section ids, so its rows name a type, and keep their place whatever the server lists.
+export const isSectionTypeRow = (row) => isServerSectionRow(row) && String(row.itemId).startsWith('type:');
 
 export const isPickedRow = (row) => Boolean(row && PICK_SOURCES[row.source] && row.itemId);
 
@@ -49,7 +56,9 @@ export const isSeerrSliderRow = (row) => Boolean(row && row.source === 'seerr' &
 
 // A picked row answers to the switch of the list it came from, and another server's collections
 // only show while multi-server libraries is on
-export const isPickedRowShown = (row, settings, currentServerUrl) => {
+export const isPickedRowShown = (row, settings, currentServerUrl, serverType) => {
+	// Moonbase's defaults leave the server off a section-type row: it stands for whichever Silo the profile is on.
+	if (row.source === 'server') return serverType === 'silo' && (!row.serverUrl || isSameServer(row.serverUrl, currentServerUrl));
 	if (!settings[PICK_SOURCES[row.source].gate]) return false;
 	if (isSameServer(row.serverUrl, currentServerUrl)) return true;
 	return row.source === 'collections' && settings.unifiedLibraryMode === true;

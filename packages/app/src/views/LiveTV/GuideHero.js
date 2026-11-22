@@ -2,7 +2,6 @@ import {memo, useEffect, useState} from 'react';
 import $L from '@enact/i18n/$L';
 
 import VerticalMarquee from '../../components/VerticalMarquee';
-import {DESCRIPTION_MS_PER_PIXEL} from '../../utils/liveTvGuide';
 import {RecordingMark} from './GuideIcons';
 
 import css from './LiveTV.module.less';
@@ -78,7 +77,6 @@ const GuideHero = ({title, programTitle, programSubtitle, channelLogoUrl, progra
 						text={synopsis}
 						lines={3}
 						lineHeight={SYNOPSIS_LINE_HEIGHT}
-						msPerPixel={DESCRIPTION_MS_PER_PIXEL}
 						pauseMs={1600}
 					/>
 				) : null}

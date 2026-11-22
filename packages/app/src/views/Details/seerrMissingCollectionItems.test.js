@@ -4,7 +4,8 @@ import {
 	makeMissingCollectionItem,
 	fetchMissingCollectionItems,
 	mergeCollectionWithMissing,
-	mergeMissingByReleaseOrder
+	mergeMissingByReleaseOrder,
+	collectionTitles
 } from './seerrMissingCollectionItems';
 import seerrApi from '../../services/seerrApi';
 
@@ -265,5 +266,23 @@ describe('mergeMissingByReleaseOrder', () => {
 	it('appends when everything in the library came out earlier', () => {
 		const merged = mergeMissingByReleaseOrder([item('A', '1980-01-01')], [item('B', '1990-01-01')]);
 		expect(merged.map((i) => i.Name)).toEqual(['A', 'B']);
+	});
+});
+
+describe('collectionTitles', () => {
+	const library = [{Name: 'A New Hope', PremiereDate: '1977-05-25'}, {Name: 'The Last Jedi', PremiereDate: '2017-12-15'}];
+	const missing = [{Name: 'The Force Awakens', PremiereDate: '2015-12-18', _seerrMissing: true}];
+
+	it('slots the missing titles in by release date', () => {
+		expect(collectionTitles(library, missing, {}).map((i) => i.Name)).toEqual(['A New Hope', 'The Force Awakens', 'The Last Jedi']);
+	});
+
+	it('keeps to the library when the viewer hides missing titles', () => {
+		expect(collectionTitles(library, missing, {seerrShowMissingCollectionItems: false})).toBe(library);
+	});
+
+	// Seerr's titles have had no rating check, so a child never sees them.
+	it('keeps to the library in Kids Mode', () => {
+		expect(collectionTitles(library, missing, {kidsModeEnabled: true})).toBe(library);
 	});
 });

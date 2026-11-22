@@ -6,3 +6,4 @@ export * as deviceProfile from './deviceProfile';
 export * as deviceInfo from './deviceInfo';
 export * as video from './video';
 export * as volume from './volume';
+export * as socket from './socket';

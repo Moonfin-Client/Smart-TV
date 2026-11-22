@@ -33,7 +33,8 @@ export const CARD_ICONS = {
 	appearances: DETAIL_ICON_PATHS.starOutline,
 	crew: DETAIL_ICON_PATHS.movieCreationOutlined,
 	seerrDetails: MATERIAL_ICON_PATHS.info,
-	fileDetails: MATERIAL_ICON_PATHS.info
+	fileDetails: MATERIAL_ICON_PATHS.info,
+	books: MATERIAL_ICON_PATHS.menu_book
 };
 
 // A runtime for a card subtitle or the hero's metadata row: "1h 32m", "2h", or "48m". The
@@ -110,13 +111,18 @@ class CardBuilder {
 	// Which cards this item gets and in what order, each still unbuilt so a caller after one
 	// card does not pay for the rest.
 	factories() {
-		const {item, seerrOnly} = this.s;
+		const {item, seerrOnly, bookSeriesItem} = this.s;
 		if (seerrOnly) {
 			return {
 				seerr_details: () => this.seerrDetailsCard(),
 				people: () => this.peopleCard(),
 				similar: () => this.similarCard(),
 				reviews: () => this.reviewsCard()
+			};
+		}
+		if (bookSeriesItem?.ChildCount > 0) {
+			return {
+				books: () => this.booksCard()
 			};
 		}
 		switch (item?.Type) {
@@ -337,6 +343,20 @@ class CardBuilder {
 		};
 	}
 
+	booksCard() {
+		const {bookSeriesItem, fallbackImageUrl} = this.s;
+		const items = bookSeriesItem?.Members ?? [];
+		const itemCount = bookSeriesItem?.ChildCount ?? 0;
+		return {
+			id: 'books',
+			title: $L('Books'),
+			subtitle: countLabel(itemCount, $L('1 book'), $L('{count} books')),
+			imageUrl: fallbackImageUrl,
+			icon: CARD_ICONS.books,
+			sections: [mediaSection($L('Books'), items)]
+		};
+	}
+
 	fileDetailsCard() {
 		if (!this.shows('mediaInfo')) return null;
 		const {item, mediaSource} = this.s;
@@ -421,13 +441,16 @@ class CardBuilder {
 		if (!all.length) return null;
 
 		const currentSeason = item?.ParentIndexNumber;
-		const seasonOf = (episode) => (episode.ParentIndexNumber != null
-			? episode.ParentIndexNumber
-			: (currentSeason != null ? currentSeason : 1));
+		// Across the whole run an episode with no season number is a special, while in a
+		// single season's list it belongs to the season being shown.
+		const defaultSeason = seriesEpisodes.length ? 0 : (currentSeason != null ? currentSeason : 1);
+		const seasonOf = (episode) => (episode.ParentIndexNumber != null ? episode.ParentIndexNumber : defaultSeason);
+		const nameOf = (episode) => (episode.Name || '').toLowerCase();
+		const byName = (a, b) => (nameOf(a) < nameOf(b) ? -1 : nameOf(a) > nameOf(b) ? 1 : 0);
 
 		const groups = new Map();
 		[...all]
-			.sort((a, b) => (seasonOf(a) - seasonOf(b)) || ((a.IndexNumber || 0) - (b.IndexNumber || 0)))
+			.sort((a, b) => (seasonOf(a) - seasonOf(b)) || ((a.IndexNumber || 0) - (b.IndexNumber || 0)) || byName(a, b))
 			.forEach((episode) => {
 				const season = seasonOf(episode);
 				if (!groups.has(season)) groups.set(season, []);

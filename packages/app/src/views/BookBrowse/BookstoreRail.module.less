@@ -1,0 +1,273 @@
+@import '../../styles/mixins.less';
+
+// Bookstore's rail and the Continue row over its titles. Sizes are on the 1920 canvas, with the
+// text sizes the app's other cards, rows and headers use. Theme colors come from themeOverrides.
+
+@on-surface: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 1);
+@accent: var(--theme-accent, #00a4dc);
+@focus-ring: 0 0 0 3px var(--theme-focus-border-color, #ffffff);
+
+.page {
+	position: fixed;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	display: -webkit-flex;
+	display: flex;
+	background: var(--theme-background, #0a0a0a);
+}
+
+.rail {
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+	width: 414px;
+	padding: 40px 27px 40px 40px;
+	box-sizing: border-box;
+	overflow-y: auto;
+	border-right: 1px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.06);
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.railTitle {
+	padding-left: 20px;
+	font-size: 40px;
+	font-weight: 700;
+	line-height: 1.2;
+	color: @on-surface;
+	overflow: hidden;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+}
+
+.railSubtitle {
+	margin-top: 7px;
+	padding-left: 20px;
+	font-size: 22px;
+	color: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.6);
+}
+
+.railHeader {
+	margin-top: 37px;
+	padding: 0 0 10px 20px;
+	font-size: 18px;
+	font-weight: 600;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+	color: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.5);
+}
+
+.railRow {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	height: 64px;
+	padding: 0 20px;
+	border-radius: 20px;
+	color: @on-surface;
+	cursor: pointer;
+
+	svg {
+		-webkit-flex: 0 0 auto;
+		flex: 0 0 auto;
+		width: 30px;
+		height: 30px;
+		fill: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.8);
+	}
+
+	&:focus {
+		outline: none;
+		box-shadow: @focus-ring;
+	}
+}
+
+.railLabel {
+	-webkit-flex: 1;
+	flex: 1;
+	min-width: 0;
+	margin-left: 20px;
+	font-size: 23px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.railCount {
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+	margin-left: 12px;
+	font-size: 22px;
+	color: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.62);
+}
+
+.railSelected {
+	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.16);
+
+	svg {
+		fill: @accent;
+	}
+
+	.railLabel {
+		font-weight: 600;
+	}
+
+	.railCount {
+		color: @accent;
+	}
+}
+
+.continueRow {
+	display: -webkit-flex;
+	display: flex;
+	overflow-x: auto;
+	overflow-y: hidden;
+	margin-left: -12px;
+	padding: 12px 33px 12px 12px;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.continueTile {
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	width: 568px;
+	height: 167px;
+	padding: 13px 20px 13px 13px;
+	box-sizing: border-box;
+	border-radius: 23px;
+	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.06);
+	cursor: pointer;
+	transition: transform 0.15s ease-out;
+
+	&:focus {
+		outline: none;
+		transform: scale(1.03);
+		box-shadow: @focus-ring;
+	}
+
+	:global(.perf-low) & {
+		transition: none;
+	}
+}
+
+.continueCover,
+.continueCoverAudio {
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	-webkit-justify-content: center;
+	justify-content: center;
+	border-radius: 8px;
+	overflow: hidden;
+	background: var(--theme-surface-variant, #2a2a4e);
+
+	img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+}
+
+.continueCover {
+	width: 94px;
+	height: 140px;
+}
+
+.continueCoverAudio {
+	width: 120px;
+	height: 120px;
+}
+
+.continuePlaceholder {
+	width: 40px;
+	height: 40px;
+	fill: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.4);
+}
+
+.continueText {
+	-webkit-flex: 1;
+	flex: 1;
+	min-width: 0;
+	margin: 0 17px 0 20px;
+}
+
+.continueTitle,
+.continueSubtitle,
+.continueMeta {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.continueTitle {
+	font-size: 20px;
+	font-weight: 600;
+	color: @on-surface;
+}
+
+.continueSubtitle {
+	margin-top: 3px;
+	font-size: 16px;
+	color: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.62);
+}
+
+.continueProgress {
+	height: 5px;
+	margin-top: 17px;
+	border-radius: 3px;
+	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.14);
+	overflow: hidden;
+
+	div {
+		height: 100%;
+		background: @accent;
+	}
+}
+
+.continueMeta {
+	margin-top: 8px;
+	font-size: 18px;
+	color: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.68);
+}
+
+.continuePlay {
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	-webkit-justify-content: center;
+	justify-content: center;
+	width: 73px;
+	height: 73px;
+	border-radius: 50%;
+	background: @accent;
+	cursor: pointer;
+
+	svg {
+		width: 40px;
+		height: 40px;
+		fill: var(--theme-on-accent, #ffffff);
+	}
+}
+
+// Gap fallbacks, see styles/mixins.less. These sit last so a child that declares its own margin
+// further up can't beat them.
+.continueRow { .flex-row-gap(20px); }

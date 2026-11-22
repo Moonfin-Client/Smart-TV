@@ -2,6 +2,7 @@
 // it stays open for as long as someone is signed in and reconnects whenever it drops.
 
 import {api, getApiKey, getDeviceId, getServerType, getServerUrl, getUserId} from './jellyfinApi';
+import {openSiloEvents} from './siloEvents';
 
 const RECONNECT_DELAY_MS = 5000;
 // The server drops a socket that hasn't sent it a KeepAlive message within this long. It says
@@ -12,6 +13,8 @@ const DEFAULT_KEEP_ALIVE_TIMEOUT_S = 60;
 const KEEP_ALIVE_FACTOR = 0.5;
 
 let ws = null;
+// Silo's events socket, which runs its own handshake and reconnects.
+let silo = null;
 let isOpen = false;
 let keepAliveInterval = null;
 let reconnectTimeout = null;
@@ -122,10 +125,24 @@ const plexUserData = async (message) => {
 };
 
 export const connect = () => {
-	if (ws) return;
+	if (ws || silo) return;
 
 	const serverUrl = getServerUrl();
 	if (!serverUrl) return;
+	if (getServerType() === 'silo') {
+		silo = openSiloEvents(api.siloEvents, {
+			onOpen: () => {
+				isOpen = true;
+				tell(connectionListeners, true);
+			},
+			onMessage: (message) => tell(messageListeners, message),
+			onClose: () => {
+				isOpen = false;
+				tell(connectionListeners, false);
+			}
+		});
+		return;
+	}
 
 	try {
 		ws = new WebSocket(socketUrl(serverUrl));
@@ -183,6 +200,10 @@ export const disconnect = () => {
 		reconnectTimeout = null;
 	}
 	stopKeepAlive();
+	if (silo) {
+		silo.close();
+		silo = null;
+	}
 	if (ws) {
 		ws.onclose = null;
 		ws.close();

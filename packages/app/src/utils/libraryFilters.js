@@ -54,6 +54,29 @@ const buildFilterParams = ({
 	return params;
 };
 
+// Everything the Sort & Filter panel can narrow a library by, as it's saved for each library.
+// The keys are the ones buildFilterParams takes, so the saved value goes straight in.
+export const NO_FILTERS = {
+	favoritesOnly: false,
+	playedFilter: 'all',
+	likedFilter: 'all',
+	seriesFilter: 'all',
+	featureFilters: [],
+	qualityFilters: [],
+	videoSourceFilters: [],
+	genreFilters: [],
+	ratingFilters: [],
+	tagFilters: [],
+	yearFilters: [],
+	audioLanguageFilters: [],
+	subtitleLanguageFilters: []
+};
+
+export const hasActiveFilters = (filters) => Object.keys(NO_FILTERS).some((key) => {
+	const value = filters[key];
+	return Array.isArray(value) ? value.length > 0 : value !== undefined && value !== NO_FILTERS[key];
+});
+
 // Shorter lists are quicker to scroll through than to search.
 const FACET_SEARCH_MIN = 10;
 

@@ -11,16 +11,19 @@ import {withoutBlockedItems} from '../../services/parentalControls';
 import {useSettings} from '../../context/SettingsContext';
 import {useSeerr} from '../../context/SeerrContext';
 import * as connectionPool from '../../services/connectionPool';
+import MergedServerBadge from '../../components/MergedServerBadge';
+import {hasMergedCopies, mergesLibraries} from '../../utils/mergedCopies';
 import * as gamesApi from '../../services/gamesApi';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ProxiedImage from '../../components/ProxiedImage';
 import DetailsTabBar from '../../components/DetailsTabBar';
 import GameCard from '../../components/GameCard';
+import PosterLabels from '../../components/PosterLabels';
 import {KEYS} from '../../utils/keys';
 import {getImageUrl} from '../../utils/helpers';
 import {showsWatchedCheck} from '../../utils/playedState';
 import {isGameLibrary, resolveGameLibraryId} from '../../utils/gameLibrary';
-import {groupSearchResults, aspectClassForType, isCircleType, filterByName, fetchAllGames, filterGames} from '../../utils/searchGroups';
+import {groupSearchResults, aspectClassForType, isCircleType, filterByName, fetchAllGames, filterGames, searchLibrary} from '../../utils/searchGroups';
 import {foldForSearch} from '../../utils/accentFolding';
 import {episodeLine} from '../../utils/liveTvGuide';
 import SpottableInput from '../../components/SpottableInput/SpottableInput';
@@ -31,6 +34,7 @@ import {
 	initialCardCount,
 	expandedCardCount,
 	searchArtworkOptions,
+	searchArtworkSource,
 	shouldMountSearchRow
 } from './searchWindow';
 
@@ -60,6 +64,9 @@ const SEERR_CAP = 24;
 const RECENT_SEARCHES_KEY = 'search_recentQueries';
 const RECENT_SEARCHES_MAX = 10;
 const ROW_SCROLL_MARGIN = 50;
+const SMART_SEARCH_DEBOUNCE_MS = 600;
+const SMART_SEARCH_LIMIT = 20;
+const NO_SMART_RESULTS = {items: [], seerr: []};
 
 const VoiceIcon = () => (
 	<svg viewBox="0 0 24 24" fill="currentColor" className={css.voiceIcon}>
@@ -112,17 +119,23 @@ const jellyfinSubtitle = (item) => {
 	}
 };
 
-const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, onPlayChannel, remoteSearch, musicBar}) => {
-	const {api, serverUrl, hasMultipleServers} = useAuth();
+// [preferRequests] is Search opened from Discover, which lands on the Requests tab once a search has
+// request results.
+const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, onPlayChannel, remoteSearch, musicBar, preferRequests = false}) => {
+	const {api, serverUrl, serverType, hasMultipleServers} = useAuth();
 	const {settings} = useSettings();
 	const unifiedMode = settings.unifiedLibraryMode && hasMultipleServers;
-	const {isEnabled: seerrEnabled, api: seerrApi, displayName: seerrName} = useSeerr();
+	// With merged libraries a title several servers hold is one result.
+	const foldsCopies = mergesLibraries(settings, hasMultipleServers);
+	const {isEnabled: seerrEnabled, api: seerrApi, displayName: seerrName, pluginInfo} = useSeerr();
+	const smartSearchOn = !!settings.useMoonfinPlugin && pluginInfo?.smartSearchEnabled === true;
 
 	const [query, setQuery] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
 	const [groups, setGroups] = useState([]);
 	const [seerrResults, setSeerrResults] = useState([]);
 	const [gameResults, setGameResults] = useState([]);
+	const [smartResults, setSmartResults] = useState(NO_SMART_RESULTS);
 	const [activeTab, setActiveTab] = useState('all');
 	const [searchInputFocused, setSearchInputFocused] = useState(false);
 	const searchInputRef = useRef(null);
@@ -141,6 +154,8 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 
 	const debounceRef = useRef(null);
 	const requestIdRef = useRef(0);
+	const smartDebounceRef = useRef(null);
+	const smartRequestIdRef = useRef(0);
 	const remoteSearchRef = useRef(remoteSearch);
 	remoteSearchRef.current = remoteSearch;
 	const lastResultNamesRef = useRef([]);
@@ -170,10 +185,11 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 
 	const seerrLabel = seerrName || $L('Seerr');
 
-	// Focus the All pill itself. Focusing the tab container would land on the
-	// first pill, which is Seerr or Games when either has results.
+	// Focus the All pill itself, or the Requests pill this search landed on. Focusing the tab
+	// container would land on the first pill, which is Seerr or Games when either has results.
+	const onRequestsRef = useRef(false);
 	const focusAllTab = useCallback(() => {
-		if (!Spotlight.focus('[data-spotlight-id="search-tabs"] [data-id="all"]')) {
+		if (!Spotlight.focus(`[data-spotlight-id="search-tabs"] [data-id="${onRequestsRef.current ? 'seerr' : 'all'}"]`)) {
 			Spotlight.focus('search-tabs');
 		}
 	}, []);
@@ -192,6 +208,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 
 	const doSearch = useCallback(async (searchQuery) => {
 		const requestId = ++requestIdRef.current;
+		onRequestsRef.current = false;
 		const q = (searchQuery || '').trim();
 		if (q.length < MIN_SEARCH_LENGTH) {
 			setIsLoading(false);
@@ -214,8 +231,8 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 			).then(withoutBlockedItems).catch(() => []);
 			const [libraryResult, channels] = await Promise.all([
 				unifiedMode
-					? connectionPool.searchAllServers(q, GLOBAL_FETCH_LIMIT).then((serverItems) => ({Items: serverItems}))
-					: api.search(q, GLOBAL_FETCH_LIMIT),
+					? connectionPool.searchAllServers(q, GLOBAL_FETCH_LIMIT, {foldCopies: foldsCopies}).then((serverItems) => ({Items: serverItems}))
+					: searchLibrary(api, q, GLOBAL_FETCH_LIMIT, serverType),
 				hasLiveTvRef.current && !isStudioQuery
 					? api.getLiveTvChannels(0, 500).then((r) => r?.Items || []).catch(() => [])
 					: Promise.resolve([])
@@ -264,6 +281,14 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 					if (requestId !== requestIdRef.current) return;
 					const filtered = (res.results || []).filter((r) => r.mediaType !== 'person').slice(0, SEERR_CAP);
 					setSeerrResults(filtered);
+					if (preferRequests && filtered.length > 0) {
+						// Requests arrive after the rest, so the search moves over to them unless another tab was picked.
+						onRequestsRef.current = true;
+						setActiveTab((tab) => (tab === 'all' ? 'seerr' : tab));
+						setTimeout(() => {
+							if (Spotlight.getCurrent()?.dataset?.id === 'all' && !remoteSearchRef.current?.active) focusAllTab();
+						}, 0);
+					}
 				}).catch((err) => console.error('Seerr search failed:', err));
 			} else {
 				setSeerrResults([]);
@@ -286,15 +311,43 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 			setGameResults([]);
 			setIsLoading(false);
 		}
-	}, [api, seerrEnabled, seerrApi, unifiedMode, focusAllTab, rememberSearch, settings]);
+	}, [api, serverType, seerrEnabled, seerrApi, unifiedMode, foldsCopies, focusAllTab, rememberSearch, settings, preferRequests]);
+
+	// A single word is a title or a name, which the normal search handles, so only
+	// queries of two words or more go to Moonbase.
+	const runSmartSearch = useCallback((text) => {
+		if (smartDebounceRef.current) clearTimeout(smartDebounceRef.current);
+		const requestId = ++smartRequestIdRef.current;
+		const q = (text || '').trim();
+		if (!smartSearchOn || q.split(/\s+/).length < 2 || q.toLowerCase().startsWith('studio:')) {
+			setSmartResults(NO_SMART_RESULTS);
+			return;
+		}
+		api.smartSearch(q, SMART_SEARCH_LIMIT).then((res) => {
+			if (requestId !== smartRequestIdRef.current) return;
+			if (res?.Ready !== true) {
+				setSmartResults(NO_SMART_RESULTS);
+				return;
+			}
+			setSmartResults({
+				items: withoutBlockedItems(res.Items || []),
+				seerr: seerrEnabled && !isKidsMode(settings) ? res.Seerr || [] : []
+			});
+		}).catch(() => {
+			if (requestId === smartRequestIdRef.current) setSmartResults(NO_SMART_RESULTS);
+		});
+	}, [api, smartSearchOn, seerrEnabled, settings]);
 
 	const applyQuery = useCallback((value) => {
 		// Even a clear or a query waiting for debounce supersedes older results.
 		requestIdRef.current++;
+		smartRequestIdRef.current++;
 		setQuery(value);
 		if (debounceRef.current) clearTimeout(debounceRef.current);
 		debounceRef.current = setTimeout(() => doSearch(value), SEARCH_DEBOUNCE_MS);
-	}, [doSearch]);
+		if (smartDebounceRef.current) clearTimeout(smartDebounceRef.current);
+		smartDebounceRef.current = setTimeout(() => runSmartSearch(value), SMART_SEARCH_DEBOUNCE_MS);
+	}, [doSearch, runSmartSearch]);
 	const handleInputChange = useCallback((e) => {
 		remoteSearch?.close();
 		let value = e.target.value;
@@ -337,10 +390,11 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 		setGroups([]);
 		setSeerrResults([]);
 		setGameResults([]);
+		runSmartSearch('');
 		setActiveRowId(null);
 		setVisibleCardCounts({});
 		Spotlight.focus('search-input');
-	}, [remoteSearch]);
+	}, [remoteSearch, runSmartSearch]);
 
 	// Picking a past query runs it straight away. The debounce only exists to
 	// throttle typing, and there is nothing left to wait for here.
@@ -351,7 +405,8 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 		if (debounceRef.current) clearTimeout(debounceRef.current);
 		setQuery(term);
 		doSearch(term);
-	}, [doSearch, remoteSearch]);
+		runSmartSearch(term);
+	}, [doSearch, runSmartSearch, remoteSearch]);
 
 	const handleClearRecent = useCallback(() => {
 		recentSearchesRef.current = [];
@@ -360,8 +415,9 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 	}, [saveRecentSearches]);
 
 	const totalCount = useMemo(() => (
-		groups.reduce((sum, g) => sum + g.items.length, 0) + seerrResults.length + gameResults.length
-	), [groups, seerrResults, gameResults]);
+		groups.reduce((sum, g) => sum + g.items.length, 0) + seerrResults.length + gameResults.length +
+		smartResults.items.length + smartResults.seerr.length
+	), [groups, seerrResults, gameResults, smartResults]);
 
 	const tabs = useMemo(() => {
 		const list = [];
@@ -381,13 +437,18 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 
 	const handleSelectTab = useCallback((id) => setActiveTab(id), []);
 
-	// Rows shown in the All tab: groups first, then Seerr, then Games.
+	// Rows shown in the All tab: Smart Search first, then groups, then Seerr, then Games.
 	const allRows = useMemo(() => {
-		const rows = groups.map((g) => ({id: g.key, title: g.title, items: g.items, kind: 'jellyfin'}));
+		const rows = [];
+		if (smartResults.items.length > 0) rows.push({id: 'smart', title: $L('Smart Search'), items: smartResults.items, kind: 'jellyfin'});
+		if (smartResults.seerr.length > 0) {
+			rows.push({id: 'smartSeerr', title: $L('Smart Search on {name}').replace('{name}', seerrLabel), items: smartResults.seerr, kind: 'seerr'});
+		}
+		groups.forEach((g) => rows.push({id: g.key, title: g.title, items: g.items, kind: 'jellyfin'}));
 		if (seerrResults.length > 0) rows.push({id: 'seerr', title: seerrLabel, items: seerrResults, kind: 'seerr'});
 		if (gameResults.length > 0) rows.push({id: 'games', title: $L('Games'), items: gameResults, kind: 'game'});
 		return rows;
-	}, [groups, seerrResults, gameResults, seerrLabel]);
+	}, [groups, seerrResults, gameResults, seerrLabel, smartResults]);
 
 	const activeRowIndex = useMemo(
 		() => Math.max(0, allRows.findIndex((row) => row.id === activeRowId)),
@@ -413,7 +474,9 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 	// Keeps people that answer after the screen closed from landing on it.
 	useEffect(() => () => {
 		if (debounceRef.current) clearTimeout(debounceRef.current);
+		if (smartDebounceRef.current) clearTimeout(smartDebounceRef.current);
 		requestIdRef.current++;
+		smartRequestIdRef.current++;
 	}, []);
 
 	const showRecent = !hasResults &&
@@ -437,9 +500,10 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 	}, [hasResults, showRecent, focusAllTab]);
 
 	const handleInputKeyDown = useCallback((e) => {
+		if (e.keyCode === KEYS.ENTER) runSmartSearch(query);
 		if (e.keyCode !== KEYS.DOWN) return;
 		if (focusBelowInput()) e.preventDefault();
-	}, [focusBelowInput]);
+	}, [focusBelowInput, runSmartSearch, query]);
 
 	// Each TV keyboard carries the remote's microphone, and what it hears lands
 	// in the field like typed text. The field is handed over on the key down,
@@ -458,7 +522,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 
 	const focusContent = useCallback(() => {
 		if (activeTab === 'all') setActiveRowId(allRows[0]?.id || null);
-		Spotlight.focus(activeTab === 'all' ? 'search-row-0' : 'search-grid');
+		Spotlight.focus(activeTab === 'all' ? `search-row-${allRows[0]?.id}` : 'search-grid');
 	}, [activeTab, allRows]);
 
 	// The press is stopped as well as prevented. Spotlight makes its own move once
@@ -485,14 +549,14 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 				Spotlight.focus(ACTIVE_SEARCH_TAB_SELECTOR);
 			} else {
 				setActiveRowId(allRows[rowIndex - 1].id);
-				Spotlight.focus(`search-row-${rowIndex - 1}`);
+				Spotlight.focus(`search-row-${allRows[rowIndex - 1].id}`);
 			}
 		} else if (e.keyCode === KEYS.DOWN) {
 			e.preventDefault();
 			e.stopPropagation();
 			if (rowIndex < allRows.length - 1) {
 				setActiveRowId(allRows[rowIndex + 1].id);
-				Spotlight.focus(`search-row-${rowIndex + 1}`);
+				Spotlight.focus(`search-row-${allRows[rowIndex + 1].id}`);
 			}
 		}
 	}, [allRows]);
@@ -537,28 +601,28 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 	}, [onSelectItem, onSelectPerson, onPlayChannel]);
 
 	const jellyfinItemById = useCallback((id) => {
-		for (const group of groups) {
-			const item = group.items.find((i) => i.Id === id);
+		for (const items of [smartResults.items, ...groups.map((group) => group.items)]) {
+			const item = items.find((i) => i.Id === id);
 			if (item) return item;
 		}
 		return null;
-	}, [groups]);
+	}, [groups, smartResults]);
 
 	// One click handler for every card keeps a stable reference across the grid
 	// instead of a closure per card.
 	const handleCardClick = useCallback((e) => {
-		const {kind, id} = e.currentTarget.dataset;
+		const {kind, id, mediaType} = e.currentTarget.dataset;
 		if (kind === 'seerr') {
 			// The route the discover and browse rows take. It opens the real library
 			// item when Seerr already has one for the title, and the screen that can
 			// request it when it does not.
-			const item = seerrResults.find((i) => String(i.id) === id);
+			const item = [...seerrResults, ...smartResults.seerr].find((i) => String(i.id) === id && i.mediaType === mediaType);
 			if (item) onSelectSeerrItem?.(item);
 			return;
 		}
 		const libraryItem = jellyfinItemById(id);
 		if (libraryItem) handleSelectJellyfin(libraryItem);
-	}, [jellyfinItemById, seerrResults, onSelectSeerrItem, handleSelectJellyfin]);
+	}, [jellyfinItemById, seerrResults, smartResults, onSelectSeerrItem, handleSelectJellyfin]);
 
 	const handleGameSelect = useCallback((game) => onSelectGame?.(game._library, game), [onSelectGame]);
 
@@ -573,18 +637,10 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 		const {aspect, card, img} = cardSizeClass(item.Type);
 		const circle = isCircleType(item.Type);
 		const itemServerUrl = item._serverUrl || serverUrl;
-		const primaryTag = item.ImageTags?.Primary || item.PrimaryImageTag;
-		let imageUrl = primaryTag
-			? getImageUrl(itemServerUrl, item.Id, 'Primary', searchArtworkOptions(aspect, primaryTag))
+		const artwork = searchArtworkSource(item);
+		const imageUrl = artwork
+			? getImageUrl(itemServerUrl, artwork.id, artwork.type, searchArtworkOptions(aspect, artwork.tag))
 			: null;
-		if (!imageUrl && item.Type === 'Audio' && item.AlbumId && item.AlbumPrimaryImageTag) {
-			imageUrl = getImageUrl(
-				itemServerUrl,
-				item.AlbumId,
-				'Primary',
-				searchArtworkOptions(aspect, item.AlbumPrimaryImageTag)
-			);
-		}
 		return (
 			<SpottableDiv
 				key={item.Id}
@@ -595,15 +651,22 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 				spotlightId={spotlightId}
 			>
 				<div className={`${css.cardImg} ${img} ${circle ? css.imgCircle : ''}`}>
-					{unifiedMode && item._serverName && <div className={css.serverBadge}>{item._serverName}</div>}
+					{/* A result several servers hold shows how many instead of one's name. */}
+					{unifiedMode && item._serverName && !hasMergedCopies(item) && <div className={css.serverBadge}>{item._serverName}</div>}
+					<MergedServerBadge item={item} />
 					{imageUrl
 						? <img className={css.cardImage} src={imageUrl} alt={item.Name} loading="lazy" />
 						: <div className={css.cardPlaceholder}>{circle ? '👤' : '🎬'}</div>}
 					{showsWatchedCheck(item) && (
 						<div className={css.watchedBadge}>
-							<svg viewBox="0 0 24 24"><path fill="white" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+							<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
 						</div>
 					)}
+					<PosterLabels
+						item={item}
+						serverUrl={itemServerUrl}
+						topRight={showsWatchedCheck(item) || (unifiedMode && item._serverName && !hasMergedCopies(item)) ? 40 : 8}
+					/>
 				</div>
 				<div className={css.cardTitle}>{item.Name}</div>
 				<div className={css.cardSubtitle}>{jellyfinSubtitle(item)}</div>
@@ -622,6 +685,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 				onClick={handleCardClick}
 				data-kind="seerr"
 				data-id={String(item.id)}
+				data-media-type={item.mediaType}
 				spotlightId={spotlightId}
 			>
 				<div className={`${css.cardImg} ${css.imgPoster}`}>
@@ -673,7 +737,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 							<RowContainer
 								key={row.id}
 								className={css.resultRow}
-								spotlightId={`search-row-${rowIndex}`}
+								spotlightId={`search-row-${row.id}`}
 								data-row-index={rowIndex}
 								onKeyDown={handleRowKeyDown}
 							>

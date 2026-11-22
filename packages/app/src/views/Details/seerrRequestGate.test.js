@@ -1,6 +1,6 @@
-import {renderHook} from '@testing-library/react';
+import {act, renderHook} from '@testing-library/react';
 
-// The real one reaches for ilib, which the test runner cant resolve.
+// The real one reaches for ilib, which the test runner can't resolve.
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (text) => text}));
 
 import useSeerrRequests from './useSeerrRequests';
@@ -39,5 +39,30 @@ describe('seerr request gate', () => {
 	test('takes the per media type permission too', () => {
 		expect(setup({userPermissions: PERMISSIONS.REQUEST_TV}).result.current.canRequestHd).toBe(true);
 		expect(setup({userPermissions: PERMISSIONS.REQUEST_MOVIE}).result.current.canRequestHd).toBe(false);
+	});
+});
+
+describe('seerr request sheet', () => {
+	const bothTracks = {userPermissions: PERMISSIONS.REQUEST | PERMISSIONS.REQUEST_4K, is4kEnabled: true};
+
+	test('one control over both tracks starts on HD with a quality switch', () => {
+		const {result} = setup(bothTracks);
+		act(() => result.current.handleRequestChoose());
+		expect(result.current.requestDialog).toEqual({is4k: false, qualityToggle: true});
+	});
+
+	test('a track of its own asks for that track alone', () => {
+		const {result} = setup(bothTracks);
+		act(() => result.current.handleRequestTrack(true));
+		expect(result.current.requestDialog).toEqual({is4k: true, qualityToggle: false});
+	});
+
+	test('BACK is left to the sheet, which closes itself', () => {
+		const {result} = setup();
+		act(() => result.current.handleRequestChoose());
+		let handled;
+		act(() => { handled = result.current.closeTopPopup(); });
+		expect(handled).toBe(true);
+		expect(result.current.requestDialog).not.toBeNull();
 	});
 });

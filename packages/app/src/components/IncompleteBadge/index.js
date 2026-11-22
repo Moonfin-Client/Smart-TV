@@ -1,1 +1,1 @@
-export {default} from './IncompleteBadge';
+export {default, IncompleteDetailLine, incompleteDetailText} from './IncompleteBadge';

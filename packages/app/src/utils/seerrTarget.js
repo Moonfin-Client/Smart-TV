@@ -1,7 +1,7 @@
 // Which Seerr title a library item stands for.
 //
-// Only movies and series have a counterpart. An episode or a season resolves through its series
-// page instead, where the per-season markers say what is actually available.
+// Movies and series match by their own ids. An episode or a season has none of its own for Seerr,
+// so it stands for its series, which has to be looked up first.
 //
 // The id has to come out as a number. Jellyfin keeps provider ids as strings, while Seerr puts
 // this straight into a request body and turns away anything that isn't a number.
@@ -66,4 +66,16 @@ export const seerrTargetFor = (item) => {
 	const tmdbId = Number(item.ProviderIds?.Tmdb);
 	if (!Number.isFinite(tmdbId) || tmdbId <= 0) return IDLE;
 	return {mediaId: tmdbId, mediaType: item.Type === 'Series' ? 'tv' : 'movie'};
+};
+
+export const isSeriesPart = (item) => (item?.Type === 'Season' || item?.Type === 'Episode') && Boolean(item.SeriesId);
+
+// The series a season or episode belongs to, by TMDB id, or by IMDb id and name for a search to
+// turn into one.
+export const seriesTargetFrom = (series) => {
+	const tmdbId = Number(series?.ProviderIds?.Tmdb);
+	if (Number.isFinite(tmdbId) && tmdbId > 0) return {mediaId: tmdbId, mediaType: 'tv'};
+	const imdbId = series?.ProviderIds?.Imdb;
+	if (imdbId) return {mediaId: null, mediaType: 'tv', imdbId, title: series.Name || null};
+	return IDLE;
 };

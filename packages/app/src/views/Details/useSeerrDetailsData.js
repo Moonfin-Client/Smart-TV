@@ -7,21 +7,24 @@ import $L from '@enact/i18n/$L';
 
 import seerrApi from '../../services/seerrApi';
 import {getMediaDownloadSummary, isMediaInFlight} from '../../utils/seerrStatus';
+import {hdDownloadFor, hdNotFoundYet, readArrQueue} from '../../utils/seerrArrQueue';
 import {streamingRegion} from '../../utils/seerrStreaming';
+import useArrQueue from './useArrQueue';
 
 const DOWNLOAD_POLL_MS = 15000;
 const WAITING_POLL_MS = 30000;
 
 // How often the open page refetches the title, or null once nothing is on its way. A download
 // moves every few seconds, while a request waiting on approval or on the library scan changes
-// far less often.
-export const statusPollInterval = (media) => {
-	if (getMediaDownloadSummary(media, false) || getMediaDownloadSummary(media, true)) return DOWNLOAD_POLL_MS;
+// far less often. `hdDownload` is the HD bar as drawn, which the arr's own queue can show when
+// Seerr's copy of it is empty.
+export const statusPollInterval = (media, hdDownload = getMediaDownloadSummary(media, false)) => {
+	if (hdDownload || getMediaDownloadSummary(media, true)) return DOWNLOAD_POLL_MS;
 	if (isMediaInFlight(media, false) || isMediaInFlight(media, true)) return WAITING_POLL_MS;
 	return null;
 };
 
-const useSeerrDetailsData = ({mediaId, mediaType, contextUser}) => {
+const useSeerrDetailsData = ({mediaId, mediaType, contextUser, arrQueueAvailable = false}) => {
 	const [details, setDetails] = useState(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
@@ -37,13 +40,19 @@ const useSeerrDetailsData = ({mediaId, mediaType, contextUser}) => {
 	const [is4kEnabled, setIs4kEnabled] = useState(true);
 	const [servers, setServers] = useState([]);
 	const [region, setRegion] = useState(null);
+	// The first render of a new title still holds the last one's answer, and a screen that acts
+	// on it opens the wrong title, so it stays hidden until the load below has cleared it.
+	const [loadedFor, setLoadedFor] = useState(null);
+	const stale = loadedFor?.mediaId !== mediaId || loadedFor?.mediaType !== mediaType;
+	const shownDetails = stale ? null : details;
 
 	useEffect(() => {
+		setLoadedFor({mediaId, mediaType});
+		setDetails(null);
+		setRecommendations([]);
+		setSimilar([]);
+		setError(null);
 		if (!mediaId || !mediaType) {
-			setDetails(null);
-			setRecommendations([]);
-			setSimilar([]);
-			setError(null);
 			setLoading(false);
 			return;
 		}
@@ -54,7 +63,6 @@ const useSeerrDetailsData = ({mediaId, mediaType, contextUser}) => {
 
 		const loadDetails = async () => {
 			setLoading(true);
-			setError(null);
 			try {
 				const [data, userData, serversData, publicSettings] = await Promise.all([
 					mediaType === 'movie'
@@ -128,7 +136,8 @@ const useSeerrDetailsData = ({mediaId, mediaType, contextUser}) => {
 				]);
 				if (cancelled) return;
 				setRecommendations(recsData.slice(0, 20));
-				setSimilar(similarData.slice(0, 20));
+				// Cut to 20 in useSeerrOverlay, once Recommendations' titles are left out
+				setSimilar(similarData);
 			} catch (err) {
 				if (cancelled) return;
 				console.error('Failed to load details:', err);
@@ -142,20 +151,32 @@ const useSeerrDetailsData = ({mediaId, mediaType, contextUser}) => {
 		return () => { cancelled = true; };
 	}, [mediaId, mediaType, contextUser]);
 
-	const hdStatus = useMemo(() => details?.mediaInfo?.status ?? null, [details]);
-	const status4k = useMemo(() => details?.mediaInfo?.status4k ?? null, [details]);
+	const hdStatus = useMemo(() => shownDetails?.mediaInfo?.status ?? null, [shownDetails]);
+	const status4k = useMemo(() => shownDetails?.mediaInfo?.status4k ?? null, [shownDetails]);
+
+	// What Radarr or Sonarr says about the HD track, when the plugin can see it. 4K stays with
+	// Seerr's picture, since the plugin only reads the default servers.
+	const {response: queueResponse, invalidate: invalidateArrQueue} = useArrQueue({enabled: arrQueueAvailable, mediaType, details: shownDetails});
+	const hdQueue = useMemo(() => readArrQueue(queueResponse), [queueResponse]);
 
 	const hdDownload = useMemo(() =>
-		getMediaDownloadSummary(details?.mediaInfo, false),
-	[details]
+		hdDownloadFor(shownDetails?.mediaInfo, hdQueue),
+	[shownDetails, hdQueue]
 	);
+
+	const notFoundYet = useMemo(() =>
+		!hdDownload && hdNotFoundYet(shownDetails?.mediaInfo, hdQueue),
+	[shownDetails, hdQueue, hdDownload]
+	);
+
+	const removableRelease = hdDownload ? hdQueue?.removable || null : null;
 
 	const download4k = useMemo(() =>
-		getMediaDownloadSummary(details?.mediaInfo, true),
-	[details]
+		getMediaDownloadSummary(shownDetails?.mediaInfo, true),
+	[shownDetails]
 	);
 
-	const pollInterval = useMemo(() => statusPollInterval(details?.mediaInfo), [details]);
+	const pollInterval = useMemo(() => statusPollInterval(shownDetails?.mediaInfo, hdDownload), [shownDetails, hdDownload]);
 
 	// Keeps the refresh running from the request until the title lands, so the progress and
 	// the Play button show up without leaving the page. Only the details payload is swapped
@@ -180,13 +201,13 @@ const useSeerrDetailsData = ({mediaId, mediaType, contextUser}) => {
 	}, [loading, pollInterval, mediaId, mediaType]);
 
 	return {
-		details,
+		details: shownDetails,
 		setDetails,
-		loading,
+		loading: loading || stale,
 		error,
 		setError,
-		recommendations,
-		similar,
+		recommendations: stale ? [] : recommendations,
+		similar: stale ? [] : similar,
 		quota,
 		userPermissions,
 		currentUserId,
@@ -196,7 +217,10 @@ const useSeerrDetailsData = ({mediaId, mediaType, contextUser}) => {
 		hdStatus,
 		status4k,
 		hdDownload,
-		download4k
+		download4k,
+		notFoundYet,
+		removableRelease,
+		invalidateArrQueue
 	};
 };
 

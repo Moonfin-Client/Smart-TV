@@ -6,7 +6,8 @@ import * as playback from '../../services/playback';
 import {
 	initTizenAPI, registerAppStateObserver, keepScreenOn, getTizenVersion,
 	avplayOpen, avplayPrepare, avplayPlay, avplayPause,
-	avplaySeek, avplaySeekIdle, avplaySetPostSeekHook, avplayGetCurrentTime, avplayGetDuration, avplayGetLiveRange, avplayGetState,
+	avplaySeek as streamSeek, avplaySeekIdle as streamSeekIdle, avplaySetPostSeekHook, avplayGetCurrentTime as streamGetCurrentTime,
+	avplayGetDuration as streamGetDuration, avplayGetLiveRange, avplayGetBandwidth, avplayGetState,
 	avplaySetListener, avplaySelectTrack, avplaySetSilentSubtitle,
 	avplayGetTracks, avplayGetCurrentTracks, avplaySetDisplayMethod, avplaySetStreamingProperty, setDisplayWindow, cleanupAVPlay,
 	avplaySetBufferingParams, avplaySuspend, avplayRestore, waitForHlsManifest
@@ -14,16 +15,21 @@ import {
 import {useSettings} from '../../context/SettingsContext';
 import {useSyncPlay} from '../../context/SyncPlayContext';
 import * as syncPlayService from '../../services/syncPlay';
-import {KEYS, isBackKey, isMediaKey} from '../../utils/keys';
+import {KEYS, isBackKey, isMediaKey, remoteShortcut} from '../../utils/keys';
+import {trackShortcutAction} from './trackShortcut';
+import {isTvKeyboardVisible} from '../../components/TVKeyboard/keyboardBus';
 import {isPreroll, nextInQueue, shouldAutoAdvance} from '../../utils/cinemaMode';
-import {driftMs, needsSeek, correctionOptions, DRIFT_CHECK_MS, GROUP_SEEK_SETTLE_TIMEOUT_MS} from '../../utils/syncDrift';
+import {driftMs, needsSeek, correctionOptions, partyHoldBackMs, DRIFT_CHECK_MS, GROUP_SEEK_SETTLE_TIMEOUT_MS, PARTY_LANDING_READ_MS,
+	PARTY_SEEK_TOLERANCE_MS} from '../../utils/syncDrift';
+import {createLoadBudget, CONVERGED_MS} from '../../utils/syncLoadBudget';
 import {createReadyGate} from '../../utils/syncReady';
-import {createSkipGovernor, chooseCorrection} from '../../utils/syncCorrection';
+import {createSkipGovernor, chooseCorrection, afterResume} from '../../utils/syncCorrection';
 import {getImageUrl, getLogoUrl} from '../../utils/helpers';
 import {transcodesAudioCodec} from '../../utils/deviceProfileTuning';
 import {initPgsCanvasRenderer, disposePgsRenderer, clearPgsCanvas} from '../../utils/pgsRenderer';
-import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime} from '../../utils/assRenderer';
-import {resolveSubtitleStyleSettings} from '../../utils/subtitleConstants';
+import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime, setAssFontScale, assTimelineEvents} from '../../utils/assRenderer';
+import {getAssFontScale, resolveSubtitleStyleSettings} from '../../utils/subtitleConstants';
+import {avplaySubtitleText} from '../../utils/subtitleText';
 import SubtitleTextOverlay from './SubtitleTextOverlay';
 import useSecondarySubtitle from './useSecondarySubtitle';
 import useSubtitleFetch from './useSubtitleFetch';
@@ -33,22 +39,30 @@ import {selectPreferredAudioStream} from '../../utils/audioTrackSelection';
 import {applyResumeRewind, skipBackSeconds, skipForwardSeconds, zoomInternalFromSetting, zoomSettingFromInternal} from '../../utils/playbackTuning';
 import {getZoomModeOptions} from '../Settings/settingsOptions';
 import {saveAudioPref, saveSubtitlePref} from '../../services/subtitlePrefs';
-import {resolveSeriesAudio} from './initialAudio';
+import {getVolumeState, setMuted as setSystemMuted} from '../../services/systemVolume';
+import {asServerAudioStream, directPlayAudio, resolveSeriesAudio} from './initialAudio';
 import {resolveInitialSubtitle} from './initialSubtitle';
-import {api as jellyfinApi, createApiForServer, getServerUrl} from '../../services/jellyfinApi';
+import {api as jellyfinApi, createApiForServer, getServerType, getServerUrl} from '../../services/jellyfinApi';
 import {getApiForItem} from '../../services/connectionPool';
-import PlayerControls, {usePlayerButtons} from './PlayerControls';
+import PlayerControls from './PlayerControls';
+import {usePlayerButtons} from './playerOsd';
 import {canBrowseEpisodes} from '../../utils/episodeBrowser';
+import {mergeEpisodePeople, resolveParentCast} from '../../utils/episodeCast';
 import useLiveProgram from './useLiveProgram';
 import {isAtLive, liveWindowFor, nextLiveWindow} from './liveWindow';
 import useLiveRecording from './useLiveRecording';
 import useHeldSeekStep from './useHeldSeekStep';
+import {createServerSeek} from './serverSeek';
+import useSiloStreamRenewal from './useSiloStreamRenewal';
+import useEndedOnServer from './useEndedOnServer';
+import useStreamReconnect from './useStreamReconnect';
 import {hasTrickplayPreview} from '../../components/TrickplayPreview';
 import {isTrickplayOn} from '../../utils/trickplayLayout';
 import useChannelCarousel, {liveTvApiFor} from './useChannelCarousel';
 import ChannelCarousel from './ChannelCarousel';
 import useSleepTimer from './useSleepTimer';
 import useSyncPlayCommands from './useSyncPlayCommands';
+import playbackErrorMessage from './playbackErrorMessage';
 import AudioMode from './audio/AudioMode';
 import useAudioTransport from './audio/useAudioTransport';
 import useLyrics from './audio/useLyrics';
@@ -56,9 +70,10 @@ import useSkipFailedTrack from './audio/useSkipFailedTrack';
 import {handleAudioFocusKey, exitAudioPanel, nextAudioFocusRow, focusAudioRow, forgetDockFocus} from './audio/audioFocus';
 import useSegmentPopups, {isSkipPromptFocused} from './useSegmentPopups';
 import useChannelKeys from './useChannelKeys';
-import {NextEpisodeContainer, CONTROLS_HIDE_DELAY, withTimeout, SEGMENT_FETCH_TIMEOUT, ASS_FETCH_INDICATOR_LIMIT} from './PlayerConstants';
+import {NextEpisodeContainer, SLIDESHOW_ERROR_DELAY, withTimeout, SEGMENT_FETCH_TIMEOUT, ASS_FETCH_INDICATOR_LIMIT} from './PlayerConstants';
 import {waitForAssReady} from '../../utils/assRendererReady';
 import NextUpOverlay from './NextUpOverlay';
+import useNextAirDate from './useNextAirDate';
 import SkipSegmentOverlay from './SkipSegmentOverlay';
 import StillWatchingDialog from './StillWatchingDialog';
 import useBufferingAnimation from './useBufferingAnimation';
@@ -82,8 +97,11 @@ import serverLogger from '../../services/serverLogger';
 import {summarizeAvplayTracks, describeSubtitleStream, describeSubtitleStreams} from './subtitleDiagnostics';
 import {describeVideoStream, readVideoSupport} from './videoDiagnostics';
 import useRemotePlayerControls from './useRemotePlayerControls';
+import {registerThemeSheet} from '../../theme/themeOverrides';
 
 import css from './TizenPlayer.module.less';
+
+registerThemeSheet('player', css);
 
 // AVPlay reads a display rect against a 1920x1080 screen whatever the app renders at, so
 // these stay fixed rather than following the window. Handing it panel pixels on a 4K set
@@ -116,7 +134,30 @@ const getRootFontSizePx = () => {
  * playback. AVPlay renders on a platform multimedia layer BEHIND the web engine;
  * the web layer must be transparent in the video area for the content to show through.
  */
-const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onGuide, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground}) => {
+// Where the open stream starts in the title (a Silo remux opened mid-title counts from there), and whether its seeks go
+// back to Silo. AVPlay is one per app, so this is too. Positions and seeks below are title time; AVPlay's are the stream's.
+const streamTimeline = {offsetMs: 0, seeksThroughServer: false, seekThroughServer: null};
+const streamMs = (titleMs) => Math.max(0, titleMs - streamTimeline.offsetMs);
+const avplayGetCurrentTime = () => streamGetCurrentTime() + streamTimeline.offsetMs;
+const avplayGetDuration = () => {
+	const ms = streamGetDuration();
+	return ms > 0 ? ms + streamTimeline.offsetMs : ms;
+};
+let lastSeekAt = 0;
+// A seek into the open stream, as a resume makes.
+const seekStream = (titleMs) => {
+	lastSeekAt = Date.now();
+	return streamSeek(streamMs(titleMs));
+};
+const avplaySeek = (titleMs) => {
+	// Resolves once Silo's new stream is open there, so a caller that waits on the seek (a group seek) settles on it.
+	if (streamTimeline.seeksThroughServer && streamTimeline.seekThroughServer) {
+		return streamTimeline.seekThroughServer(Math.floor(titleMs * 10000));
+	}
+	return seekStream(titleMs);
+};
+
+const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onEndedOnServer, askedItemId, onGuide, onRecordings, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground, slideshow}) => {
 	const {settings, updateSetting} = useSettings();
 	const {isInGroup, lastCommand} = useSyncPlay();
 	const syncPlayCommandRef = useRef(false);
@@ -129,6 +170,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// as already under way, never sends the seek, and holds the others until
 	// the film catches up with them.
 	const groupHoldRef = useRef(isInGroup);
+	// When the group's last play ran here, for the tighter check after a resume.
+	const resumedAtRef = useRef(0);
 	// A seek the group commanded, until AVPlay reports it landed or the
 	// backstop stops waiting for it.
 	const groupSeekPendingRef = useRef(null);
@@ -150,6 +193,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// Corrective skips are attempts that have to land and render before the
 	// drift is measured again; see syncCorrection.js for the loop this stops.
 	const skipGovernorRef = useRef(createSkipGovernor());
+	// A Watch Party correction that has to load media (syncLoadBudget.js). AVPlay reports no buffered ranges, so every
+	// seek counts as one.
+	const loadBudgetRef = useRef(createLoadBudget());
 	// A pause the set is sitting out to let the group catch up.
 	const syncWaitTimerRef = useRef(null);
 	const cancelSyncWait = useCallback(() => {
@@ -158,6 +204,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, []);
 	useEffect(() => {
 		skipGovernorRef.current.reset();
+		loadBudgetRef.current.reset();
 		// Held for the group only when the server will send the Unpause: after
 		// a join, or while the group is paused or waiting. An item the group is
 		// already playing is waited on by nobody, so it plays from where the
@@ -191,6 +238,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const [currentSubtitleText, setCurrentSubtitleText] = useState(null);
 	const {loading: subtitleFetching, track: trackSubtitleFetch, clear: clearSubtitleFetch} = useSubtitleFetch();
 	const [controlsVisible, setControlsVisible] = useState(false);
+	const controlsVisibleRef = useRef(false);
+	controlsVisibleRef.current = controlsVisible;
 	const [activeModal, setActiveModal] = useState(null);
 	// Read by the time update, which runs from an interval or a media event and so sees no fresh state.
 	const episodesOpenRef = useRef(false);
@@ -203,6 +252,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const [remoteSubtitleError, setRemoteSubtitleError] = useState(null);
 	const [mediaSegments, setMediaSegments] = useState(null);
 	const [nextEpisode, setNextEpisode] = useState(null);
+	const nextAirDate = useNextAirDate({item, nextEpisode, settings});
+	// Up once an episode with nothing after it in the library has ended, over its last frame.
+	const [airDateCard, setAirDateCard] = useState(false);
 	const [isSeeking, setIsSeeking] = useState(false);
 	const [seekPosition, setSeekPosition] = useState(0);
 	const [mediaSourceId, setMediaSourceId] = useState(null);
@@ -234,7 +286,22 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const positionRef = useRef(0);
 	const playSessionRef = useRef(null);
+	// The stream reconnect, for the AVPlay listener, and the type of the error AVPlay last reported.
+	const reconnectRef = useRef(null);
+	const lastErrorTypeRef = useRef('');
+	// Whether the stream open now has played. One that fails before it does (a track or quality the set can't play) is
+	// for the fallbacks, not a lost connection.
+	const sourcePlayedRef = useRef(false);
+	// A Silo Watch Party reports where this player is and which session it plays (siloWatchParty.js).
+	useEffect(() => syncPlayService.attachPlayer({
+		sample: syncPlaySample,
+		sessionId: () => playSessionRef.current,
+		// AVPlay that hasn't prepared yet can't take the room's play, so the room doesn't count it ready.
+		isBuffering: () => isBufferingRef.current || !avplayReadyRef.current // eslint-disable-line no-use-before-define
+	}), [syncPlaySample]);
 	const runTimeRef = useRef(0);
+	// The runtime the playback info gave, which prepare doesn't overwrite (a second or less counts as unknown)
+	const titleRunTimeRef = useRef(0);
 	const healthMonitorRef = useRef(null);
 	const unregisterAppStateRef = useRef(null);
 	const controlsTimeoutRef = useRef(null);
@@ -365,7 +432,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const handleSubtitleChange = useCallback((dur, text, type) => {
 		if (useNativeSubtitleRef.current && type !== 1 && type !== '1') {
 			if (subtitleTimeoutRef.current) clearTimeout(subtitleTimeoutRef.current);
-			setCurrentSubtitleText(text || null);
+			setCurrentSubtitleText(avplaySubtitleText(text) || null);
 			if (text && dur > 0) {
 				subtitleTimeoutRef.current = setTimeout(() => {
 					setCurrentSubtitleText(null);
@@ -383,15 +450,25 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		() => resolveSubtitleStyleSettings(settings, isHdrContent),
 		[settings, isHdrContent]
 	);
+	const assFontScale = getAssFontScale(subtitleStyleSettings);
+	useEffect(() => {
+		setAssFontScale(assRendererRef.current, assFontScale);
+	}, [assFontScale]);
+
+	const resolvedCastItemIdRef = useRef(null);
+	const latestItemIdRef = useRef(null);
+	latestItemIdRef.current = item?.Id;
 
 	const hasCastMembers = useMemo(() => {
 		if (castMembers.length > 0) return true;
-		return item?.Type === 'Episode' && Boolean(item?.SeriesId);
+		return item?.Type === 'Episode' && Boolean(item?.SeriesId || item?.SeasonId || item?.ParentId);
 	}, [castMembers.length, item]);
 
 	// handleBack is defined further down, so the timer reaches it through a ref
 	// rather than forcing the whole player to be reordered.
 	const handleBackRef = useRef(null);
+	// Set once Back or an ended session closes the player, so only one of them leaves it.
+	const closingRef = useRef(false);
 	const {sleepMinutes, remainingSeconds: sleepRemainingSeconds, startSleepTimer} = useSleepTimer({
 		onExpire: () => handleBackRef.current?.(),
 		ticking: activeModal === 'sleep'
@@ -402,7 +479,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		primaryIndex: selectedSubtitleIndex,
 		preferExternal: settings.preferExternalSubtitles === true,
 		preferredLanguage: settings.preferredSecondarySubtitleLanguage,
-		available: !isLiveTV && !isAudioMode
+		available: !isLiveTV && !isAudioMode,
+		enabled: settings.secondarySubtitlesEnabled === true
 	});
 	const {
 		prepareForItem: prepareSecondaryForItem, restore: restoreSecondary, update: updateSecondary,
@@ -427,10 +505,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		selectedSubtitleIndex, canDownloadRemoteSubtitles: !isAudioMode && Boolean(item?.Id), hasCastMembers, zoomModeLabel, zoomModeKey: zoomMode,
 		sleepMinutes,
 		canBrowseEpisodes: canBrowseEpisodes({item, isLiveTV, isAudioMode}),
-		isFavorite, hasLyrics: lyrics.lines.length > 0, audioPanel,
+		isFavorite, canFavorite: !isPreroll(item) && Boolean(item?.Id), hasLyrics: lyrics.lines.length > 0, audioPanel,
 		recordable: liveRecording.available, recordMark: liveRecording.mark
 	});
 	const prepareRecording = liveRecording.prepare;
+	const showPlayerToast = liveRecording.showToast;
 
 	useEffect(() => {
 		zoomModeRef.current = zoomMode;
@@ -442,7 +521,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	useEffect(() => {
 		const people = Array.isArray(item?.People) ? item.People : [];
-		setCastMembers(people);
+		setCastMembers(item?.Type === 'Episode'
+			? mergeEpisodePeople({episodePeople: people, parentActors: []})
+			: people);
+		resolvedCastItemIdRef.current = null;
+		setIsLoadingCastMembers(false);
+		setActiveModal((prev) => (prev === 'cast' ? null : prev));
 	}, [item]);
 
 
@@ -696,8 +780,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		avplayOpen(url);
 		currentUrlRef.current = url;
+		streamTimeline.offsetMs = (mediaSource?.SiloTimelineOffsetTicks || 0) / 10000;
+		streamTimeline.seeksThroughServer = mediaSource?.SiloSeeksThroughServer === true;
 		applyDisplayWindow();
-		avplaySetBufferingParams({bitrate: mediaSource?.Bitrate});
+		const buffering = avplaySetBufferingParams({bitrate: mediaSource?.Bitrate});
+		serverLogger.playback('Playback: opening the stream', {playMethod: method, hls: isHls, buffering});
 
 		// Samsung AVPlay rejects some Jellyfin transcode endpoints with the
 		// default system User-Agent. USER_AGENT first, USERAGENT fallback for older firmwares.
@@ -741,7 +828,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			const seekMs = Math.floor(resumeTicks / 10000);
 			if (isTranscode && isHls) {
 				deferredResumeSeekRef.current = seekMs;
-			} else if (hasNativePendingSub || !avplaySeekIdle(seekMs)) {
+			} else if (hasNativePendingSub || !streamSeekIdle(streamMs(seekMs))) {
 				postPlaySeekMs = seekMs;
 			}
 		}
@@ -757,17 +844,30 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			const ms = deferredResumeSeekRef.current;
 			if (ms == null) return;
 			deferredResumeSeekRef.current = null;
-			avplaySeek(ms).catch((e) => {
+			seekStream(ms).catch((e) => {
 				console.warn('[Player] Deferred resume seek failed:', e?.message || e);
 			});
 		};
 
+		let bufferingSince = 0;
+		let bufferingAtMs = 0;
+
 		avplaySetListener({
 			onbufferingstart: () => {
+				bufferingSince = Date.now();
+				bufferingAtMs = avplayGetCurrentTime();
+				reconnectRef.current?.interrupted();
 				setIsBuffering(true);
 				liveRecoveryRef.current?.update({buffering: true});
 			},
 			onbufferingcomplete: () => {
+				if (bufferingSince) {
+					const context = {positionMs: bufferingAtMs, waitedMs: Date.now() - bufferingSince, bandwidth: avplayGetBandwidth()};
+					if (!playIssued) serverLogger.playback('Playback: first buffer filled', context);
+					else if (bufferingSince - lastSeekAt < 3000) serverLogger.playback('Playback: buffered after a seek', context);
+					else serverLogger.warn(serverLogger.LOG_CATEGORIES.PLAYBACK, 'Playback: stalled to buffer', context);
+					bufferingSince = 0;
+				}
 				setIsBuffering(false);
 				liveRecoveryRef.current?.update({buffering: false});
 				latchResolve();
@@ -783,6 +883,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					return;
 				}
 				console.error('[Player] AVPlay error:', eventType);
+				lastErrorTypeRef.current = String(eventType || '');
 				serverLogger.playbackError('Playback: AVPlay reported an error', {
 					eventType: typeof eventType === 'object' ? JSON.stringify(eventType).slice(0, 300) : String(eventType),
 					playerState: avplayGetState(),
@@ -793,6 +894,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			},
 			oncurrentplaytime: () => {
 				if (pausedErrorRef.current) pausedErrorRef.current = null;
+				sourcePlayedRef.current = true;
+				reconnectRef.current?.playing();
 				liveRecoveryRef.current?.update({playing: true});
 				const now = Date.now();
 				if (now - lastTrackAttemptRef.current >= 500) {
@@ -828,13 +931,16 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} finally {
 			clearTimeout(prepareTimer);
 		}
+		if (shouldAbort?.()) return;
 		avplayReadyRef.current = true;
 
 		// some firmware resets display state during prepare
 		applyDisplayWindow();
 
+		// A Silo copy's playlist only lists what Silo has produced so far, so AVPlay's duration is that, not the title's:
+		// the scrub bar would end there and a skip would stop short. The title's runtime stands, and its seeks go to Silo.
 		const durationMs = avplayGetDuration();
-		if (durationMs > 0) {
+		if (durationMs > 0 && !(streamTimeline.seeksThroughServer && titleRunTimeRef.current > 10000000)) {
 			setDuration(durationMs / 1000);
 			runTimeRef.current = Math.floor(durationMs * 10000);
 		}
@@ -853,6 +959,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (startDelayMs > 0) {
 			await new Promise((resolve) => setTimeout(resolve, startDelayMs));
 		}
+		if (shouldAbort?.()) return;
 
 		playIssued = true;
 		playbackMovingRef.current = false;
@@ -879,7 +986,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setTimeout(runDeferredResumeSeek, 1500);
 		}
 		if (postPlaySeekMs > 0) {
-			avplaySeek(postPlaySeekMs).catch((e) => {
+			seekStream(postPlaySeekMs).catch((e) => {
 				console.warn('[Player] Post play resume seek failed:', e?.message || e);
 			});
 		}
@@ -908,25 +1015,36 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// subtitle re-applies through the confirmation pass instead
 		pendingTracksRef.current = null;
 
+		sourcePlayedRef.current = false;
 		const session = playback.getCurrentSession();
 		await openAndPrepare({
 			url,
 			playMethod: options.playMethod || session?.playMethod,
 			mediaSource: options.mediaSource || session?.mediaSource,
-			resumeTicks: seekPositionTicks
+			resumeTicks: seekPositionTicks,
+			shouldAbort: options.shouldAbort
 		});
+		if (options.shouldAbort?.()) return false;
 
 		startTimeUpdatePolling();
+		return true;
 	}, [startTimeUpdatePolling, stopTimeUpdatePolling, openAndPrepare]);
 
 	// every stream reload restarts playback and session reporting the same way
-	const restartFromResult = useCallback(async (result, positionTicks) => {
+	const restartFromResult = useCallback(async (result, positionTicks, shouldAbort) => {
 		if (!result?.url) return false;
 		positionRef.current = positionTicks;
 		if (result.playMethod) setPlayMethod(result.playMethod);
 		setIsHdrContent(isHdrOutput(result.mediaSource, result.playMethod === playback.PlayMethod.Transcode));
 		if (result.playSessionId) playSessionRef.current = result.playSessionId;
-		await startAVPlayback(result.url, positionTicks, {playMethod: result.playMethod, mediaSource: result.mediaSource});
+		// A replan can be another version, or know a runtime the first plan didn't, so it sets the title's length as
+		// loadMedia does before the new stream prepares.
+		if (result.runTimeTicks !== undefined) {
+			runTimeRef.current = result.runTimeTicks || 0;
+			titleRunTimeRef.current = runTimeRef.current;
+			setDuration((result.runTimeTicks || 0) / 10000000);
+		}
+		if (!await startAVPlayback(result.url, positionTicks, {playMethod: result.playMethod, mediaSource: result.mediaSource, shouldAbort})) return null;
 		playback.reportStart(positionRef.current);
 		playback.startProgressReporting(
 			() => positionRef.current,
@@ -935,6 +1053,39 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		);
 		return true;
 	}, [startAVPlayback]);
+
+	// Silo replans the session at the position and the stream reopens there.
+	useEffect(() => {
+		streamTimeline.seekThroughServer = createServerSeek(async (ticks) => {
+			try {
+				await restartFromResult(await playback.reanchorAt(ticks), ticks);
+			} catch (err) {
+				// An admin ending the session closes the player, so it isn't a failed seek.
+				if (!playback.isEndedOnServer(err)) console.error('[Player] Seek through the server failed:', err);
+			}
+		});
+		return () => { streamTimeline.seekThroughServer = null; };
+	}, [restartFromResult]);
+
+	const reopenSiloStream = useCallback(() => streamTimeline.seekThroughServer?.(positionRef.current), []);
+	useSiloStreamRenewal(isPaused, reopenSiloStream);
+
+	// A Silo stream that played and then lost its connection is reopened where it was (Core #2060), as an unchanged
+	// replan rather than a failure one, since the route was fine.
+	const {reconnect, reconnectingLabel} = useStreamReconnect({
+		itemId: item?.Id,
+		reopen: async () => {
+			const ticks = positionRef.current;
+			if (!await restartFromResult(await playback.reanchorAt(ticks), ticks)) throw new Error('Silo gave no stream to reopen');
+		},
+		onLost: () => setError($L('The connection to the server was lost.'))
+	});
+	reconnectRef.current = reconnect;
+	useEffect(() => {
+		if (isPaused) reconnect.interrupted();
+	}, [isPaused, reconnect]);
+	const canReconnect = useCallback(() => !isLiveTV && hasPlayedRef.current &&
+		(item?._serverType || getServerType()) === 'silo', [isLiveTV, item]);
 
 	const reloadWithSubtitleIndex = useCallback(async (subIndex) => {
 		const currentPositionTicks = Math.floor(avplayGetCurrentTime() * 10000);
@@ -983,26 +1134,43 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			unregisterAppStateRef.current = registerAppStateObserver(
 				() => {
 					console.log('[Player] App resumed');
-					if (playback.consumeBackgroundStopFired()) {
+					const stoppedOnServer = playback.consumeBackgroundStopFired();
+					const suspended = suspendedRef.current;
+					suspendedRef.current = null;
+					const reload = () => reloadPlaybackRef.current?.().then((reloaded) => {
+						if (reloaded === false) {
+							setError($L('Playback failed. The file format may not be supported.'));
+						} else if (reloaded && !suspended.wasPlaying) {
+							// the reopened stream starts playing, so a paused one is paused again
+							avplayPause();
+							setIsPaused(true);
+							healthMonitorRef.current?.setPaused(true);
+							playback.reportProgress(positionRef.current, {isPaused: true, eventName: 'pause'});
+						}
+					});
+					// The background stop ended the session and restoreAsync never answers on some firmware, so it is opened again
+					if (suspended && stoppedOnServer) {
+						reload();
+						return;
+					}
+					if (stoppedOnServer) {
 						// the session was stopped on the server while we were
 						// backgrounded, so bring it back before we resume playback
 						resumeReportingRef.current?.();
 					}
-					const suspended = suspendedRef.current;
-					suspendedRef.current = null;
 					if (suspended) {
+						const generation = loadGenerationRef.current;
 						avplayRestore(suspended.url, suspended.positionMs).then((ok) => {
+							// Back or another item during the restore leaves nothing to resume
+							if (generation !== loadGenerationRef.current) return;
 							if (ok) {
 								if (suspended.wasPlaying) {
 									try { avplayPlay(); } catch (e) { void e; }
 									playback.reportProgress(positionRef.current, {isPaused: false, eventName: 'unpause'});
 								}
 							} else {
-								// the transcode session likely expired while backgrounded
 								console.warn('[Player] AVPlay restore failed, reloading stream');
-								reloadPlaybackRef.current?.().then((reloaded) => {
-									if (!reloaded) setError($L('Playback failed. The file format may not be supported.'));
-								});
+								reload();
 							}
 						});
 						return;
@@ -1101,6 +1269,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	// Handle playback health issues
 	const handleUnhealthy = useCallback(async () => {
+		// Held for the group (a watch party's wait and countdown) isn't a stall, and must not latch one.
+		if (groupHoldRef.current) {
+			healthMonitorRef.current?.reset();
+			return;
+		}
 		console.log('[Player] Playback unhealthy, falling back to transcode');
 	}, []);
 
@@ -1286,6 +1459,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const loadMedia = async () => {
 			const generation = ++loadGenerationRef.current;
 			const stillCurrent = () => generation === loadGenerationRef.current;
+			closingRef.current = false;
 			setIsLoading(true);
 			// A video taking over from music opens on its own screen, not the music player's.
 			setIsAudioMode((wasAudio) => wasAudio && (item?.MediaType === 'Audio' || item?.Type === 'Audio'));
@@ -1341,6 +1515,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					setVideoAspectRatio(getVideoDisplayAspectRatio(r.mediaSource));
 					playSessionRef.current = r.playSessionId;
 					runTimeRef.current = r.runTimeTicks || 0;
+					titleRunTimeRef.current = runTimeRef.current;
 					setDuration((r.runTimeTicks || 0) / 10000000);
 					setAudioStreams(r.audioStreams || []);
 					setSubtitleStreams(r.subtitleStreams || []);
@@ -1367,7 +1542,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				const preferredAudio = rememberedAudio || selectPreferredAudioStream(result.audioStreams, settings);
 				const serverAudio = result.audioStreams?.find(s => s.index === result.defaultAudioStreamIndex);
 				const fileDefaultAudio = result.audioStreams?.find(s => s.isDefault);
-				const autoAudio = preferredAudio || serverAudio || fileDefaultAudio;
+				const autoPick = preferredAudio || serverAudio || fileDefaultAudio;
+				// A codec the user has the server convert is renegotiated below instead.
+				const autoAudio = result.playMethod === playback.PlayMethod.DirectPlay && !transcodesAudioCodec(settings, autoPick?.codec)
+					? await directPlayAudio(autoPick, result.audioStreams, result.selectedAudioStreamIndex,
+						(stream) => playback.canPlayAudioStreamNatively(asServerAudioStream(stream)))
+					: autoPick;
 
 				// A remux or transcode carries only the track the server built it around, so
 				// switching on the player cant reach any other one. Direct play gets the
@@ -1388,6 +1568,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						applyPlaybackResult(result);
 						audioNegotiated = true;
 					} catch (err) {
+						if (playback.isEndedOnServer(err)) throw err;
 						console.error('[Player] Audio track negotiation failed:', err);
 					}
 				}
@@ -1559,6 +1740,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						applyPlaybackResult(result);
 						burnInSubtitleRef.current = burnInPendingSub.index;
 					} catch (err) {
+						if (playback.isEndedOnServer(err)) throw err;
 						console.error('[Player] Burn in subtitle negotiation failed:', err);
 					}
 				}
@@ -1582,7 +1764,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				const shouldUseAudioMode = !!result.isAudio || item?.MediaType === 'Audio' || item?.Type === 'Audio';
 				setIsAudioMode(shouldUseAudioMode);
 				// The next track keeps the music player's focus wherever the remote left it.
-				setFocusRow((row) => (shouldUseAudioMode && (row === 'panel' || row === 'progress') ? row : 'bottom'));
+				// A video's controls open on the seek bar.
+				setFocusRow((row) => {
+					if (shouldUseAudioMode) return row === 'panel' || row === 'progress' ? row : 'bottom';
+					return isLiveTV ? 'bottom' : 'progress';
+				});
 				setIsFavorite(!!item.UserData?.IsFavorite);
 
 				// Audio mode: always show controls, skip video-only features.
@@ -1590,7 +1776,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				// in the background instead of holding up playback
 				if (shouldUseAudioMode) {
 					setControlsVisible(true);
-				} else if (!isLiveTV) {
+				} else if (!isLiveTV && !slideshow) {
 					withTimeout(playback.getMediaSegments(item.Id), SEGMENT_FETCH_TIMEOUT).then((segments) => {
 						if (stillCurrent()) setMediaSegments(segments);
 					}).catch((segmentErr) => {
@@ -1603,8 +1789,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					if (queued) {
 						if (stillCurrent()) setNextEpisode(queued);
 					} else if (item.Type === 'Episode') {
+						// A queue that grew while this was asked (a server's shuffle) keeps its own order.
 						playback.getNextEpisode(item).then((next) => {
-							if (stillCurrent()) setNextEpisode(next);
+							if (stillCurrent() && !nextInQueue(videoQueueRef.current, item)) setNextEpisode(next);
 						});
 					}
 				}
@@ -1614,7 +1801,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				console.log('[Player] playMethod:', result.playMethod, 'mimeType:', result.mimeType, 'container:', result.mediaSource?.Container, 'transcodingContainer:', result.mediaSource?.TranscodingContainer);
 
 				const wantsNativeAudio = pendingAudioIndex != null && result.playMethod !== playback.PlayMethod.Transcode;
-				const wantsNativeSub = pendingSubAction?.type === 'native' && !!pendingSubAction.stream;
+				let wantsNativeSub = pendingSubAction?.type === 'native' && !!pendingSubAction.stream;
 				pendingTracksRef.current = {
 					audioIndex: wantsNativeAudio ? pendingAudioIndex : null,
 					audioApplied: !wantsNativeAudio,
@@ -1627,14 +1814,67 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				};
 				activeNativeSubRef.current = null;
 
-				await openAndPrepare({
-					url: result.url,
-					playMethod: result.playMethod,
-					mediaSource: result.mediaSource,
-					resumeTicks: startPosition,
-					hasNativePendingSub: wantsNativeSub,
-					shouldAbort: () => !stillCurrent()
-				});
+				try {
+					await openAndPrepare({
+						url: result.url,
+						playMethod: result.playMethod,
+						mediaSource: result.mediaSource,
+						resumeTicks: startPosition,
+						hasNativePendingSub: wantsNativeSub,
+						shouldAbort: () => !stillCurrent()
+					});
+				} catch (prepareErr) {
+					// AVPlay refusing a stream at prepare rejects here without reaching
+					// onerror, so handleError's fallback never sees it.
+					if (!stillCurrent() || isLiveTV || isPreroll(item) ||
+							result.playMethod === playback.PlayMethod.Transcode) {
+						throw prepareErr;
+					}
+					serverLogger.playback('Playback: direct stream rejected at prepare, falling back to transcode', {
+						itemId: item?.Id,
+						playMethod: result.playMethod,
+						container: result.mediaSource?.Container,
+						error: prepareErr?.message || String(prepareErr)
+					});
+					setHasTriedTranscode(true);
+					cleanupAVPlay();
+					avplayReadyRef.current = false;
+
+					const chosenAudioIndex = pendingAudioIndex != null ? pendingAudioIndex : result.selectedAudioStreamIndex;
+					const chosenSubIndex = pendingSubAction?.stream?.index;
+					const transcodeResult = await playback.getPlaybackInfo(item.Id, {
+						...playbackInfoOptions,
+						mediaSourceId: playbackInfoOptions.mediaSourceId || result.mediaSourceId,
+						audioStreamIndex: chosenAudioIndex != null ? chosenAudioIndex : undefined,
+						subtitleStreamIndex: chosenSubIndex != null ? chosenSubIndex : playbackInfoOptions.subtitleStreamIndex,
+						directRefused: true,
+						enableTranscoding: true,
+						forceDirectPlay: false
+					});
+					if (!stillCurrent()) return;
+					if (!transcodeResult?.url) throw prepareErr;
+					result = transcodeResult;
+					applyPlaybackResult(result);
+
+					// the transcode carries only the chosen audio track and no embedded
+					// subtitle tracks, so the subtitle is drawn client side or burnt in
+					if (pendingSubAction?.stream) {
+						const sub = (result.subtitleStreams || []).find((s) => s.index === pendingSubAction.stream.index) || pendingSubAction.stream;
+						pendingSubAction = decideSubtitleAction(sub);
+						if (sub.isBurnIn) burnInSubtitleRef.current = sub.index;
+					}
+					wantsNativeSub = false;
+					pendingTracksRef.current = null;
+
+					await openAndPrepare({
+						url: result.url,
+						playMethod: result.playMethod,
+						mediaSource: result.mediaSource,
+						resumeTicks: startPosition,
+						hasNativePendingSub: false,
+						shouldAbort: () => !stillCurrent()
+					});
+				}
 				if (!stillCurrent()) return;
 				liveRecoveryRef.current?.tuned();
 
@@ -1663,6 +1903,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 				console.log(`[Player] Loaded ${displayTitle} via ${result.playMethod} (AVPlay native)${isLiveTV ? ' [Live TV]' : ''}`);
 			} catch (err) {
+				// Silo's admin ended this title's session: the player closes with its own message, not an error.
+				if (playback.isEndedOnServer(err)) return;
 				console.error('[Player] Failed to load media:', err);
 				// A pre-roll that cant even load gets skipped, not surfaced.
 				const skipTo = isPreroll(item) ? nextInQueue(videoQueueRef.current, item) : null;
@@ -1670,7 +1912,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					if (skipTo && onPlayNext) {
 						onPlayNext(skipTo);
 					} else {
-						setError(err.message || $L('Failed to load media'));
+						setError(playbackErrorMessage(err));
 					}
 				}
 			} finally {
@@ -1794,7 +2036,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// ==============================
 	// Controls Auto-hide
 	// ==============================
+	const showsPauseDescription = settings.showDescriptionOnPause && Boolean(item?.Overview) && !isAudioMode;
+
 	const showControls = useCallback((isModalOpen = activeModal) => {
+		if (!controlsVisibleRef.current && !isAudioMode && !isLiveTV) setFocusRow('progress');
 		setControlsVisible(true);
 		if (controlsTimeoutRef.current) {
 			clearTimeout(controlsTimeoutRef.current);
@@ -1802,13 +2047,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// Don't auto-hide controls in audio mode
 		if (!isAudioMode && !isModalOpen) {
 			controlsTimeoutRef.current = setTimeout(() => {
-				// Paused playback keeps its controls, like the other clients. Resuming
-				// goes through showControls and re-arms the timer.
-				if (isPausedRef.current) return;
+				// Paused playback keeps its controls unless the paused description is
+				// waiting for them to go. Resuming goes through showControls and re-arms
+				// the timer.
+				if (isPausedRef.current && !showsPauseDescription) return;
 				setControlsVisible(false);
-			}, CONTROLS_HIDE_DELAY);
+			}, settings.controlsHideDelay);
 		}
-	}, [activeModal, isAudioMode]);
+	}, [activeModal, isAudioMode, isLiveTV, settings.controlsHideDelay, showsPauseDescription]);
 
 	const hideControls = useCallback(() => {
 		setControlsVisible(false);
@@ -1816,6 +2062,16 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			clearTimeout(controlsTimeoutRef.current);
 		}
 	}, []);
+
+	// A pause with a description to show puts the controls away so it comes up at once.
+	useEffect(() => {
+		if (isPaused && showsPauseDescription && !scrubHoldRef.current.active) hideControls();
+	}, [hideControls, isPaused, showsPauseDescription]);
+
+	// A new item's load, or a pause that outlived the delay, leaves controls up with no hide timer.
+	useEffect(() => {
+		if (!isLoading && !isPaused && controlsVisibleRef.current) showControls();
+	}, [isLoading, isPaused]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// No track indexes travel along. The session only records an index the
 	// viewer asked for, so a subtitle the player picked on its own reads as
@@ -1829,13 +2085,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (episode.Id === item.Id) return;
 		stopTimeUpdatePolling();
 		const generation = loadGenerationRef.current;
-		await playback.reportStop(positionRef.current);
+		if (options?.finished) await playback.reportFinished(item, runTimeRef.current, positionRef.current);
+		else await playback.reportStop(positionRef.current);
 		// the ended event can load the next one during the stop, leave its player alone
 		if (generation !== loadGenerationRef.current) return;
 		cleanupAVPlay();
 		avplayReadyRef.current = false;
 		onPlayNext(episode, options);
-	}, [onPlayNext, stopTimeUpdatePolling, item.Id]);
+	}, [onPlayNext, stopTimeUpdatePolling, item]);
 
 	const cinemaSkip = useCinemaSkip({
 		item, videoQueue, duration, controlsVisible, activeModal,
@@ -1844,7 +2101,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	});
 	const {active: cinemaSkipActive, update: updateCinemaSkip} = cinemaSkip;
 
-	const {carouselOpenRef, openCarousel, stepChannel, markChannelPlaying, refreshRecordings, carouselProps} = useChannelCarousel({
+	const {carouselOpenRef, openCarousel, stepChannel, markChannelPlaying, refreshRecordings, markChannelFavorite, carouselProps} = useChannelCarousel({
 		item, isLiveTV, liveTvChannels, sortBy: settings.liveTvChannelSortBy,
 		error, controlsVisible, showControls, hideControls, setFocusRow,
 		onSwitchChannel: onPlayNextWithCleanup
@@ -1913,7 +2170,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		onPlayNext: onPlayNextWithCleanup,
 		onPausePlayback: () => { avplayPause(); setIsPaused(true); },
 		// Called long after the definition below, so reading it now would be too early.
-		onStopPlayback: () => handleBack(), // eslint-disable-line no-use-before-define
+		onStopPlayback: (options) => handleBack(options.finished), // eslint-disable-line no-use-before-define
 		currentIsPreroll: isPreroll(item)
 	});
 
@@ -1933,8 +2190,23 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// the next up countdown can load the next one during the stop, leave its player alone
 		if (generation !== loadGenerationRef.current) return;
 
+		// A slideshow video has no next episode or prompts, it hands over to the slideshow.
+		if (slideshow) {
+			cleanupAVPlay();
+			avplayReadyRef.current = false;
+			slideshow.onEnded?.();
+			return;
+		}
+
 		if (repeatMode === 'one') {
 			restartCurrent();
+			return;
+		}
+
+		// The library has nothing after this episode, so the card says when the next one airs.
+		if (nextAirDate && !audioPlaylist) {
+			hideControls();
+			setAirDateCard(true);
 			return;
 		}
 
@@ -1951,10 +2223,36 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} else {
 			onEnded?.();
 		}
-	}, [onEnded, onPlayNext, nextEpisode, stopTimeUpdatePolling, audioPlaylist, repeatMode, restartCurrent, getNextStep, settings.autoPlay, item, liveRecovery, shouldHoldForStillWatching]);
+	}, [onEnded, onPlayNext, nextEpisode, nextAirDate, hideControls, stopTimeUpdatePolling, audioPlaylist, repeatMode, restartCurrent, getNextStep, settings.autoPlay, item, liveRecovery, shouldHoldForStillWatching, slideshow]);
+
+	// The episode has ended, so closing the card leaves the player.
+	const closeAirDateCard = useCallback(() => {
+		setAirDateCard(false);
+		cleanupAVPlay();
+		avplayReadyRef.current = false;
+		onEnded?.();
+	}, [onEnded]);
+
+	const airDateTimeout = settings.nextUpTimeout ?? 7;
+	useEffect(() => {
+		if (!airDateCard || airDateTimeout <= 0) return undefined;
+		const timer = setTimeout(closeAirDateCard, airDateTimeout * 1000);
+		return () => clearTimeout(timer);
+	}, [airDateCard, airDateTimeout, closeAirDateCard]);
 
 	const handleError = useCallback(async () => {
 		console.error('[Player] Playback error');
+
+		// A lost connection, or a source Silo stopped serving (a token it no longer takes), after the stream had played. A
+		// file the set can't play is not a connection's fault and goes on below. While a reconnect runs, its own
+		// attempts' failures are its to count.
+		const errorType = lastErrorTypeRef.current;
+		lastErrorTypeRef.current = '';
+		if (!isPausedRef.current && canReconnect() &&
+			(reconnect.reconnecting || (sourcePlayedRef.current && !/NOT_SUPPORTED/.test(errorType)))) {
+			reconnect.lost(errorType || 'error');
+			return;
+		}
 
 		// A channel past its tune is the live recovery's to bring back.
 		if (liveRecovery?.engaged()) {
@@ -1978,7 +2276,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (hasPlayedRef.current && !hasReopenedRef.current && playMethod !== playback.PlayMethod.Transcode) {
 			hasReopenedRef.current = true;
 			console.warn('[Player] Playback died after running, reopening the same stream');
-			if (await reloadPlaybackRef.current?.()) return;
+			if (await reloadPlaybackRef.current?.() !== false) return;
 		}
 
 		if (!hasTriedTranscode && playMethod !== playback.PlayMethod.Transcode) {
@@ -1989,8 +2287,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				const result = await playback.getPlaybackInfo(item.Id, {
 					startPositionTicks: positionRef.current,
 					maxBitrate: selectedQuality || settings.maxBitrate,
-					enableDirectPlay: false,
-					enableDirectStream: false,
+					directRefused: true,
 					enableTranscoding: true,
 					mediaSourceId: mediaSourceId,
 					item: item,
@@ -2007,31 +2304,56 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					return;
 				}
 			} catch (fallbackErr) {
+				if (playback.isEndedOnServer(fallbackErr)) return;
 				console.error('[Player] Transcode fallback failed:', fallbackErr);
 			}
 		}
 
 		setError($L('Playback failed. The file format may not be supported.'));
-	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, restartFromResult, mediaSourceId, videoQueue, onPlayNext, liveRecovery]);
+	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, restartFromResult, mediaSourceId, videoQueue, onPlayNext, liveRecovery, canReconnect, reconnect]);
 
 	// Reload the current item from its last position, used when a suspended
 	// session cant be restored after the app returns to the foreground
 	const reloadCurrentPlayback = useCallback(async () => {
+		const generation = loadGenerationRef.current;
+		// Back or another item while this runs leaves nothing to reload
+		const superseded = () => generation !== loadGenerationRef.current;
 		try {
 			const result = await playback.getPlaybackInfo(item.Id, {
 				startPositionTicks: positionRef.current,
 				maxBitrate: selectedQuality || settings.maxBitrate,
 				mediaSourceId,
 				audioStreamIndex: selectedAudioIndex != null ? selectedAudioIndex : undefined,
+				subtitleStreamIndex: burnInSubtitleRef.current != null ? burnInSubtitleRef.current : undefined,
 				item,
 				stereoUpmixEnabled: settings.stereoUpmixEnabled
 			});
-			return await restartFromResult(result, positionRef.current);
+			if (superseded()) return null;
+			const restarted = await restartFromResult(result, positionRef.current, superseded);
+			if (restarted) {
+				// a background stop or the old session's end left stall detection off
+				playback.startHealthMonitoring(handleUnhealthy);
+				healthMonitorRef.current = playback.getHealthMonitor();
+				// AVPlay ignores the audio index outside a transcode, so the picked track is set again once it plays
+				if (selectedAudioIndex != null && result.playMethod !== playback.PlayMethod.Transcode) {
+					pendingTracksRef.current = {
+						audioIndex: selectedAudioIndex,
+						audioApplied: false,
+						subApplied: true,
+						audioStreams: result.audioStreams || [],
+						subtitleStreams: result.subtitleStreams || [],
+						deadline: Date.now() + 5000
+					};
+				}
+			}
+			return restarted;
 		} catch (err) {
+			// An admin ending the session closes the player, so nothing else is tried.
+			if (playback.isEndedOnServer(err)) return null;
 			console.error('[Player] Stream reload failed:', err);
-			return false;
+			return superseded() ? null : false;
 		}
-	}, [item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, mediaSourceId, selectedAudioIndex, restartFromResult]);
+	}, [item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, mediaSourceId, selectedAudioIndex, restartFromResult, handleUnhealthy]);
 
 	// Keep callback refs in sync
 	handleEndedCallbackRef.current = handleEnded;
@@ -2041,18 +2363,43 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// ==============================
 	// Control Actions (AVPlay-based)
 	// ==============================
-	const teardownPlayback = useCallback(async () => {
+	const teardownPlayback = useCallback(async (finished = false) => {
+		const generation = ++loadGenerationRef.current;
 		cancelNextEpisodeCountdown();
 		stopTimeUpdatePolling();
-		await playback.reportStop(positionRef.current);
+		if (finished) await playback.reportFinished(item, runTimeRef.current, positionRef.current);
+		else await playback.reportStop(positionRef.current);
+		// A load started while the stop was out already cleared the old pipeline and set up its own.
+		if (generation !== loadGenerationRef.current) return;
 		cleanupAVPlay();
 		avplayReadyRef.current = false;
-	}, [cancelNextEpisodeCountdown, stopTimeUpdatePolling]);
+	}, [cancelNextEpisodeCountdown, stopTimeUpdatePolling, item]);
 
-	const handleBack = useCallback(async () => {
-		await teardownPlayback();
+	// Only Still Watching's Stop passes [finished], and anything else handed in, like a click event, is left out.
+	const handleBack = useCallback(async (finished) => {
+		closingRef.current = true;
+		await teardownPlayback(finished === true);
 		onBack?.();
 	}, [teardownPlayback, onBack]);
+
+	// An admin ended the Silo session: playback stops at once and the player closes, saying why. A reconnect under way
+	// gives up first, so it can't try again.
+	useEndedOnServer({
+		itemId: item?.Id,
+		askedItemId,
+		stop: () => {
+			reconnectRef.current?.end();
+			return teardownPlayback();
+		},
+		// A Back pressed while it stopped closes the player already.
+		close: () => {
+			if (closingRef.current) return false;
+			closingRef.current = true;
+			onBack?.();
+			return true;
+		},
+		onEndedOnServer
+	});
 
 	useSkipFailedTrack({error, background, item, hasNextTrack, handleNextTrack, handleBack});
 
@@ -2061,9 +2408,62 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		(onGuide || onBack)?.();
 	}, [teardownPlayback, onGuide, onBack]);
 
+	const handleOpenRecordings = useCallback(async () => {
+		await teardownPlayback();
+		onRecordings?.();
+	}, [teardownPlayback, onRecordings]);
+
 	useEffect(() => {
 		handleBackRef.current = handleBack;
 	}, [handleBack]);
+
+	// Previous or next item of a slideshow, which stops this video and hands over to the slideshow.
+	// One step at a time: a press while the stop is still going out would stop the same video twice.
+	const slideshowSteppingRef = useRef(false);
+	useEffect(() => {
+		slideshowSteppingRef.current = false;
+	}, [item]);
+	const stepSlideshow = useCallback(async (dir) => {
+		await teardownPlayback();
+		slideshow?.onStep?.(dir);
+	}, [teardownPlayback, slideshow]);
+
+	// A slideshow video that can't play moves on after a moment, so the slideshow never stalls on it.
+	useEffect(() => {
+		if (!slideshow || !error) return undefined;
+		const timer = setTimeout(async () => {
+			await teardownPlayback();
+			slideshow.onEnded?.();
+		}, SLIDESHOW_ERROR_DELAY);
+		return () => clearTimeout(timer);
+	}, [slideshow, error, teardownPlayback]);
+
+	// AVPlay has no mute of its own, so slideshow videos that start muted mute the TV, until they're done.
+	const slideshowMuted = slideshow?.muted === true;
+	useEffect(() => {
+		if (!slideshowMuted) return undefined;
+		let released = false;
+		let muted = false;
+		const unmute = () => {
+			if (!muted) return;
+			muted = false;
+			setSystemMuted(false);
+		};
+		getVolumeState().then((state) => {
+			if (released || !state || state.muted) return null;
+			return setSystemMuted(true).then((ok) => {
+				muted = ok;
+				if (released) unmute();
+			});
+		}).catch(() => {});
+		// Quitting the app runs none of the player's cleanup, so the TV is unmuted on the way out too.
+		window.addEventListener('pagehide', unmute);
+		return () => {
+			released = true;
+			window.removeEventListener('pagehide', unmute);
+			unmute();
+		};
+	}, [slideshowMuted]);
 
 	// an error swallowed during pause means the pipeline may be dead, so after
 	// resuming check that playback actually moves and recover if it doesnt
@@ -2080,7 +2480,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// A live stream has no duration, so its rewind window bounds a seek instead.
 	const seekBoundsMs = useCallback(() => {
 		const live = liveWindowRef.current;
-		return live ? [live.start * 1000, live.edge * 1000] : [0, avplayGetDuration()];
+		if (live) return [live.start * 1000, live.edge * 1000];
+		// A Silo copy's AVPlay duration ends where its playlist does (see prepare), so its runtime bounds a seek, a
+		// second short of the end, which Silo has no stream to open at.
+		if (streamTimeline.seeksThroughServer && titleRunTimeRef.current > 10000000) {
+			return [0, titleRunTimeRef.current / 10000 - 1000];
+		}
+		return [0, avplayGetDuration()];
 	}, []);
 
 	// AVPlay keeps reporting the old spot until a seek lands, so skip prompts are held until it has.
@@ -2249,7 +2655,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// The controls stay up under a dialog, so closing it gives focus back to the button that opened it.
 		clearTimeout(controlsTimeoutRef.current);
 		setActiveModal(modal);
-		window.requestAnimationFrame(() => {
+		// A remote key opens a dialog from a window listener, and React may not have drawn it by the next frame.
+		const focusModal = (triesLeft) => {
 			const modalId = `${modal}-modal`;
 			const focusResult = Spotlight.focus(modalId);
 
@@ -2260,9 +2667,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					Spotlight.focus(selectedItem);
 				} else if (firstItem) {
 					Spotlight.focus(firstItem);
+				} else if (triesLeft > 0) {
+					window.requestAnimationFrame(() => focusModal(triesLeft - 1));
 				}
 			}
-		});
+		};
+		window.requestAnimationFrame(() => focusModal(10));
 	}, []);
 
 	const closeModal = useCallback(() => {
@@ -2297,9 +2707,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				// track the set cant decode freezes the picture, so reload and let the
 				// server transcode instead
 				const target = (audioStreams || []).find((s) => s.index === index);
-				const playableNatively = !transcodesAudioCodec(settings, target?.codec) && await playback.canPlayAudioStreamNatively(target
-					? {Codec: target.codec, Profile: target.profile, Title: target.title, DisplayTitle: target.displayTitle, ChannelLayout: target.channelLayout, Channels: target.channels}
-					: null);
+				const playableNatively = !transcodesAudioCodec(settings, target?.codec) && await playback.canPlayAudioStreamNatively(asServerAudioStream(target));
 				if (!playableNatively) {
 					serverLogger.playback('Audio: track needs the server, reloading instead of switching natively', {
 						jellyfinIndex: index,
@@ -2333,7 +2741,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				await restartFromResult(result, currentPositionTicks);
 			}
 		} catch (err) {
-			console.error('[Player] Failed to change audio:', err);
+			if (!playback.isEndedOnServer(err)) console.error('[Player] Failed to change audio:', err);
 		}
 	}, [item, playMethod, closeModal, restartFromResult, audioStreams, settings]);
 
@@ -2370,6 +2778,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				try {
 					await reloadWithSubtitleIndex(-1);
 				} catch (err) {
+					if (playback.isEndedOnServer(err)) return;
 					console.error('[Player] Subtitle reload failed:', err);
 				}
 			}
@@ -2384,6 +2793,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				try {
 					await reloadWithSubtitleIndex(index);
 				} catch (err) {
+					if (playback.isEndedOnServer(err)) return;
 					console.error('[Player] Subtitle reload failed:', err);
 				}
 			}
@@ -2423,6 +2833,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						await reloadWithSubtitleIndex(index);
 						burnInSubtitleRef.current = index;
 					} catch (err) {
+						if (playback.isEndedOnServer(err)) return;
 						console.error('[Player] Burn in subtitle reload failed:', err);
 					}
 				}
@@ -2637,13 +3048,18 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (!item?.Id) return;
 		const newState = !isFavorite;
 		setIsFavorite(newState);
+		if (isLiveTV) markChannelFavorite(item.Id, newState);
 		try {
 			await (getApiForItem(item) || jellyfinApi).setFavorite(item.Id, newState);
 		} catch (err) {
 			console.error('[Player] Failed to toggle favorite:', err);
 			setIsFavorite(!newState);
+			if (isLiveTV) {
+				markChannelFavorite(item.Id, !newState);
+				showPlayerToast($L('Failed to update favorite channel'));
+			}
 		}
-	}, [item, isFavorite]);
+	}, [item, isFavorite, isLiveTV, markChannelFavorite, showPlayerToast]);
 
 	const handleToggleZoom = useCallback(() => {
 		setZoomMode((prev) => {
@@ -2657,21 +3073,40 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const handleOpenCast = useCallback(async () => {
 		openModal('cast');
-		if (castMembers.length > 0 || !(item?.Type === 'Episode' && item?.SeriesId)) return;
+		if (item?.Type !== 'Episode') return;
+		const seasonId = item?.SeasonId || item?.ParentId;
+		const seriesId = item?.SeriesId;
+		if (!seasonId && !seriesId) return;
+		if (resolvedCastItemIdRef.current === item?.Id) return;
 
+		const currentItemId = item?.Id;
 		setIsLoadingCastMembers(true);
 		try {
-			const apiClient = item._serverUrl
+			const apiClient = getApiForItem(item) || (item._serverUrl
 				? createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId)
-				: jellyfinApi;
-			const seriesItem = await apiClient.getItem(item.SeriesId);
-			setCastMembers(Array.isArray(seriesItem?.People) ? seriesItem.People : []);
+				: jellyfinApi);
+			const parentActors = await resolveParentCast({
+				apiClient,
+				seasonId,
+				seriesId
+			});
+			if (currentItemId !== latestItemIdRef.current) return;
+			// A failed lookup also comes back empty, so only a found cast stops the next open from asking again.
+			if (parentActors.length > 0) {
+				setCastMembers(mergeEpisodePeople({
+					episodePeople: Array.isArray(item?.People) ? item.People : [],
+					parentActors
+				}));
+				resolvedCastItemIdRef.current = currentItemId;
+			}
 		} catch (err) {
-			setCastMembers([]);
+			// Not cached, so the next open tries again
 		} finally {
-			setIsLoadingCastMembers(false);
+			if (currentItemId === latestItemIdRef.current) {
+				setIsLoadingCastMembers(false);
+			}
 		}
-	}, [openModal, castMembers.length, item]);
+	}, [openModal, item]);
 
 	const handleSelectCastMember = useCallback((person) => {
 		if (!person?.Id || !onSelectPerson) return;
@@ -2703,6 +3138,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			case 'zoom': handleToggleZoom(); break;
 			case 'sleep': openModal('sleep'); break;
 			case 'info': openModal('info'); break;
+			case 'partyChat':
+			case 'party': openModal(action); break;
 			case 'channels': openCarousel(); break;
 			case 'guide': handleOpenGuide(); break;
 			case 'next': handlePlayNextNow(); break;
@@ -2805,6 +3242,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		setIsDownloadingRemoteSubtitle(true);
 		setRemoteSubtitleError(null);
+		const endedGeneration = playback.endedOnServerGeneration();
 		try {
 			await jellyfinApi.downloadRemoteSubtitle(item.Id, remoteSubtitleResults[index].id);
 
@@ -2841,11 +3279,27 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setSubtitleStreams(refreshedSubtitleStreams);
 			await applySubtitleSelection(appeared.Index, refreshedSubtitleStreams, true);
 		} catch (err) {
+			if (playback.isEndedOnServer(err)) {
+				playback.heardEndedOnServer(err, endedGeneration);
+				return;
+			}
 			setRemoteSubtitleError(remoteSubtitleDownloadError(err));
 		} finally {
 			setIsDownloadingRemoteSubtitle(false);
 		}
 	}, [remoteSubtitleResults, item, subtitleStreams, mediaSourceId, selectedAudioIndex, selectedSubtitleIndex, selectedQuality, settings.maxBitrate, applySubtitleSelection]);
+
+	// A watch party set ahead of the room waits the gap out paused, where a seek back would land on a keyframe again.
+	const holdBack = useCallback((ms) => {
+		cancelSyncWait();
+		if (avplayGetState() === 'PLAYING') avplayPause();
+		syncWaitTimerRef.current = setTimeout(() => {
+			syncWaitTimerRef.current = null;
+			avplayPlay();
+			setIsPaused(false);
+			skipGovernorRef.current.onStart({nowMs: Date.now(), fromMs: positionRef.current / 10000});
+		}, ms);
+	}, [cancelSyncWait]);
 
 	// A seek on the group's behalf. Every seek costs a rebuffer here, which
 	// the group then waits on, so a difference within tolerance is left alone.
@@ -2855,13 +3309,17 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// firmware never answers a seek at all, and the server holds the whole
 	// group on a Ready that never comes, so after a while the set reports
 	// where it stands and lets the server correct it from there.
-	const landGroupSeek = useCallback((target, pauseOnLand) => {
+	// `catchUp` is a Watch Party correction this set chose to load for, which the load budget counts.
+	const landGroupSeek = useCallback((target, pauseOnLand, catchUp = false) => {
 		const reportPaused = () => {
 			if (!pauseOnLand) return;
 			setIsPaused(true);
 			readyGate.request();
 		};
-		if (!needsSeek(positionRef.current, target)) {
+		// In a watch party a pause ahead of the group stays where it is: the resume holds back by the gap instead.
+		const party = syncPlayService.isSelfCorrectingRoom();
+		if (!needsSeek(positionRef.current, target, party ? PARTY_SEEK_TOLERANCE_MS : undefined) ||
+			(party && pauseOnLand && partyHoldBackMs(positionRef.current, target) > 0)) {
 			if (pauseOnLand && avplayGetState() === 'PLAYING') avplayPause();
 			reportPaused();
 			return;
@@ -2869,13 +3327,27 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		clearGroupSeekPending();
 		const pending = {target};
 		groupSeekPendingRef.current = pending;
+		// How long a room's seek takes is how far a catch-up aims.
+		const timed = syncPlayService.isRoomDriven();
+		if (timed) loadBudgetRef.current.onStart(Date.now(), catchUp);
 		const settle = () => {
 			// The backstop can fire after the seek already settled, and a seek
 			// this one replaced settles along with it, so only the one still on
 			// record reports.
 			if (groupSeekPendingRef.current !== pending) return;
 			clearGroupSeekPending();
+			if (timed) loadBudgetRef.current.onPlaying(Date.now());
 			reportPaused();
+			// A seek while the room plays lands on the keyframe after the target, often seconds past the room. AVPlay can
+			// report the target for a moment after landing, so the lead is read a little later.
+			if (party && !pauseOnLand) {
+				cancelSyncWait();
+				syncWaitTimerRef.current = setTimeout(() => {
+					syncWaitTimerRef.current = null;
+					const holdMs = partyHoldBackMs(Math.floor(avplayGetCurrentTime() * 10000), syncPlayService.getExpectedPositionTicks());
+					if (holdMs > 0) holdBack(holdMs);
+				}, PARTY_LANDING_READ_MS);
+			}
 		};
 		const seek = avplaySeek(Math.floor(target / 10000));
 		if (pauseOnLand && avplayGetState() === 'PLAYING') avplayPause();
@@ -2884,7 +3356,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			console.warn('[Player] Group seek did not land within', GROUP_SEEK_SETTLE_TIMEOUT_MS, 'ms, reporting as is');
 			settle();
 		}, GROUP_SEEK_SETTLE_TIMEOUT_MS);
-	}, [readyGate, clearGroupSeekPending]);
+	}, [readyGate, clearGroupSeekPending, cancelSyncWait, holdBack]);
 
 	const executeSyncPlayCommand = useCallback((command, delay) => {
 		const {Command, PositionTicks, When} = command;
@@ -2896,6 +3368,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		switch (Command) {
 			case 'Unpause': {
 				groupHoldRef.current = false;
+				resumedAtRef.current = Date.now();
 				// The sync point is the position at the command's own time,
 				// which for a late arrival or an echo is not now.
 				syncPlayService.setSyncReference(PositionTicks != null ? PositionTicks : positionRef.current, syncPlayService.whenToServerMs(When));
@@ -2906,9 +3379,28 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				let target = null;
 				if (delay > 0) target = PositionTicks;
 				else if (avplayGetState() !== 'PLAYING') target = syncPlayService.getAdjustedPosition(PositionTicks, When);
+				// In a Watch Party a load lands late by its load time, and the room doesn't wait for it: aim ahead by
+				// what the last one took, and don't start another until the budget allows, or the set chases the
+				// room round and round.
+				let catchUp = false;
+				if (target != null && syncPlayService.isRoomDriven() && needsSeek(positionRef.current, target)) {
+					const budget = loadBudgetRef.current;
+					if (groupSeekPendingRef.current || !budget.allows(Date.now())) {
+						target = null;
+					} else {
+						catchUp = true;
+						target += budget.leadMs() * 10000;
+					}
+				}
+				const holdMs = target != null && syncPlayService.isSelfCorrectingRoom()
+					? partyHoldBackMs(Math.floor(avplayGetCurrentTime() * 10000), target) : 0;
+				if (holdMs > 0) {
+					holdBack(holdMs);
+					break;
+				}
 				if (target != null) {
 					if (runTimeRef.current > 0) target = Math.min(runTimeRef.current, target);
-					landGroupSeek(target, false);
+					landGroupSeek(target, false, catchUp);
 				}
 				avplayPlay();
 				setIsPaused(false);
@@ -2944,7 +3436,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 
 		syncPlayCommandRef.current = false;
-	}, [landGroupSeek, cancelSyncWait]);
+	}, [landGroupSeek, cancelSyncWait, holdBack]);
 
 	useSyncPlayCommands({
 		lastCommand,
@@ -2975,6 +3467,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (syncPlayCommandRef.current || groupSeekPendingRef.current) return;
 			const expected = syncPlayService.getExpectedPositionTicks(correction.extraOffsetMs);
 			const drift = driftMs(positionRef.current, expected);
+			if (syncPlayService.isRoomDriven()) {
+				// A Watch Party corrects this set itself, through the load budget; a second corrector skipping on
+				// its own piles seeks onto a pipeline still carrying out the last one.
+				if (drift != null && Math.abs(drift) <= CONVERGED_MS) loadBudgetRef.current.onConverged();
+				return;
+			}
 			const nowMs = Date.now();
 			const positionMs = positionRef.current / 10000;
 			const verdict = skipGovernorRef.current.evaluate({
@@ -2985,7 +3483,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				isBuffering: isBufferingRef.current
 			});
 			if (verdict === 'defer') return;
-			const action = chooseCorrection(drift, verdict, correction, skipGovernorRef.current.seekAllowanceMs());
+			const options = syncPlayService.isSelfCorrectingRoom() ? afterResume(correction, nowMs - resumedAtRef.current) : correction;
+			const action = chooseCorrection(drift, verdict, options, skipGovernorRef.current.seekAllowanceMs());
 
 			if (action.type === 'skip') {
 				const targetTicks = expected + action.aheadMs * 10000;
@@ -3058,7 +3557,33 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const handleKeyDown = (e) => {
 			// Music playing behind the other screens leaves the remote to them, all but its media keys.
 			if (background && !isMediaKey(e)) return;
+			// The keyboard over a party's chat bar takes every key, Back included.
+			if (isTvKeyboardVisible()) return;
 			const key = e.key || e.keyCode;
+			// The air date card holds the remote, with OK on its close button and Back closing it.
+			if (airDateCard) {
+				if (key === 'Enter' || e.keyCode === 13) return;
+				e.preventDefault();
+				e.stopPropagation();
+				if (isBackKey(e) || key === 'GoBack') closeAirDateCard();
+				return;
+			}
+			// Stop, and in Live TV the Guide and Recordings buttons, leave the player even with the
+			// channel carousel up.
+			if (e.keyCode === KEYS.STOP) {
+				e.preventDefault();
+				e.stopPropagation();
+				handleBack();
+				return;
+			}
+			const shortcut = remoteShortcut(e);
+			if (isLiveTV && (shortcut === 'guide' || (shortcut === 'recordings' && onRecordings))) {
+				e.preventDefault();
+				e.stopPropagation();
+				if (shortcut === 'guide') handleOpenGuide();
+				else handleOpenRecordings();
+				return;
+			}
 			// The channel carousel takes every key while it's up.
 			if (carouselOpenRef.current) return;
 
@@ -3098,12 +3623,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				e.stopPropagation();
 				if (!isLiveTV || liveWindow) handleRewind();
 				showControls();
-				return;
-			}
-			if (e.keyCode === KEYS.STOP) {
-				e.preventDefault();
-				e.stopPropagation();
-				handleBack();
 				return;
 			}
 			if (e.keyCode === KEYS.CHANNEL_UP || e.keyCode === KEYS.CHANNEL_DOWN) {
@@ -3155,8 +3674,43 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			// The rest of the remote belongs to a failed channel's Retry.
 			if (error && isLiveTV) return;
 
+			// Subtitles, Audio and Record open what their OSD buttons open, and a second press closes it.
+			const trackAction = isAudioMode ? null : trackShortcutAction(shortcut, {
+				activeModal,
+				hasSubtitles: subtitleStreams.length > 0 || Boolean(item?.Id),
+				audioTrackCount: audioStreams.length,
+				recordable: isLiveTV && liveRecording.available
+			});
+			if (trackAction) {
+				e.preventDefault();
+				e.stopPropagation();
+				if (trackAction === 'close') closeModal();
+				else if (trackAction === 'open') handleButtonAction(shortcut);
+				return;
+			}
+
 			// Left/Right when controls hidden -> show controls and focus on seekbar
 			if (!controlsVisible && !activeModal) {
+				// A slideshow video keeps the arrows for moving between items and leaves the transport
+				// to OK, which brings the controls up on the progress bar.
+				if (slideshow) {
+					if (key === 'ArrowLeft' || e.keyCode === 37 || key === 'ArrowRight' || e.keyCode === 39) {
+						e.preventDefault();
+						e.stopPropagation();
+						if (!slideshowSteppingRef.current) {
+							slideshowSteppingRef.current = true;
+							stepSlideshow(key === 'ArrowLeft' || e.keyCode === 37 ? -1 : 1);
+						}
+						return;
+					}
+					if (key === 'Enter' || e.keyCode === 13) {
+						e.preventDefault();
+						e.stopPropagation();
+						showControls();
+						setFocusRow('progress');
+						return;
+					}
+				}
 				if ((key === 'Enter' || e.keyCode === 13) && (isSkipPromptFocused() || showSkipCredits || showNextEpisode)) {
 					return;
 				}
@@ -3165,6 +3719,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					// Hidden controls keep focus, so the focused one would get this key
 					// too and toggle playback straight back.
 					e.stopPropagation();
+					showControls();
 					handlePlayPause();
 					return;
 				}
@@ -3179,6 +3734,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					showControls();
 					setFocusRow('progress');
 					scrubBy(heldSeekStep(key === 'ArrowLeft' || e.keyCode === 37 ? -1 : 1));
+					return;
+				}
+				// Up and Down only bring the controls up onto the seek bar, so the hidden control
+				// that kept focus mustn't move it as well. The skip prompts keep their own keys.
+				if ((key === 'ArrowUp' || e.keyCode === 38 || key === 'ArrowDown' || e.keyCode === 40) &&
+					!isSkipPromptFocused() && !showSkipCredits && !showNextEpisode) {
+					e.preventDefault();
+					e.stopPropagation();
+					showControls();
 					return;
 				}
 				e.preventDefault();
@@ -3244,6 +3808,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		window.requestAnimationFrame(() => {
 			// The skip prompt keeps the remote when the controls come up around it.
 			if (isSkipPromptFocused()) return;
+			// A remote key can open a dialog and bring the controls up in the same press.
+			if (document.activeElement && document.activeElement.closest('[data-modal]')) return;
 			// The music player moves its own focus and stays up between tracks, so this
 			// only picks up focus that went missing, like a lyrics toggle a track took away.
 			if (isAudioMode) {
@@ -3335,6 +3901,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					primaryText={currentSubtitleText}
 					secondaryText={secondary.text}
 					secondaryLoaded={secondary.loaded}
+					primaryLanguage={subtitleStreams.find((s) => s.index === selectedSubtitleIndex)?.language}
+					secondaryLanguage={subtitleStreams.find((s) => s.index === secondary.index)?.language}
 				/>
 			)}
 
@@ -3355,16 +3923,30 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			)}
 
 
-			{(reconnecting || showBuffering) && <LoadingAnimationLayer label={reconnecting || $L('Loading Stream...')} />}
+			{(reconnecting || reconnectingLabel || showBuffering) && <LoadingAnimationLayer label={reconnecting || reconnectingLabel || $L('Loading Stream...')} />}
 
-			{isPaused && settings.showDescriptionOnPause && item?.Overview && !isAudioMode && !activeModal && !controlsVisible && (
+			{isPaused && showsPauseDescription && !activeModal && !controlsVisible && (
 				<div className={css.pauseDescriptionOverlay}>
-					<div className={css.pauseDescriptionText}>{item.Overview}</div>
+					<div className={css.pauseDescription}>
+						<div className={css.pauseDescriptionLabel}>{$L('Paused')}</div>
+						<div className={css.pauseDescriptionTitle}>{item.SeriesName || item.Name}</div>
+						<div className={css.pauseDescriptionText}>{item.Overview}</div>
+					</div>
 				</div>
 			)}
 
 			{askStillWatching && (
 				<StillWatchingDialog onContinue={handleStillWatchingContinue} onStop={handleStillWatchingStop} />
+			)}
+
+			{airDateCard && nextAirDate && (
+				<NextEpisodeContainer spotlightRestrict="self-only">
+					<NextUpOverlay
+						airDate={nextAirDate}
+						minimal={settings.nextUpBehavior === 'minimal'}
+						onDismiss={closeAirDateCard}
+					/>
+				</NextEpisodeContainer>
 			)}
 
 			{(showSkipCredits || showNextEpisode) && nextEpisode && !isAudioMode && !activeModal && !controlsVisible && (
@@ -3442,7 +4024,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				chapters={chapters}
 				currentTime={currentTime}
 				subtitleOffset={subtitleOffset}
-				subtitleTrackEvents={subtitleTrackEvents}
+				subtitleTrackEvents={subtitleTrackEvents || (activeModal === 'subtitleOffset' ? assTimelineEvents(assRendererRef.current) : null)}
 				handleControlButtonClick={handleControlButtonClick}
 				handleProgressClick={handleProgressClick}
 				handleProgressKeyDown={handleProgressKeyDown}

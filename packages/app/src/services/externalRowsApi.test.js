@@ -2,11 +2,20 @@ import {fetchCustomRow, fetchSeasonalRow, fetchTmdbDetails, constructSourceUrl, 
 import {fetchWithTimeout} from '../utils/fetchTimeout';
 
 jest.mock('../utils/fetchTimeout', () => ({fetchWithTimeout: jest.fn()}));
+const mockSilo = {type: 'jellyfin', sections: [], items: {}};
 jest.mock('./jellyfinApi', () => ({
+	getServerType: () => mockSilo.type,
+	api: {
+		getServerHomeSections: async () => mockSilo.sections,
+		getServerHomeSectionItems: async (id) => ({Items: mockSilo.items[id] || []})
+	},
 	getServerUrl: () => 'http://server',
 	getUserId: () => 'user',
-	getAuthHeader: () => 'MediaBrowser Token="test-token"'
+	getAuthHeader: () => 'MediaBrowser Token="test-token"',
+	getApiKey: () => 'test-token'
 }));
+const mockMoonbase = {endpoint: null};
+jest.mock('./moonbaseEndpoint', () => ({moonbaseEndpoint: async () => mockMoonbase.endpoint}));
 
 const mockJsonResponse = (data, status = 200) => ({
 	ok: status >= 200 && status < 300,
@@ -18,6 +27,8 @@ describe('externalRowsApi', () => {
 	beforeEach(() => {
 		__resetExternalRowCache();
 		fetchWithTimeout.mockReset();
+		mockSilo.type = 'jellyfin';
+		mockMoonbase.endpoint = null;
 	});
 
 	describe('fetchCustomRow', () => {
@@ -32,6 +43,7 @@ describe('externalRowsApi', () => {
 				name: 'Spirited Away',
 				type: 'Movie',
 				productionYear: 2001,
+				Popularity: 41.5,
 				posterUrl: '/poster.jpg',
 				providerIds: {Tmdb: '129'}
 			}
@@ -48,6 +60,7 @@ describe('externalRowsApi', () => {
 			expect(items[0].name).toBe('Spirited Away');
 			expect(items[0].type).toBe('Movie');
 			expect(items[0].productionYear).toBe(2001);
+			expect(items[0].popularity).toBe(41.5);
 			expect(items[0].providerIds.Tmdb).toBe('129');
 			expect(fetchWithTimeout).toHaveBeenCalledTimes(1);
 
@@ -55,6 +68,25 @@ describe('externalRowsApi', () => {
 			expect(calledUrl).toContain('source=mdblist');
 			expect(calledUrl).toContain('type=list_url');
 			expect(calledUrl).not.toContain('&language=');
+		});
+
+		it('asks Moonbase for Plex beside a Plex server, the way the companion is reached', async () => {
+			const companionFetch = jest.fn().mockResolvedValue(mockJsonResponse({success: true, items: serverItems}));
+			mockSilo.type = 'plex';
+			mockMoonbase.endpoint = {base: 'http://plex:32500', headers: {'X-Plex-Token': 'test-token'}, fetch: companionFetch};
+
+			expect(await fetchCustomRow(requestArgs)).toHaveLength(1);
+			expect(companionFetch.mock.calls[0][0]).toMatch(/^http:\/\/plex:32500\/Moonfin\/CustomRows\/Items\?source=mdblist/);
+			expect(companionFetch.mock.calls[0][1].headers).toEqual({'X-Plex-Token': 'test-token'});
+			expect(fetchWithTimeout).not.toHaveBeenCalled();
+		});
+
+		it('has no row from a Plex server without Moonbase for Plex', async () => {
+			mockSilo.type = 'plex';
+			mockMoonbase.endpoint = null;
+
+			expect(await fetchCustomRow(requestArgs)).toEqual([]);
+			expect(fetchWithTimeout).not.toHaveBeenCalled();
 		});
 
 		it('appends language query parameter when options.language is provided', async () => {
@@ -118,6 +150,17 @@ describe('externalRowsApi', () => {
 	});
 
 	describe('fetchSeasonalRow', () => {
+		it('reads Silo\'s own Seasonal Picks section on Silo, without asking Moonbase', async () => {
+			mockSilo.type = 'silo';
+			mockSilo.sections = [{id: '3', kind: 'hidden_gems', title: 'Hidden gems'}, {id: '7', kind: 'seasonal_themed', title: 'Spooky picks'}];
+			mockSilo.items = {7: [{Id: 'a'}, {Id: 'b'}]};
+			const row = await fetchSeasonalRow({country: 'US'});
+			mockSilo.type = 'jellyfin';
+			expect(fetchWithTimeout).not.toHaveBeenCalled();
+			expect(row).toMatchObject({holiday: 'silo', title: 'Spooky picks', suggestions: []});
+			expect(row.items.map((i) => i.Id).sort()).toEqual(['a', 'b']);
+		});
+
 		it('fetches seasonal row with country query parameter', async () => {
 			fetchWithTimeout.mockResolvedValue(mockJsonResponse({
 				holiday: 'halloween',
@@ -131,6 +174,20 @@ describe('externalRowsApi', () => {
 
 			const [calledUrl] = fetchWithTimeout.mock.calls[0];
 			expect(calledUrl).toContain('country=CA');
+		});
+
+		it('maps the movies from Moonbase for Plex like any Plex item', async () => {
+			mockSilo.type = 'plex';
+			mockMoonbase.endpoint = {base: 'http://plex:32500', headers: {}};
+			fetchWithTimeout.mockResolvedValue(mockJsonResponse({
+				holiday: 'christmas',
+				items: [{ratingKey: '11', type: 'movie', title: 'Klaus', year: 2019}],
+				suggestions: []
+			}));
+
+			const result = await fetchSeasonalRow({country: 'US'});
+			expect(fetchWithTimeout.mock.calls[0][0]).toBe('http://plex:32500/Moonfin/Seasonal/Row?country=US');
+			expect(result.items).toEqual([expect.objectContaining({Id: '11', Name: 'Klaus', Type: 'Movie', ProductionYear: 2019})]);
 		});
 	});
 
@@ -172,6 +229,8 @@ describe('externalRowsApi', () => {
 				.toBe('https://letterboxd.com/alice/');
 			expect(constructSourceUrl('mdblist', 'list_url', {username: 'bob', listname: 'favs'}))
 				.toBe('https://mdblist.com/lists/bob/favs');
+			expect(constructSourceUrl('mdblist', 'list_url', {username: 'official', listname: 'most-watched-week', mediatype: 'movie'}))
+				.toBe('https://mdblist.com/lists/official/movies/most-watched-week');
 			expect(constructSourceUrl('unknown', 'type', {}))
 				.toBe('');
 		});

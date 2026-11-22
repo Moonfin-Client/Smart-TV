@@ -3,6 +3,7 @@ const api = {serverUrl: 'http://one.lan:8096', userId: 'adult'};
 const queue = {hold: null};
 
 jest.mock('./jellyfinApi', () => ({
+	getServerType: () => 'jellyfin',
 	getServerUrl: () => api.serverUrl,
 	getUserId: () => api.userId,
 	getAuthHeader: () => `MediaBrowser Token="${api.userId}"`

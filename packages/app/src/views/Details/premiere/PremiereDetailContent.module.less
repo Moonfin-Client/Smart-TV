@@ -1,0 +1,255 @@
+// Sizes are Moonfin Core's Premiere measurements, which are laid out for a 1150 point wide TV screen,
+// times 1.67 for this app's 1920 wide one.
+
+@shadow: 0 0 48px rgba(0, 0, 0, 0.6);
+
+// The line clamp hides whatever runs past the box, the shadow included, so the box takes the
+// shadow's room as padding and gives it back as margin.
+.shadow-room() {
+	margin: -48px;
+	padding: 48px;
+}
+
+// A plain scrolling element rather than a component, because the page moves focus between its
+// sections itself and a scroller component would answer the same focus events.
+.scroller {
+	bottom: 0;
+	left: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	position: absolute;
+	right: 0;
+	top: 0;
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+}
+
+.scroller::-webkit-scrollbar {
+	display: none;
+}
+
+// The first screen. The title block and the buttons sit at its foot, and whatever room is left
+// above them shows the backdrop.
+.hero {
+	align-items: center;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	justify-content: flex-end;
+	padding: 0 154px 20px;
+	position: relative;
+	text-align: center;
+}
+
+// A sidebar sits over the leading edge.
+.sidebarOffset .hero {
+	padding-left: 200px;
+}
+
+.backdrop {
+	bottom: 0;
+	left: 0;
+	overflow: hidden;
+	position: absolute;
+	right: 0;
+	top: 0;
+}
+
+.backdropImage {
+	height: 100%;
+	object-fit: cover;
+	object-position: center top;
+	width: 100%;
+}
+
+.scrim {
+	bottom: 0;
+	left: 0;
+	position: absolute;
+	right: 0;
+	top: 0;
+}
+
+.heroText {
+	align-items: center;
+	display: flex;
+	flex: 0 1 auto;
+	flex-direction: column;
+	min-height: 0;
+	position: relative;
+	width: 100%;
+
+	> * {
+		flex-shrink: 0;
+	}
+}
+
+.logo {
+	display: block;
+	filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.6));
+	max-height: 238px;
+	max-width: 868px;
+}
+
+.title {
+	.shadow-room();
+	color: #fff;
+	display: -webkit-box;
+	font-size: 100px;
+	font-weight: 700;
+	letter-spacing: 6.7px;
+	line-height: 1.05;
+	overflow: hidden;
+	text-shadow: @shadow;
+	text-transform: uppercase;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+
+.subtitle {
+	.shadow-room();
+	color: #fff;
+	display: -webkit-box;
+	font-size: 40px;
+	font-weight: 600;
+	line-height: 1.2;
+	margin-top: -31.3px;
+	overflow: hidden;
+	text-shadow: @shadow;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+
+.meta {
+	letter-spacing: 0.67px;
+	margin-top: 20px;
+	width: 100%;
+}
+
+.centered {
+	justify-content: center;
+}
+
+.tagline {
+	color: rgba(255, 255, 255, 0.82);
+	font-size: 26.7px;
+	font-style: italic;
+	letter-spacing: 0.83px;
+	line-height: 1.5;
+	margin-top: 20px;
+}
+
+// Gives up whole lines from the end when the screen runs out of room, which the script measures.
+.overview {
+	color: rgba(255, 255, 255, 0.82);
+	display: -webkit-box;
+	flex: 0 1 auto;
+	font-size: 23.4px;
+	letter-spacing: 0.42px;
+	line-height: 1.5;
+	margin: 16.7px 0 0;
+	max-width: 1269px;
+	min-height: 0;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+}
+
+.downloads {
+	margin-top: 4px;
+	max-width: 868px;
+	width: 100%;
+}
+
+.downloads:empty {
+	display: none;
+}
+
+.actions {
+	flex: none;
+	margin-top: 36.7px;
+	width: 100%;
+}
+
+.ratings {
+	flex: none;
+	margin-top: 26.7px;
+	position: relative;
+	width: 100%;
+
+	> * {
+		justify-content: center;
+	}
+}
+.ratings:empty {
+	display: none;
+}
+.arrow {
+	color: rgba(255, 255, 255, 0.65);
+	flex: none;
+	height: 50px;
+	margin-top: 20px;
+	position: relative;
+	width: 50px;
+}
+
+.sections {
+	padding-bottom: 107px;
+}
+
+// One section down the page. Its frame lights up while focus is inside it, and when nothing in it
+// takes focus it's the stop itself.
+.section {
+	border: 3.3px solid transparent;
+	border-radius: 23.4px;
+	margin: 40px 154px 0;
+	outline: none;
+	overflow: hidden;
+	padding: 26.7px 30px 30px;
+	transition: border-color 0.15s ease-out, background-color 0.15s ease-out;
+
+	:global(.perf-low) &,
+	:global(.perf-mid) & {
+		transition: none;
+	}
+}
+
+.sidebarOffset .section {
+	margin-left: 200px;
+}
+
+// Kept on its own, since an engine that doesn't know the selector drops every rule grouped with it.
+.section:focus-within {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+.whole:focus {
+	background-color: rgba(255, 255, 255, 0.07);
+	border-color: #fff;
+}
+
+// Ratings that never came leave the frame with nothing in it, so it isn't drawn at all.
+.whole:empty {
+	display: none;
+}
+
+// Every title down the page, the rows' own included.
+.section h2,
+.whole[data-title]::before {
+	color: rgba(255, 255, 255, 0.75);
+	font-size: 23.4px;
+	font-weight: 600;
+	letter-spacing: 3.3px;
+	line-height: 1.43;
+	text-transform: uppercase;
+}
+
+.sectionTitle {
+	margin: 0 0 20px;
+}
+
+.whole[data-title]::before {
+	content: attr(data-title);
+	display: block;
+	margin-bottom: 20px;
+}

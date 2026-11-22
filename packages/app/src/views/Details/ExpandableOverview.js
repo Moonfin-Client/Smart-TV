@@ -13,7 +13,7 @@ const SCROLL_STEP = 58;
 
 // Each screen sets the copy to suit the room it has. Anything not named here reads at the size
 // the box was built at.
-const TEXT_VARIANTS = {classic: css.textClassic, nouveau: css.textNouveau};
+const TEXT_VARIANTS = {classic: css.textClassic, nouveau: css.textNouveau, stage: css.textStage};
 
 // The overview with a Read More toggle, shared by both detail styles. Text short
 // enough for its four line clamp renders as plain copy. Longer text gets a

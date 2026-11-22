@@ -5,7 +5,7 @@ let directPlay;
 let calls;
 let reResolveResult;
 
-const setup = () => {
+const setup = ({withReload = false} = {}) => {
 	calls = [];
 	reResolveResult = () => Promise.resolve();
 	const recovery = createLiveRecovery({
@@ -13,6 +13,10 @@ const setup = () => {
 			calls.push(['reResolve', route]);
 			return reResolveResult(route);
 		},
+		reload: withReload ? () => {
+			calls.push(['reload']);
+			return Promise.resolve();
+		} : undefined,
 		release: () => {
 			calls.push(['release']);
 			return Promise.resolve();
@@ -198,6 +202,36 @@ describe('the recovery budget', () => {
 		finishRelease();
 		await advance(0);
 		expect(calls).not.toContainEqual(['lost']);
+	});
+});
+
+describe('a stream the player turns away', () => {
+	const reloads = () => calls.filter(([name]) => name === 'reload').length;
+
+	test('is reopened as the server makes it, and only the last attempt asks for the channel again', async () => {
+		const recovery = setup({withReload: true});
+		await recovery.recover('source-error');
+		await advance(10000);
+		await recovery.recover('source-error');
+		await advance(20000);
+		await recovery.recover('source-error');
+		expect(reloads()).toBe(2);
+		expect(reResolves()).toEqual([{disableDirectPlay: true, forceTranscode: true}]);
+	});
+
+	test('is asked for again when it was direct played, since there is no server stream to reopen', async () => {
+		directPlay = true;
+		const recovery = setup({withReload: true});
+		await recovery.recover('source-error');
+		expect(reloads()).toBe(0);
+		expect(reResolves()).toEqual([{disableDirectPlay: false, forceTranscode: false}]);
+	});
+
+	test('a channel that ended is still asked for again', async () => {
+		const recovery = setup({withReload: true});
+		await recovery.recover('completed');
+		expect(reloads()).toBe(0);
+		expect(reResolves()).toHaveLength(1);
 	});
 });
 

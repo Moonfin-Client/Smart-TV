@@ -14,7 +14,8 @@ const useSignInPin = () => {
 	settingsRef.current = settings;
 
 	const record = useMemo(() => signInPinFor(settings, userId), [settings, userId]);
-	const account = useMemo(() => (serverUrl && accessToken ? {serverUrl, accessToken, serverType} : null), [serverUrl, accessToken, serverType]);
+	// On Silo the PIN belongs to the profile, which is the user.
+	const account = useMemo(() => (serverUrl && accessToken ? {serverUrl, accessToken, serverType, userId} : null), [serverUrl, accessToken, serverType, userId]);
 	const latest = useCallback(() => signInPinFor(settingsRef.current, userId), [userId]);
 	const save = useCallback((next) => updateSettings(signInPinChanges(settingsRef.current, userId, next)), [updateSettings, userId]);
 

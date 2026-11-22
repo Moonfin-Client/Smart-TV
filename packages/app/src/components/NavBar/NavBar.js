@@ -2,15 +2,15 @@ import {memo, useCallback, useMemo, useState} from 'react';
 import $L from '@enact/i18n/$L';
 import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
-import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import {useSeerr} from '../../context/SeerrContext';
 import {useSyncPlay} from '../../context/SyncPlayContext';
+import useWatchParty from '../../hooks/useWatchParty';
 import {useServerMessages} from '../../context/ServerMessagesContext';
 import {useAchievements} from '../../context/AchievementsContext';
 import SeerrIcon from '../icons/SeerrIcon';
 import SyncPlayIcon from '../icons/SyncPlayIcon';
-import {FavoritesIcon, FriendsIcon, GenresIcon, HomeIcon, LiveTvIcon, MessagesIcon, SearchIcon, SettingsIcon, ShuffleIcon} from '../icons/navIcons';
+import {CalendarIcon, FavoritesIcon, FriendsIcon, GenresIcon, HomeIcon, LiveTvIcon, MessagesIcon, SearchIcon, SettingsIcon, ShuffleIcon, libraryNavIcon} from '../icons/navIcons';
 import useClock from '../../hooks/useClock';
 import {librariesForNav} from '../../utils/liveTvLibrary';
 import {isKidsMode} from '../../utils/kidsMode';
@@ -25,6 +25,13 @@ import NavPillButton from './NavPillButton';
 import NavUserButton from './NavUserButton';
 
 import css from './NavBar.module.less';
+
+// A library as a pill of its own, for Show Libraries Individually. It holds the library itself
+// rather than its id, since two servers, or two users of one server, can list the same id.
+const NavLibraryPill = ({library, slot, onSelectLibrary}) => {
+	const handleClick = useCallback(() => onSelectLibrary?.(library), [library, onSelectLibrary]);
+	return <NavPillButton Icon={libraryNavIcon(library)} slot={slot} label={library.Name} onClick={handleClick} />;
+};
 
 const NavContainer = SpotlightContainerDecorator({
 	enterTo: 'default-element',
@@ -43,6 +50,7 @@ const NavBar = ({
 	onFavorites,
 	onLiveTv,
 	onDiscover,
+	onCalendar,
 	onSettings,
 	onSelectLibrary,
 	onUserMenu,
@@ -54,9 +62,9 @@ const NavBar = ({
 	hideForTrailer
 }) => {
 	const {settings, activeTheme} = useSettings();
-	const {isEnabled: seerrEnabled, displayName} = useSeerr();
+	const {isEnabled: seerrEnabled, displayName, pluginInfo} = useSeerr();
 	const {isInGroup} = useSyncPlay();
-	const {serverType} = useAuth();
+	const {room: watchPartyRoom} = useWatchParty();
 	const {messages, unreadCount} = useServerMessages();
 	const {socialAvailable, badgeCount: friendsBadge} = useAchievements();
 	const [libraryMenuOpen, setLibraryMenuOpen] = useState(false);
@@ -71,8 +79,9 @@ const NavBar = ({
 	const kidsMode = isKidsMode(settings);
 	const showLiveTv = !kidsMode && settings.showLiveTvButton !== false && hasLiveTv;
 	const showSeerr = !kidsMode && seerrEnabled && settings.showSeerrButton !== false;
-	// Plex has no SyncPlay.
-	const showSyncPlay = !kidsMode && serverType !== 'plex' && settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false;
+	const showCalendar = !kidsMode && settings.showCalendarButton !== false && pluginInfo?.calendarAvailable === true;
+	// Every server type gets the button, and the screen says so when Moonbase is missing.
+	const showSyncPlay = !kidsMode && settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false;
 	const navLibraries = librariesForNav(libraries, showLiveTv, {hideLiveTv: kidsMode});
 	const showLibraries = !kidsMode && settings.showLibrariesInToolbar !== false && navLibraries.length > 0;
 	// Only with something to show, so the menu never has a button that does nothing.
@@ -102,6 +111,7 @@ const NavBar = ({
 	// Whatever sits immediately left of the libraries group, which depends on how
 	// many of the optional buttons are turned on.
 	const librariesLeftTargetId = useMemo(() => {
+		if (showCalendar) return 'navbar-calendar';
 		if (showSeerr) return 'navbar-discover';
 		if (showSyncPlay) return 'navbar-syncplay';
 		if (showLiveTv) return 'navbar-livetv';
@@ -109,7 +119,7 @@ const NavBar = ({
 		if (showGenres) return 'navbar-genres';
 		if (showShuffle) return 'navbar-shuffle';
 		return 'navbar-search';
-	}, [showSeerr, showSyncPlay, showLiveTv, showFavorites, showGenres, showShuffle]);
+	}, [showCalendar, showSeerr, showSyncPlay, showLiveTv, showFavorites, showGenres, showShuffle]);
 
 	const handlePillFocus = useCallback((e) => {
 		if (pointerHover()) return;
@@ -165,14 +175,27 @@ const NavBar = ({
 					)}
 
 					{showSyncPlay && (
-						<NavPillButton Icon={SyncPlayIcon} slot={nextSlot()} label={$L('SyncPlay')} onClick={onSyncPlay} spotlightId="navbar-syncplay" active={isInGroup} />
+						<NavPillButton Icon={SyncPlayIcon} slot={nextSlot()} label={$L('Watch Parties')} onClick={onSyncPlay} spotlightId="navbar-syncplay" active={Boolean(watchPartyRoom) || isInGroup} />
 					)}
 
 					{showSeerr && (
 						<NavPillButton Icon={SeerrIcon} slot={nextSlot()} label={displayName} onClick={onDiscover} spotlightId="navbar-discover" />
 					)}
 
-					{showLibraries && (
+					{showCalendar && (
+						<NavPillButton Icon={CalendarIcon} slot={nextSlot()} label={$L('Calendar')} onClick={onCalendar} spotlightId="navbar-calendar" />
+					)}
+
+					{showLibraries && (settings.showLibrariesIndividually === true ? (
+						navLibraries.map((library) => (
+							<NavLibraryPill
+								key={`${library._serverId || ''}:${library._serverUserId || ''}:${library.Id}`}
+								library={library}
+								slot={nextSlot()}
+								onSelectLibrary={onSelectLibrary}
+							/>
+						))
+					) : (
 						<NavLibraries
 							libraries={navLibraries}
 							slot={nextSlot()}
@@ -181,7 +204,7 @@ const NavBar = ({
 							leftTargetId={librariesLeftTargetId}
 							onMenuOpen={setLibraryMenuOpen}
 						/>
-					)}
+					))}
 
 					{showMessages && (
 						<NavPillButton Icon={MessagesIcon} slot={nextSlot()} label={$L('Messages')} onClick={onMessages} spotlightId="navbar-messages" badge={unreadCount} />

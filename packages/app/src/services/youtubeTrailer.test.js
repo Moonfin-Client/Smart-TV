@@ -1,5 +1,6 @@
 jest.mock('../platform', () => ({isTizen: jest.fn(), isVega: jest.fn(), isWebOS: jest.fn(), isXbox: jest.fn()}));
 jest.mock('./serverLogger', () => ({__esModule: true, default: {warn: jest.fn(), LOG_CATEGORIES: {PLAYBACK: 'Playback'}}}));
+jest.mock('./storage', () => ({getFromStorage: jest.fn(() => Promise.resolve({}))}));
 jest.mock('./video', () => ({readTrailerManifest: jest.fn()}));
 
 import {isTizen, isVega, isWebOS, isXbox} from '../platform';
@@ -9,6 +10,7 @@ import {
 	attachTrailerStream,
 	buildInnertubePayload,
 	extractInnertubeStream,
+	fetchSponsorSegments,
 	fetchVideoStream,
 	firstSearchVideoId,
 	freshVisitorData,
@@ -228,6 +230,7 @@ describe('keepOriginalAudioTrack', () => {
 describe('fetchVideoStream', () => {
 	afterEach(() => {
 		delete global.fetch;
+		delete window.PalmServiceBridge;
 	});
 
 	test('cuts the picture out of the manifest on Fire TV, and leaves one it cant read whole', async () => {
@@ -289,6 +292,65 @@ describe('fetchVideoStream', () => {
 			['VISIONOS', undefined],
 			['VISIONOS', 'visitor-4']
 		]);
+	});
+
+	test('asks YouTube through the app service on webOS, since YouTube turns away a page at file://', async () => {
+		isWebOS.mockReturnValue(true);
+		global.fetch = jest.fn();
+		const calls = [];
+		window.PalmServiceBridge = function () {
+			this.call = (uri, payload) => {
+				calls.push({uri, payload: JSON.parse(payload)});
+				setTimeout(() => this.onservicecallback(JSON.stringify({returnValue: true, status: 200, headers: {}, body: JSON.stringify(dubbedAnswer())})));
+			};
+			this.cancel = () => {};
+		};
+
+		const stream = await fetchVideoStream('vid', true);
+
+		expect(stream.url).toBe(HLS_URL);
+		expect(global.fetch).not.toHaveBeenCalled();
+		expect(calls).toHaveLength(1);
+		expect(calls[0].uri).toBe('luna://org.moonfin.webos.service/fetch');
+		expect(calls[0].payload).toMatchObject({url: 'https://www.youtube.com/youtubei/v1/player?prettyPrint=false', method: 'POST'});
+		expect(JSON.parse(calls[0].payload.body).videoId).toBe('vid');
+	});
+
+	test('asks YouTube with a plain fetch off webOS', async () => {
+		global.fetch = jest.fn(() => Promise.resolve({ok: true, json: () => Promise.resolve(dubbedAnswer())}));
+		window.PalmServiceBridge = jest.fn();
+
+		const stream = await fetchVideoStream('vid', true);
+
+		expect(stream.url).toBe(HLS_URL);
+		expect(window.PalmServiceBridge).not.toHaveBeenCalled();
+		expect(global.fetch.mock.calls[0][1]).not.toHaveProperty('signal');
+	});
+});
+
+describe('fetchSponsorSegments', () => {
+	afterEach(() => {
+		delete global.fetch;
+	});
+
+	test('asks by hash prefix and keeps only the segments for the requested video', async () => {
+		global.fetch = jest.fn(() => Promise.resolve({ok: true, json: () => Promise.resolve([
+			{videoID: 'otherVideo1', hash: 'x', segments: [{segment: [0, 99]}]},
+			{videoID: 'dQw4w9WgXcQ', hash: 'y', segments: [{segment: [0, 12]}, {segment: [40]}]}
+		])}));
+
+		const segments = await fetchSponsorSegments('dQw4w9WgXcQ');
+
+		expect(segments).toEqual([{start: 0, end: 12}]);
+		const url = global.fetch.mock.calls[0][0];
+		expect(url.indexOf('https://sponsor.ajay.app/api/skipSegments/5f6b?categories=')).toBe(0);
+		expect(url).not.toContain('dQw4w9WgXcQ');
+	});
+
+	test('treats a 404 as no segments', async () => {
+		global.fetch = jest.fn(() => Promise.resolve({ok: false, status: 404}));
+
+		expect(await fetchSponsorSegments('dQw4w9WgXcQ')).toEqual([]);
 	});
 });
 

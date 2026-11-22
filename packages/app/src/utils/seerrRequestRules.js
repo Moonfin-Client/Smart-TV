@@ -1,5 +1,5 @@
 // What the request controls may offer for one quality track. Kept apart from the screen so
-// the rules can be read on their own, and so they stay the same rules the other clients use.
+// the rules can be read on their own.
 
 import {MEDIA_STATUS, REQUEST_STATUS} from './seerrStatus';
 
@@ -17,7 +17,7 @@ export const isContinuingSeries = (status) => {
 
 /**
  * The season numbers a series actually has. A provider that splits a run its own way reports
- * its own numbers, so counting from one would offer seasons that arent there. The count is
+ * its own numbers, so counting from one would offer seasons that aren't there. The count is
  * only a fallback for a server that sends no season list.
  *
  * @param {Array} [seasons] - the seasons Seerr reports
@@ -34,6 +34,9 @@ export const seasonNumbersOf = (seasons, fallbackCount = 0) => {
 	return numbers;
 };
 
+export const isAvailableStatus = (status) =>
+	status === MEDIA_STATUS.PARTIALLY_AVAILABLE || status === MEDIA_STATUS.AVAILABLE;
+
 /**
  * The seasons the request sheet may not offer, being already in the library or already
  * spoken for by an open request.
@@ -46,8 +49,8 @@ export const seasonNumbersOf = (seasons, fallbackCount = 0) => {
 export const unavailableOrRequestedSeasons = (seasonAvailability, activeRequests, is4k) => {
 	const taken = new Set();
 	(seasonAvailability || []).forEach((season) => {
-		const status = is4k ? season?.status4k : season?.status;
-		if (status >= MEDIA_STATUS.PARTIALLY_AVAILABLE) taken.add(season.seasonNumber);
+		// A blocklisted or deleted season isn't in the library, so it can be asked for again
+		if (isAvailableStatus(is4k ? season?.status4k : season?.status)) taken.add(season.seasonNumber);
 	});
 	(activeRequests || []).forEach((request) => {
 		(request?.seasons || []).forEach((season) => taken.add(season.seasonNumber));

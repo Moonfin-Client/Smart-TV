@@ -45,12 +45,30 @@ export const noteAnsweredSettings = (keys) => {
 	}
 };
 
+// The server and user pairs whose settings this launch has finished reading at
+// sign in, whichever way it went. Kept per user, since a second profile on the
+// same server signs in without a reload while its own settings are still on the
+// way.
+const signInRead = {};
+
 // Keyed the same way the multi server records are, so moving a server to a new
 // URL doesnt read as one nobody has set up yet.
 const normalizeUrl = (serverUrl) => (serverUrl || '')
 	.replace(/^https?:\/\//i, '')
 	.replace(/\/+$/, '')
 	.toLowerCase();
+
+const signInKeyFor = (serverUrl, userId) => normalizeUrl(serverUrl) + '/' + (userId || '');
+
+export const beginSignInRead = (serverUrl, userId) => {
+	delete signInRead[signInKeyFor(serverUrl, userId)];
+};
+
+export const finishSignInRead = (serverUrl, userId) => {
+	signInRead[signInKeyFor(serverUrl, userId)] = true;
+};
+
+export const hasReadSignInSettings = (serverUrl, userId) => Boolean(signInRead[signInKeyFor(serverUrl, userId)]);
 
 export const serverKeyFor = (serverId, serverUrl, userId) => {
 	if (!userId) return null;
@@ -114,6 +132,7 @@ export const beginRerun = () => {
 // The module holds its state between tests otherwise.
 export const resetGateForTests = () => {
 	for (const key of Object.keys(answeredKeys)) delete answeredKeys[key];
+	for (const key of Object.keys(signInRead)) delete signInRead[key];
 	deferredThisLaunch = false;
 	rerunning = false;
 };

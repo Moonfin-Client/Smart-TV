@@ -2,7 +2,8 @@
 // switch keeps working, and the style picks where it goes once it's on.
 export const homeBackdropStyle = (settings) => {
 	if (settings?.showHomeBackdrop === false) return 'off';
-	return settings?.homeBackdropStyle === 'corner' ? 'corner' : 'fullScreen';
+	const style = settings?.homeBackdropStyle;
+	return style === 'corner' || style === 'top' ? style : 'fullScreen';
 };
 
 export const homeBackdropSettings = (style) => ({

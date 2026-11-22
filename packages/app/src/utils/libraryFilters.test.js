@@ -1,4 +1,4 @@
-import {buildFilterParams, facetRows} from './libraryFilters';
+import {NO_FILTERS, buildFilterParams, facetRows, hasActiveFilters} from './libraryFilters';
 
 describe('library filters', () => {
 	it('asks for nothing when nothing is picked', () => {
@@ -84,5 +84,27 @@ describe('facet rows', () => {
 		expect(rows.visible.map((row) => row.value)).toEqual(['action', 'Amélie', 'western']);
 		expect(rows.remaining).toBe(7);
 		expect(rows.chosen).toBe(1);
+	});
+});
+
+describe('hasActiveFilters', () => {
+	test('nothing picked has nothing to clear', () => {
+		expect(hasActiveFilters(NO_FILTERS)).toBe(false);
+		expect(hasActiveFilters({})).toBe(false);
+	});
+
+	test('any series status counts', () => {
+		expect(hasActiveFilters({...NO_FILTERS, seriesFilter: 'continuing'})).toBe(true);
+		expect(hasActiveFilters({...NO_FILTERS, seriesFilter: 'ended'})).toBe(true);
+	});
+
+	test('a status, a flag or a list each count', () => {
+		expect(hasActiveFilters({...NO_FILTERS, playedFilter: 'watched'})).toBe(true);
+		expect(hasActiveFilters({...NO_FILTERS, favoritesOnly: true})).toBe(true);
+		expect(hasActiveFilters({...NO_FILTERS, subtitleLanguageFilters: ['eng']})).toBe(true);
+	});
+
+	test('the saved filters go straight into the query', () => {
+		expect(buildFilterParams({...NO_FILTERS, tagFilters: ['4K']})).toEqual({Tags: '4K'});
 	});
 });

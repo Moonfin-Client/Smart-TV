@@ -1,0 +1,61 @@
+name: Check translations
+
+# Weblate pushes straight to main, where Build doesn't run, and one locale's
+# strings.json that isn't valid JSON breaks every platform build, since the
+# app bundles them all. Parse each one on its own and point at the broken line.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/app/resources/**/strings.json'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'packages/app/resources/**/strings.json'
+
+permissions:
+  contents: read
+
+jobs:
+  parse:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+
+      - name: Parse every strings.json
+        run: |
+          node - <<'EOF'
+          const fs = require('fs');
+          const path = require('path');
+          const dir = 'packages/app/resources';
+          const files = [path.join(dir, 'strings.json')];
+          for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+            const file = path.join(dir, entry.name, 'strings.json');
+            if (entry.isDirectory() && fs.existsSync(file)) files.push(file);
+          }
+
+          let broken = 0;
+          for (const file of files) {
+            const text = fs.readFileSync(file, 'utf8');
+            try {
+              const value = JSON.parse(text);
+              if (!value || typeof value !== 'object' || Array.isArray(value)) {
+                throw new Error('the file is not a JSON object');
+              }
+            } catch (error) {
+              broken++;
+              const at = /position (\d+)/.exec(error.message);
+              const line = at ? text.slice(0, Number(at[1])).split('\n').length : 1;
+              console.log(`::error file=${file},line=${line}::${error.message}`);
+            }
+          }
+          console.log(`${files.length} files, ${broken} broken`);
+          process.exit(broken ? 1 : 0);
+          EOF

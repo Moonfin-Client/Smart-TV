@@ -14,10 +14,21 @@ export const CACHE_TTL_LIBRARIES = 30 * 60 * 1000;
 export const VOLATILE_REFRESH_COOLDOWN_MS = 60 * 1000;
 const CACHE_SAVE_DEBOUNCE_MS = 3000;
 
+let homeRows = null;
+const rowDataListeners = new Set();
+
 // Read and written across mounts on purpose, so leaving Browse and coming back doesn't
 // refetch everything.
 export const memoryCache = {
-	rowData: null,
+	// Every loader writes Home's rows here, and the Settings preview listens so it can redraw as
+	// Home reloads behind Settings.
+	get rowData () {
+		return homeRows;
+	},
+	set rowData (next) {
+		homeRows = next;
+		rowDataListeners.forEach((listener) => listener());
+	},
 	libraries: null,
 	featuredItems: null,
 	timestamp: null,
@@ -26,11 +37,24 @@ export const memoryCache = {
 	rowConfigKey: null,
 	// The media bar settings the shown items were drawn for; a set drawn for other settings replaces them.
 	featuredConfigKey: null,
+	// When Recently Added and Recently Released were last read. The timestamp above moves whenever
+	// Continue Watching and Next Up are read again, which says nothing about these.
+	recentAt: null,
 	// Whose rows these are. Kept so a fresh mount can tell an account change, which has to
 	// throw the rows away, apart from an ordinary return to the home screen, which is the
 	// whole reason the cache is here. Emptying the rows leaves it alone, since a refresh
 	// still belongs to the same account.
-	owner: null
+	owner: null,
+	// Sections known to come back empty, because their last load did or the first load for the
+	// account found nothing stored for them. Their placeholders stay hidden while they load
+	// again, so an empty section doesn't flash its title on every load. A refresh keeps them.
+	emptySections: new Set(),
+	emptySectionsSeeded: false
+};
+
+export const subscribeRowData = (listener) => {
+	rowDataListeners.add(listener);
+	return () => rowDataListeners.delete(listener);
 };
 
 // A refresh keeps the media bar unless the caller asks for it, or an account change clears everything.
@@ -39,6 +63,7 @@ export const clearMemoryCache = ({keepFeatured = false} = {}) => {
 	memoryCache.libraries = null;
 	memoryCache.timestamp = null;
 	memoryCache.rowConfigKey = null;
+	memoryCache.recentAt = null;
 	if (keepFeatured) return;
 	memoryCache.featuredItems = null;
 	memoryCache.featuredConfigKey = null;
@@ -47,6 +72,35 @@ export const clearMemoryCache = ({keepFeatured = false} = {}) => {
 export const isCacheValid = (timestamp, ttl) => {
 	if (!timestamp) return false;
 	return Date.now() - timestamp < ttl;
+};
+
+// Stored rows older than this say nothing about which sections are empty now.
+const STORED_ROWS_MAX_AGE = 3 * 24 * 60 * 60 * 1000;
+
+const fillsSection = (row, id) => row.items?.length > 0 && (row.id === id ||
+	(id === 'latest-media' && row.isLatestRow) || (id === 'recently-released' && row.isRecentlyReleasedRow));
+
+export const resetEmptySections = () => {
+	memoryCache.emptySections = new Set();
+	memoryCache.emptySectionsSeeded = false;
+};
+
+// Called only for a load that went through, since a failed one says nothing about the section.
+export const settleSections = (ids, rows) => ids.forEach((id) => {
+	if ((rows || []).some((row) => fillsSection(row, id))) memoryCache.emptySections.delete(id);
+	else memoryCache.emptySections.add(id);
+});
+
+// The first load for an account has no loads of its own to go on, so a section the stored rows
+// hold nothing for counts as empty. On Now is left out, since its rows only hold for the minutes
+// they describe.
+export const seedEmptySections = (ids, stored) => {
+	if (memoryCache.emptySectionsSeeded) return;
+	memoryCache.emptySectionsSeeded = true;
+	if (!stored?.rowData?.length || !isCacheValid(stored.timestamp, STORED_ROWS_MAX_AGE)) return;
+	ids.forEach((id) => {
+		if (id !== 'onnow' && !stored.rowData.some((row) => fillsSection(row, id))) memoryCache.emptySections.add(id);
+	});
 };
 
 // Genre tiles borrow a library item's artwork. Keeping only the fields the card reads stops
@@ -111,7 +165,11 @@ const stripItemForCache = (item) => ({
 	_serverUserId: item._serverUserId,
 	_serverId: item._serverId,
 	isLibraryTile: item.isLibraryTile,
-	isRecordingsShortcut: item.isRecordingsShortcut
+	isRecordingsShortcut: item.isRecordingsShortcut,
+	// A merged library's tile and a card several servers hold, from merged libraries.
+	_imageItemId: item._imageItemId,
+	_mergedType: item._mergedType,
+	_mergedCopies: Array.isArray(item._mergedCopies) ? item._mergedCopies.map(stripItemForCache) : undefined
 });
 
 // Enough of the rows to tell whether a write is worth making. Resume and Next Up also fold in
@@ -141,21 +199,25 @@ export const cancelPendingCacheSave = () => {
 export const saveBrowseCache = (rowData, libraries, featuredItems, {serverUrl, userId}) => {
 	const signature = cacheSignature(rowData);
 	if (signature === lastSignature) return;
-	// Read now, since a draw that lands before the write runs would otherwise save its key with these items.
+	// Read now, since a draw or a load that lands before the write runs would otherwise save its key with these items.
 	const featuredConfigKey = memoryCache.featuredConfigKey;
+	const rowConfigKey = memoryCache.rowConfigKey;
 
 	cancelPendingCacheSave();
 	saveTimer = setTimeout(async () => {
 		saveTimer = null;
 		try {
 			await saveToStorage(STORAGE_KEY_BROWSE, {
-				rowData: rowData.map((row) => ({...row, items: row.items.map(stripItemForCache)})),
+				// A row's reader can't be stored, so a row read back from storage can't page until
+				// Home loads it again.
+				rowData: rowData.map((row) => ({...row, readHead: undefined, hasMore: false, items: row.items.map(stripItemForCache)})),
 				libraries,
 				featuredItems,
 				timestamp: Date.now(),
 				serverUrl,
 				userId,
-				rowConfigKey: memoryCache.rowConfigKey,
+				rowConfigKey,
+				recentAt: memoryCache.recentAt,
 				featuredConfigKey
 			});
 			lastSignature = signature;

@@ -127,3 +127,19 @@
 	color: #fff;
 	text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
 }
+
+// Room for three lines is always kept, so the rows below don't move as focus comes and goes,
+// with a gap under it before the next row.
+.gameDescription {
+	height: 108px;
+	max-width: 1200px;
+	margin: 0 0 24px;
+	font-size: 24px;
+	line-height: 36px;
+	color: var(--theme-text-secondary, rgba(255, 255, 255, 0.85));
+	text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.8);
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}

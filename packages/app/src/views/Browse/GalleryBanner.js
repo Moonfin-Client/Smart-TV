@@ -7,6 +7,7 @@ import {getFeaturedBackdropUrl, formatDuration} from '../../utils/helpers';
 import RatingsRow from '../../components/RatingsRow';
 import {createApiForServer} from '../../services/jellyfinApi';
 import {KEYS} from '../../utils/keys';
+import MediaBarNewReleaseLabel from '../../components/MediaBarNewReleaseLabel';
 import {genreGlowRgb} from './galleryGlow';
 import useTrailerPreview from './useTrailerPreview';
 import css from './Browse.module.less';
@@ -30,6 +31,7 @@ const GalleryBanner = memo(({
 	rowPeek = 0,
 	browseVisible = true,
 	featuredItems,
+	newReleases,
 	api,
 	settings,
 	settingsLoaded,
@@ -268,6 +270,7 @@ const GalleryBanner = memo(({
 									<div className={css.galleryActive}>
 										<div className={css.galleryActiveLeft}>
 											<h2 className={css.galleryActiveTitle}>{item.Name}</h2>
+											<MediaBarNewReleaseLabel release={newReleases?.[item.Id]} />
 
 											<div className={css.galleryBadges}>
 												{item.Type !== 'Series' && item.RunTimeTicks && (() => {
@@ -291,7 +294,8 @@ const GalleryBanner = memo(({
 												item={item}
 												serverUrl={getItemServerUrl(item)}
 												compact
-												pluginEnabled={isMdblistEnabled(settings)}
+												surface='mediaBar'
+												pluginEnabled={isMdblistEnabled(settings, 'mediaBar')}
 											/>
 
 											{!settings.hideHomeMediaDescription && item.Overview && (

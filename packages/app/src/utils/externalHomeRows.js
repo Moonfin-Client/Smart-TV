@@ -1,9 +1,11 @@
 import $L from '@enact/i18n/$L';
 import seerrApi from '../services/seerrApi';
 import {fetchCustomRow, constructSourceUrl} from '../services/externalRowsApi';
+import {airsText, daysBetween} from './calendarEntries';
 import {fetchWithTimeout} from './fetchTimeout';
 import {seasonalTitle} from './seasonalTitles';
-import {uiLocale} from './uiLocale';
+import {CHART_ROWS} from './homeLayout';
+import {resolveDeviceCountry} from './deviceCountry';
 
 const HOME_ROW_LIMIT = 20;
 const VALIDATE_TIMEOUT_MS = 45000;
@@ -39,13 +41,14 @@ export const IMDB_PRESETS = [
 // separately and carry their own descriptors.
 export const getExternalHomeRowConfigs = () => ([
 	...TMDB_PRESETS.map((p) => ({...p, source: 'tmdb_chart', section: 'tmdb'})),
-	...IMDB_PRESETS.map((p) => ({...p, source: 'imdb', section: 'imdb'}))
+	...IMDB_PRESETS.map((p) => ({...p, source: 'imdb', section: 'imdb'})),
+	...CHART_ROWS.map((row) => ({...row, title: $L(row.title), section: 'chart'}))
 ]);
 
 const findPreset = (id) => getExternalHomeRowConfigs().find((c) => c.id === id) || null;
 
 const yearOf = (item) => {
-	const year = parseInt(String(item.productionYear || '').slice(0, 4), 10);
+	const year = parseInt(String(item.productionYear || item.year || item.release_date || '').slice(0, 4), 10);
 	return Number.isFinite(year) ? year : undefined;
 };
 
@@ -56,6 +59,7 @@ const getSourceName = (source, rowId) => {
 	if (src.includes('letterboxd')) return 'Letterboxd';
 	if (src.includes('trakt')) return 'Trakt';
 	if (src.includes('mdblist')) return 'MDBList';
+	if (src.includes('justwatch')) return 'JustWatch';
 	if (src.includes('radarr')) return 'Radarr';
 	if (src.includes('sonarr')) return 'Sonarr';
 	if (src.includes('seerr')) return 'Seerr';
@@ -89,6 +93,7 @@ const normalizeExternalItem = (item, rowId, source) => {
 		OfficialRating: item.officialRating ?? null,
 		Overview: item.overview || null,
 		CommunityRating: item.rating ?? null,
+		Popularity: item.popularity ?? null,
 		Genres: Array.isArray(item.genres) ? item.genres : [],
 		RunTimeTicks: item.runTimeTicks ?? null,
 		_externalPosterUrl: item.posterUrl ? seerrApi.getImageUrl(item.posterUrl, 'w342') : null,
@@ -118,24 +123,75 @@ export const buildSeasonalRow = (payload, hiddenHolidays = []) => {
 	return {
 		id: 'seasonal',
 		holiday: payload.holiday,
-		title: seasonalTitle(payload.holiday),
+		// Silo names its own seasonal section.
+		title: payload.title || seasonalTitle(payload.holiday),
 		items,
 		isExternalRow: true,
 		isSeasonalRow: true
 	};
 };
 
+export const formatWatchingNowSubtitle = (data) => {
+	if (!data) return '';
+	const usersStr = Number(data.users || 0).toLocaleString();
+	const moviesStr = Number(data.movies || 0).toLocaleString();
+	const showsStr = Number(data.shows || 0).toLocaleString();
+	if (data.mode === 'today') {
+		return $L('{users} watched today \u00b7 {movies} movies \u00b7 {shows} shows')
+			.replace('{users}', usersStr)
+			.replace('{movies}', moviesStr)
+			.replace('{shows}', showsStr);
+	}
+	return $L('{users} watching now \u00b7 {movies} movies \u00b7 {shows} shows')
+		.replace('{users}', usersStr)
+		.replace('{movies}', moviesStr)
+		.replace('{shows}', showsStr);
+};
+
+export const normalizeWatchingNowItem = (item, index) => {
+	const isShow = item.media_type === 'show';
+	const mediaType = isShow ? 'tv' : 'movie';
+	const tmdbId = item.tmdb_id ? String(item.tmdb_id) : null;
+	const imdbId = item.imdb_id || null;
+	const key = imdbId || tmdbId || item.public_id || String(index);
+	const rank = index + 1;
+	return {
+		Id: `ext-mdblist-watching-${key}`,
+		Name: item.title,
+		Type: isShow ? 'Series' : 'Movie',
+		ProductionYear: yearOf(item),
+		Rank: rank,
+		Watchers: item.watchers || 0,
+		ProviderIds: {
+			...(imdbId ? {Imdb: imdbId} : {}),
+			...(tmdbId ? {Tmdb: tmdbId} : {})
+		},
+		_externalBackdropUrl: item.backdrop || null,
+		_externalPosterUrl: item.backdrop || item.poster || null,
+		_externalLogoUrl: item.logo || null,
+		_external: true,
+		mediaInfo: {},
+		_seerr: true,
+		_seerrType: 'item',
+		_seerrMediaType: mediaType,
+		_seerrRaw: seerrRawFor(tmdbId, imdbId, item.title, mediaType)
+	};
+};
+
+const shuffled = (items) => {
+	const out = [...items];
+	for (let i = out.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[out[i], out[j]] = [out[j], out[i]];
+	}
+	return out;
+};
+
 // Client side sorting for custom rows.
 const applySorting = (items, sortBy, sortOrder) => {
 	if (!sortBy || sortBy === 'none') return items;
+	if (sortBy === 'shuffle') return shuffled(items);
 	const sorted = [...items];
-	if (sortBy === 'shuffle') {
-		for (let i = sorted.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[sorted[i], sorted[j]] = [sorted[j], sorted[i]];
-		}
-		return sorted;
-	}
 	const dir = sortOrder === 'desc' ? -1 : 1;
 	sorted.sort((a, b) => {
 		let av;
@@ -154,6 +210,30 @@ const applySorting = (items, sortBy, sortOrder) => {
 	return sorted;
 };
 
+const EXTERNAL_SORT_KEYS = {
+	releaseDate: (item) => item.ProductionYear || 0,
+	rating: (item) => item.CommunityRating || 0,
+	popularity: (item) => item.Popularity || 0
+};
+
+// The order the IMDb, TMDB and Seerr rows' sort settings ask for. Ties go to the name, since a
+// release date is often only a year.
+export const sortExternalItems = (items, sortBy, sortOrder) => {
+	if (!sortBy || sortBy === 'none' || !items.length) return items;
+	if (sortBy === 'shuffle') return shuffled(items);
+	const byName = (a, b) => {
+		const x = (a.Name || '').toLowerCase();
+		const y = (b.Name || '').toLowerCase();
+		return x < y ? -1 : x > y ? 1 : 0;
+	};
+	const key = EXTERNAL_SORT_KEYS[sortBy];
+	const dir = sortOrder === 'descending' ? -1 : 1;
+	return [...items].sort((a, b) => {
+		const cmp = key ? key(a) - key(b) : byName(a, b);
+		return cmp === 0 ? byName(a, b) : cmp * dir;
+	});
+};
+
 // TMDB's movie and TV charts don't say what each result is, so the chart's path decides.
 // Trending says per result, which matters for the list that mixes both.
 const chartItemType = (path) => {
@@ -162,13 +242,18 @@ const chartItemType = (path) => {
 	return null;
 };
 
-// Fetches a preset TMDB or IMDb chart row.
+// Fetches a preset TMDB or IMDb chart row. The whole chart is sorted before the row is cut to size.
 export const fetchExternalPresetRow = async (rowId, options = {}) => {
 	const cfg = findPreset(rowId);
 	if (!cfg) return [];
-	const items = await fetchCustomRow({source: cfg.source, type: cfg.type, params: {}}, options);
+	const region = cfg.regional ? await resolveDeviceCountry() : null;
+	const params = {...cfg.params, ...(region ? {region} : {})};
+	const items = await fetchCustomRow({source: cfg.source, type: cfg.type, params}, options);
 	const type = chartItemType(cfg.type);
-	return items.slice(0, options.limit || HOME_ROW_LIMIT).map((it) => normalizeExternalItem(type ? {...it, type} : it, rowId, cfg.source));
+	const limit = options.limit || HOME_ROW_LIMIT;
+	const pool = options.sortBy && options.sortBy !== 'none' ? items : items.slice(0, limit);
+	const normalized = pool.map((it) => normalizeExternalItem(type ? {...it, type} : it, rowId, cfg.source));
+	return sortExternalItems(normalized, options.sortBy, options.sortOrder).slice(0, limit);
 };
 
 // Fetches a user configured custom row. `row` is the stored config
@@ -227,6 +312,13 @@ export const detectCustomSource = (url) => {
 	m = raw.match(/themoviedb\.org\/collection\/(\d+)/i);
 	if (m) return {source: 'tmdb', type: 'movie_collection', params: {id: m[1]}};
 
+	// An official list's movies or shows page keeps just that type.
+	m = raw.match(/mdblist\.com\/lists\/official\/(movies|shows)\/([^/?#]+)/i);
+	if (m) {
+		const mediatype = m[1].toLowerCase() === 'movies' ? 'movie' : 'show';
+		return {source: 'mdblist', type: 'list_url', params: {username: 'official', listname: m[2], mediatype}};
+	}
+
 	m = raw.match(/mdblist\.com\/lists\/([^/]+)\/([^/?#]+)/i);
 	if (m) return {source: 'mdblist', type: 'list_url', params: {username: m[1], listname: m[2]}};
 
@@ -263,17 +355,9 @@ const posterFrom = (images) => {
 	return poster ? (poster.remoteUrl || poster.url || null) : null;
 };
 
-const formatCalendarDate = (dateStr) => {
-	if (!dateStr) return '';
-	const d = new Date(dateStr);
-	if (Number.isNaN(d.getTime())) return '';
-	return d.toLocaleDateString(uiLocale(), {month: 'short', day: 'numeric'});
-};
-
 // Radarr gives a release as midnight UTC on its day, which is the day before anywhere west of
 // UTC, so the day is read as it's written.
 const releaseDay = (date) => new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const arrGet = async (url) => {
 	try {
@@ -287,7 +371,11 @@ const arrGet = async (url) => {
 	}
 };
 
-const fetchRadarrItems = async (settings) => {
+// Moonbase answers with the arr's own JSON and keeps the API key on the server. A plugin without
+// the route, or a server the arr isn't linked to, falls back to asking the arr directly.
+const radarrCalendar = async () => {
+	const proxied = await seerrApi.getArrCalendar('Radarr', {start: isoDate(0), end: isoDate(90), unmonitored: true});
+	if (proxied.items) return proxied.items;
 	let servers = [];
 	try {
 		servers = await seerrApi.getRadarrSettings();
@@ -297,36 +385,36 @@ const fetchRadarrItems = async (settings) => {
 	}
 	const server = pickDefaultServer(servers);
 	if (!server || !server.apiKey) return [];
+	return arrGet(`${arrBaseUrl(server)}/api/v3/calendar?apikey=${encodeURIComponent(server.apiKey)}&start=${isoDate(0)}&end=${isoDate(90)}&unmonitored=true`);
+};
 
-	const url = `${arrBaseUrl(server)}/api/v3/calendar?apikey=${encodeURIComponent(server.apiKey)}&start=${isoDate(0)}&end=${isoDate(90)}&unmonitored=true`;
-	const items = await arrGet(url);
+const fetchRadarrItems = async (settings) => {
+	// On Silo, Silo's own calendar in Radarr's shape.
+	const items = await (seerrApi.getSiloCalendar('movie', isoDate(0), isoDate(90)) || radarrCalendar());
+
+	const today = new Date();
+	// Cinema dates keep their label, so a date alone never reads as a release on the server. Digital
+	// and physical together keep it too, since a stream and a disc can come out months apart.
+	const showFormat = settings.radarrCalendarShowCinema || (settings.radarrCalendarShowDigital && settings.radarrCalendarShowPhysical);
 
 	const results = [];
 	for (const m of items) {
-		const dates = [];
-		if (settings.radarrCalendarShowCinema && m.inCinemas) dates.push(m.inCinemas);
-		if (settings.radarrCalendarShowDigital && m.digitalRelease) dates.push(m.digitalRelease);
-		if (settings.radarrCalendarShowPhysical && m.physicalRelease) dates.push(m.physicalRelease);
+		// Radarr already has a file for it, so it's on the server and not upcoming.
+		if (settings.radarrCalendarHideDownloaded && m.hasFile === true) continue;
+		const releases = [];
+		if (settings.radarrCalendarShowCinema && m.inCinemas) releases.push({date: new Date(m.inCinemas), format: $L('Cinema')});
+		if (settings.radarrCalendarShowDigital && m.digitalRelease) releases.push({date: new Date(m.digitalRelease), format: $L('Digital')});
+		if (settings.radarrCalendarShowPhysical && m.physicalRelease) releases.push({date: new Date(m.physicalRelease), format: $L('Physical')});
 		// A release stays on the row through its own day.
-		const since = Date.now() - DAY_MS;
-		const upcoming = dates.map((d) => new Date(d)).filter((d) => !Number.isNaN(d.getTime()) && d.getTime() > since);
+		const upcoming = releases.filter(({date}) => !Number.isNaN(date.getTime()) && daysBetween(today, releaseDay(date)) >= 0);
 		if (!upcoming.length) continue;
-		const soonest = upcoming.sort((a, b) => a - b)[0];
+		// Two releases on one day go by the later kind, so physical wins.
+		const {date: soonest, format} = upcoming.reduce((best, next) => (next.date <= best.date ? next : best));
 		const tmdbId = m.tmdbId ? String(m.tmdbId) : null;
 		const imdbId = m.imdbId || null;
 
-		let releaseType = '';
-		const soonestTime = soonest.getTime();
-		if (m.inCinemas && new Date(m.inCinemas).getTime() === soonestTime) {
-			releaseType = $L('Cinema: ');
-		} else if (m.digitalRelease && new Date(m.digitalRelease).getTime() === soonestTime) {
-			releaseType = $L('Digital: ');
-		} else if (m.physicalRelease && new Date(m.physicalRelease).getTime() === soonestTime) {
-			releaseType = $L('Physical: ');
-		}
-
-		const dateStr = settings.radarrCalendarShowDate ? formatCalendarDate(releaseDay(soonest)) : '';
-		const subtitle = dateStr ? `${releaseType}${dateStr}` : '';
+		const release = airsText(releaseDay(soonest), today, settings.dateFormat);
+		const subtitle = settings.radarrCalendarShowDate ? (showFormat ? `${format} \u00b7 ${release}` : release) : '';
 		const fanart = m.images?.find((i) => i.coverType === 'fanart');
 
 		results.push({
@@ -352,7 +440,9 @@ const fetchRadarrItems = async (settings) => {
 	return results;
 };
 
-const fetchSonarrItems = async (settings) => {
+const sonarrCalendar = async () => {
+	const proxied = await seerrApi.getArrCalendar('Sonarr', {start: isoDate(0), end: isoDate(90)});
+	if (proxied.items) return proxied.items;
 	let servers = [];
 	try {
 		servers = await seerrApi.getSonarrSettings();
@@ -362,20 +452,26 @@ const fetchSonarrItems = async (settings) => {
 	}
 	const server = pickDefaultServer(servers);
 	if (!server || !server.apiKey) return [];
+	return arrGet(`${arrBaseUrl(server)}/api/v3/calendar?apikey=${encodeURIComponent(server.apiKey)}&start=${isoDate(0)}&end=${isoDate(90)}&includeSeries=true`);
+};
 
-	const url = `${arrBaseUrl(server)}/api/v3/calendar?apikey=${encodeURIComponent(server.apiKey)}&start=${isoDate(0)}&end=${isoDate(90)}&includeSeries=true`;
-	const episodes = await arrGet(url);
+const fetchSonarrItems = async (settings) => {
+	// On Silo, Silo's own calendar in Sonarr's shape.
+	const episodes = await (seerrApi.getSiloCalendar('tv', isoDate(0), isoDate(90)) || sonarrCalendar());
 
-	// Keep the earliest upcoming episode per series.
+	// The first episode per series airing today or later, past the downloaded ones when those are
+	// hidden. A series with nothing left drops out of the row.
+	const today = new Date();
 	const bySeries = {};
 	for (const ep of episodes) {
 		const series = ep.series || {};
 		const key = series.tvdbId || series.id;
 		if (!key) continue;
+		if (settings.sonarrCalendarHideDownloaded && ep.hasFile === true) continue;
 		const air = ep.airDateUtc || ep.airDate;
 		if (!air) continue;
 		const airDate = new Date(air);
-		if (Number.isNaN(airDate.getTime()) || airDate < new Date()) continue;
+		if (Number.isNaN(airDate.getTime()) || daysBetween(today, airDate) < 0) continue;
 		if (!bySeries[key] || airDate < new Date(bySeries[key].air)) {
 			bySeries[key] = {ep, series, air};
 		}
@@ -384,10 +480,9 @@ const fetchSonarrItems = async (settings) => {
 	return Object.values(bySeries).map(({ep, series, air}) => {
 		const tmdbId = series.tmdbId ? String(series.tmdbId) : null;
 		const imdbId = series.imdbId || null;
-		const epInfo = settings.sonarrCalendarShowEpisodeInfo && ep.seasonNumber != null && ep.episodeNumber != null
-			? `S${ep.seasonNumber}E${ep.episodeNumber}` : '';
-		const dateStr = settings.sonarrCalendarShowDate ? formatCalendarDate(air) : '';
-		const subtitle = [epInfo, dateStr].filter(Boolean).join(' - ');
+		const epInfo = settings.sonarrCalendarShowEpisodeInfo ? `S${ep.seasonNumber ?? 0}:E${ep.episodeNumber ?? 0}` : '';
+		const dateStr = settings.sonarrCalendarShowDate ? airsText(new Date(air), today, settings.dateFormat) : '';
+		const subtitle = [epInfo, dateStr].filter(Boolean).join(' \u00b7 ');
 		const fanart = series.images?.find((i) => i.coverType === 'fanart');
 
 		return {

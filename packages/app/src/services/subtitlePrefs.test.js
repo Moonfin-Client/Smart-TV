@@ -1,7 +1,10 @@
 import {
-	getItemAudioPref, getItemSecondarySubtitlePref, getItemSubtitlePref, getSeriesAudioPref, saveAudioPref,
-	saveSecondarySubtitlePref, saveSubtitlePref
+	getItemAudioPref, getItemSecondarySubtitlePref, getItemSubtitlePref, getSeriesAudioPref, getSeriesSubtitlePref,
+	saveAudioPref, saveSecondarySubtitlePref, saveSubtitlePref, syncSeriesTrackChoices
 } from './subtitlePrefs';
+import {trackChoiceApiFor} from './seriesTrackSync';
+
+jest.mock('./seriesTrackSync', () => ({trackChoiceApiFor: jest.fn(() => null)}));
 
 let mockStored = {};
 
@@ -60,6 +63,43 @@ describe('subtitlePrefs', () => {
 
 			expect(await getItemAudioPref('movie')).toBeUndefined();
 			expect(await getItemAudioPref('other')).toBeUndefined();
+		});
+	});
+
+	describe('a series choice kept on the server', () => {
+		const serverApi = (choices) => ({
+			getSeriesTrackChoices: jest.fn(() => Promise.resolve(choices)),
+			setSeriesAudioChoice: jest.fn(() => Promise.resolve()),
+			setSeriesSubtitleChoice: jest.fn(() => Promise.resolve())
+		});
+
+		it('hears each pick on an episode', async () => {
+			const api = serverApi();
+			trackChoiceApiFor.mockReturnValue(api);
+			await saveAudioPref({Id: 'ep1', SeriesId: 'show'}, 2, [{index: 2, language: 'jpn'}]);
+			await saveSubtitlePref({Id: 'ep1', SeriesId: 'show'}, -1, []);
+			expect(api.setSeriesAudioChoice).toHaveBeenCalledWith('show', 'ep1', 2);
+			expect(api.setSeriesSubtitleChoice).toHaveBeenCalledWith('show', 'ep1', -1);
+		});
+
+		it('wins over another language here, and keeps a same-language pick here', async () => {
+			await saveAudioPref({Id: 'ep1', SeriesId: 'show'}, 2, [{index: 1, language: 'jpn'}, {index: 2, language: 'jpn', title: 'Commentary'}]);
+			trackChoiceApiFor.mockReturnValue(serverApi({
+				audio: {language: 'jpn', title: '', relativeIndex: 0},
+				subtitle: {language: 'none', title: '', relativeIndex: 0}
+			}));
+			await expect(syncSeriesTrackChoices({Id: 'ep2', SeriesId: 'show'})).resolves.toBe(true);
+			expect(await getSeriesAudioPref('show')).toMatchObject({language: 'jpn', title: 'commentary', relativeIndex: 1});
+			expect(await getSeriesSubtitlePref('show')).toMatchObject({language: 'none'});
+
+			trackChoiceApiFor.mockReturnValue(serverApi({audio: {language: 'eng', title: '', relativeIndex: 0}, subtitle: null}));
+			await expect(syncSeriesTrackChoices({Id: 'show', Type: 'Series'})).resolves.toBe(true);
+			expect(await getSeriesAudioPref('show')).toMatchObject({language: 'eng'});
+		});
+
+		it('changes nothing for a server that keeps none', async () => {
+			trackChoiceApiFor.mockReturnValue(null);
+			await expect(syncSeriesTrackChoices({Id: 'ep1', SeriesId: 'show'})).resolves.toBe(false);
 		});
 	});
 });

@@ -45,6 +45,10 @@ describe('itemMenuActions', () => {
 	test('lets a collection\'s play order move a row without offering to delete it', () => {
 		expect(ids(movie(), {playlist: {canManage: true, canRemove: false, first: false, last: false}}))
 			.toEqual(['play', 'viewDetails', 'watched', 'favorite', 'addToPlaylist', 'moveUp', 'moveDown']);
+		expect(ids(movie(), {
+			playlist: {canManage: true, canRemove: false, first: false, last: false},
+			playlistMemberships: [{playlistId: 'p1', playlistName: 'The Hux List', entryId: 'e1'}]
+		})).toEqual(['play', 'viewDetails', 'watched', 'favorite', 'addToPlaylist', 'moveUp', 'moveDown', 'removeFromPlaylistPicker']);
 	});
 
 	test('leaves View Details off a song, which has no page to open', () => {
@@ -56,7 +60,17 @@ describe('itemMenuActions', () => {
 		expect(ids(movie(), {canManageCollections: true})).toContain('addToCollection');
 		expect(ids(movie(), {canManageCollections: true})).not.toContain('removeFromCollection');
 		expect(ids(movie(), {canManageCollections: true, inCollection: true})).toContain('removeFromCollection');
+		expect(ids(movie(), {canManageCollections: true, collectionMemberships: [{collectionId: 'c1', collectionName: 'Becky Collection'}]}))
+			.toEqual(['play', 'watched', 'favorite', 'addToCollection', 'removeFromCollection', 'addToPlaylist']);
 		expect(ids(movie(), {inCollection: true})).not.toContain('removeFromCollection');
+		expect(ids(movie(), {collectionMemberships: [{collectionId: 'c1', collectionName: 'Becky Collection'}]})).not.toContain('removeFromCollection');
+	});
+
+	test('adds Remove from Playlist right below Add to Playlist when playlistMemberships is non-empty', () => {
+		expect(ids(movie(), {playlistMemberships: [{playlistId: 'p1', playlistName: 'The Hux List', entryId: 'e1'}]}))
+			.toEqual(['play', 'watched', 'favorite', 'addToPlaylist', 'removeFromPlaylistPicker']);
+		expect(labelOf(movie(), 'removeFromPlaylistPicker', {playlistMemberships: [{playlistId: 'p1', playlistName: 'The Hux List', entryId: 'e1'}]}))
+			.toBe('Remove from Playlist');
 	});
 
 	test('keeps the server tools to an admin on Jellyfin', () => {

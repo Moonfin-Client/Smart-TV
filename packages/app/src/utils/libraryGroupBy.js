@@ -2,9 +2,21 @@
 // studio it carries, so those counts add up to more than the library holds,
 // and whatever carries none falls into a trailing catch all bucket.
 
+import $L from '@enact/i18n/$L';
+
 import {parentalRatingSeverity} from './parentalRatingSeverity';
 
-export const LIBRARY_GROUP_OPTIONS = ['none', 'genre', 'parentalRating', 'decade', 'studio'];
+export const LIBRARY_GROUP_OPTIONS = ['none', 'decade', 'genre', 'parentalRating', 'studio'];
+
+const LABELS = {
+	none: () => $L('None'),
+	decade: () => $L('Decade (Year)'),
+	genre: () => $L('Genres'),
+	parentalRating: () => $L('Parental Rating'),
+	studio: () => $L('Studio')
+};
+
+export const groupByLabel = (groupBy) => (LABELS[groupBy] || LABELS.none)();
 
 const CATCH_ALL = {'Other': true, 'Unknown': true, 'Unrated': true};
 

@@ -7,10 +7,13 @@ import {VirtualGridList} from '@enact/sandstone/VirtualList';
 import useQuickReturnGrid from '../../hooks/useQuickReturnGrid';
 import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
+import {useSeerr} from '../../context/SeerrContext';
 import * as connectionPool from '../../services/connectionPool';
 import {withoutBlockedItems} from '../../services/parentalControls';
 import BackdropLayer from '../../components/BackdropLayer';
 import DetailsTabBar from '../../components/DetailsTabBar';
+import IncompleteBadge from '../../components/IncompleteBadge';
+import PosterLabels from '../../components/PosterLabels';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {getBackdropId, getImageUrl} from '../../utils/helpers';
 import {showsWatchedCheck} from '../../utils/playedState';
@@ -25,9 +28,12 @@ import {PanelContainer} from '../../utils/spotlightContainers';
 
 import FocusedItemHud from './FocusedItemHud';
 import useFavoriteTabs from './useFavoriteTabs';
-import {cardMetrics, clampTabIndex, favoriteCardImage} from './favoriteTabs';
+import {cardMetrics, clampTabIndex, currentCard, favoriteCardImage} from './favoriteTabs';
+import {registerThemeSheet} from '../../theme/themeOverrides';
 
 import css from './Favorites.module.less';
+
+registerThemeSheet('favorites', css);
 
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
@@ -74,8 +80,9 @@ const handleTabsKeyDown = createToolbarKeyDown('favorites-grid', 'favorites-tool
 const handleHomeGridKeyDown = createGridKeyDown(css.grid, 'favorites-active-tab');
 const handleLibraryGridKeyDown = createGridKeyDown(css.grid, 'favorites-letter-hash');
 
-const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
-	const {api, serverUrl, hasMultipleServers} = useAuth();
+const Favorites = ({onSelectItem, onSelectPerson, onSelectSeerrItem, onHome, backHandlerRef}) => {
+	const {api, serverUrl, hasMultipleServers, serverType} = useAuth();
+	const {isEnabled: requestsEnabled, isAuthenticated: requestsSignedIn} = useSeerr();
 	const {settings} = useSettings();
 	const unifiedMode = settings.unifiedLibraryMode && hasMultipleServers;
 	const isLegacy = typeof document !== 'undefined' && (' ' + document.documentElement.className + ' ').indexOf(' legacy ') >= 0;
@@ -94,7 +101,7 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 	const isHome = viewStyle === 'home';
 
 	const [tabIndex, setTabIndex] = useState(0);
-	const [focusedItem, setFocusedItem] = useState(null);
+	const [focusedCard, setFocusedCard] = useState(null);
 
 	const {getScrollTo: getGridScrollTo, quickReturn} = useQuickReturnGrid('favorites-grid');
 
@@ -129,7 +136,9 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 		sortBy: sortOption.field,
 		sortOrder: sortOption.order,
 		unifiedMode,
-		enabled: viewStyleLoaded && isHome
+		enabled: viewStyleLoaded && isHome,
+		serverType,
+		requestsReady: Boolean(requestsEnabled && requestsSignedIn)
 	});
 
 	const {startLetter, handleLetterSelect, items} = useStartLetter({
@@ -155,8 +164,12 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 	const itemsRef = useRef(displayItems);
 	itemsRef.current = displayItems;
 
-	// Holding OK on a card opens its menu, found from the card the press landed on.
-	const itemAtCard = useCallback((target) => itemsRef.current[cardIndexOf(target)] || null, []);
+	// Holding OK on a card opens its menu, found from the card the press landed on. A watchlist request
+	// card isn't a library item, so it has none.
+	const itemAtCard = useCallback((target) => {
+		const item = itemsRef.current[cardIndexOf(target)];
+		return item && !item._seerr ? item : null;
+	}, []);
 	const menuHold = useItemMenuHold(itemAtCard);
 
 	const activeKeyRef = useRef(null);
@@ -258,18 +271,21 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 		if (itemIndex === undefined) return;
 		const item = itemsRef.current[parseInt(itemIndex, 10)];
 		if (item) {
-			if (item.Type === 'Person') {
+			if (item._seerr) {
+				// The library id travels with the pick, so a title the server already holds opens as itself.
+				onSelectSeerrItem?.({...item._seerrRaw, libraryId: item._seerrLibraryId});
+			} else if (item.Type === 'Person') {
 				onSelectPerson?.(item);
 			} else {
 				onSelectItem?.(item);
 			}
 		}
-	}, [onSelectItem, onSelectPerson]);
+	}, [onSelectItem, onSelectPerson, onSelectSeerrItem]);
 
 	const handleItemFocus = useCallback((ev) => {
 		const itemIndex = ev.currentTarget?.dataset?.index;
 		if (itemIndex === undefined) return;
-		setFocusedItem(itemsRef.current[parseInt(itemIndex, 10)] || null);
+		setFocusedCard(itemsRef.current[parseInt(itemIndex, 10)] || null);
 	}, []);
 
 	const handleScrollStop = useCallback(() => {
@@ -344,14 +360,17 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 
 	useEffect(() => {
 		gridScrollToRef.current?.({index: 0, animate: false});
-		setFocusedItem(null);
+		setFocusedCard(null);
 	}, [activeTab]);
+
+	const focusedItem = useMemo(() => currentCard(focusedCard, displayItems), [focusedCard, displayItems]);
 
 	const {posterHeight, itemSize: gridItemSize} = cardMetrics(cardType, imageSize);
 	const isRound = cardType === 'circle';
 
 	const targetBackdropUrl = useMemo(() => {
 		if (!isHome || !focusedItem || isLegacy || settings.showHomeBackdrop === false) return '';
+		if (focusedItem._externalBackdropUrl) return focusedItem._externalBackdropUrl;
 		const backdropId = getBackdropId(focusedItem);
 		if (!backdropId) return '';
 		return getImageUrl(focusedItem._serverUrl || serverUrl, backdropId, 'Backdrop', {maxWidth: 1280, quality: 80});
@@ -377,9 +396,9 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 		}
 
 		const isPerson = item.Type === 'Person';
-		const {imageId, imageType: imgApiType} = favoriteCardImage(item, cardType);
+		const {imageId, imageType: imgApiType, url: ownUrl} = favoriteCardImage(item, cardType);
 		const itemServerUrl = item._serverUrl || serverUrl;
-		const imageUrl = imageId ? getImageUrl(itemServerUrl, imageId, imgApiType, {maxHeight: 400, quality: 80}) : null;
+		const imageUrl = ownUrl || (imageId ? getImageUrl(itemServerUrl, imageId, imgApiType, {maxHeight: 400, quality: 80}) : null);
 		const roundClass = isRound || isPerson ? css.personPoster : '';
 
 		return (
@@ -412,11 +431,19 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 					{unifiedMode && item._serverName && (
 						<div className={css.serverBadge}>{item._serverName}</div>
 					)}
+					<IncompleteBadge itemId={item.Id} belowFavorite={unifiedMode && Boolean(item._serverName)} />
 					{showsWatchedCheck(item) && (
 						<div className={css.watchedBadge}>
-							<svg viewBox="0 0 24 24"><path fill="white" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+							<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
 						</div>
 					)}
+					<PosterLabels
+						item={item}
+						serverUrl={itemServerUrl}
+						top={unifiedMode && item._serverName ? 40 : 8}
+						topRight={showsWatchedCheck(item) ? 40 : 8}
+						height={posterHeight}
+					/>
 				</div>
 			</SpottableDiv>
 		);

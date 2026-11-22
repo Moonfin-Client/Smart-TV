@@ -1,4 +1,7 @@
-import {FAVORITE_TABS, FAVORITE_TAB_TYPES, bucketByTab, cardMetrics, clampTabIndex, favoriteCardImage, tabKeyForType, visibleTabs} from './favoriteTabs';
+import {
+	FAVORITE_TABS, FAVORITE_TAB_TYPES, WATCHLIST_TAB, bucketByTab, cardMetrics, clampTabIndex, currentCard, favoriteCardImage, swapRequestCard,
+	tabKeyForType, visibleTabs, watchlistCards, withRequestDetail
+} from './favoriteTabs';
 
 describe('FAVORITE_TABS', () => {
 	it('lists every type once, in order', () => {
@@ -148,5 +151,74 @@ describe('favoriteCardImage', () => {
 	it('has nothing to draw for an item with no art anywhere', () => {
 		expect(favoriteCardImage({Id: 'x', Type: 'MusicArtist', ImageTags: {}}, 'circle')).toEqual({imageId: null, imageType: 'Primary'});
 		expect(favoriteCardImage(null, 'portrait')).toEqual({imageId: null, imageType: 'Primary'});
+	});
+});
+
+describe('the watchlist tab', () => {
+	const libraryFilm = {Id: 'lib1', Type: 'Movie', Name: 'Held', ProviderIds: {Tmdb: '11'}};
+	const card = (id, type = 'Movie') => ({Id: `seerr-${type === 'Movie' ? 'movie' : 'tv'}-${id}`, Type: type, _seerr: true, _seerrRaw: {mediaId: id}, _externalPosterUrl: `https://image.tmdb.org/p/${id}.jpg`});
+
+	it('leads with the library titles and leaves out request cards the library already shows', () => {
+		const cards = watchlistCards([libraryFilm], [card(11), card(22), card(11, 'Series'), card(22)]);
+		expect(cards.map((item) => item.Id)).toEqual(['lib1', 'seerr-movie-22', 'seerr-tv-11']);
+	});
+
+	it('shows after the favorites once it has anything in it', () => {
+		const tabs = visibleTabs({movie: [libraryFilm], watchlist: [card(22)]});
+		expect(tabs.map((tab) => tab.key)).toEqual(['movie', WATCHLIST_TAB.key]);
+		expect(visibleTabs({movie: [libraryFilm], watchlist: []}).map((tab) => tab.key)).toEqual(['movie']);
+	});
+
+	it('draws a request card from its own poster', () => {
+		expect(favoriteCardImage(card(22), 'portrait').url).toBe('https://image.tmdb.org/p/22.jpg');
+	});
+});
+
+describe('watchlist request cards', () => {
+	const card = {Id: 'seerr-movie-11', Name: 'Film', Overview: '', ProductionYear: 2026, _externalBackdropUrl: null, _seerr: true, _seerrMediaType: 'movie'};
+
+	it('take the detail\'s backdrop, runtime, age rating and score, keeping what the watchlist gave', () => {
+		const filled = withRequestDetail(card, {runtime: 118, contentRating: 'R'}, {
+			_externalBackdropUrl: 'http://img/b.jpg', Overview: 'A story.', ProductionYear: 1999, CommunityRating: 7.4
+		});
+		expect(filled).toMatchObject({
+			_externalBackdropUrl: 'http://img/b.jpg', Overview: 'A story.', ProductionYear: 2026, CommunityRating: 7.4,
+			OfficialRating: 'R', RunTimeTicks: 118 * 600000000
+		});
+		expect(withRequestDetail({...card, OfficialRating: 'PG-13'}, {contentRating: 'R'}, {}).OfficialRating).toBe('PG-13');
+	});
+
+	it('take the detail\'s name and poster, since Seerr\'s watchlist gives neither', () => {
+		const detailCard = {Name: 'Cloverfield', _externalPosterUrl: 'http://img/p.jpg'};
+		expect(withRequestDetail({...card, Name: undefined}, {}, detailCard))
+			.toMatchObject({Name: 'Cloverfield', _externalPosterUrl: 'http://img/p.jpg'});
+		expect(withRequestDetail({...card, _externalPosterUrl: 'http://img/own.jpg'}, {}, detailCard))
+			.toMatchObject({Name: 'Film', _externalPosterUrl: 'http://img/own.jpg'});
+	});
+
+	it('leave a series without a runtime', () => {
+		expect(withRequestDetail({...card, _seerrMediaType: 'tv'}, {runtime: 45}, {}).RunTimeTicks).toBeUndefined();
+	});
+
+	it('swap into the row as it is now, or come out when the rating is blocked', () => {
+		const row = [{Id: 'lib1'}, card, {Id: 'seerr-tv-5'}];
+		const filled = {...card, OfficialRating: 'R'};
+		expect(swapRequestCard(row, filled, false)).toEqual([{Id: 'lib1'}, filled, {Id: 'seerr-tv-5'}]);
+		expect(swapRequestCard(row, filled, true)).toEqual([{Id: 'lib1'}, {Id: 'seerr-tv-5'}]);
+		expect(swapRequestCard(undefined, filled, false)).toEqual([]);
+	});
+});
+
+describe('the focused card', () => {
+	it('follows the list, so a card filled in while focused shows its backdrop', () => {
+		const focused = {Id: 'seerr-movie-11', _externalBackdropUrl: null};
+		const filled = {...focused, _externalBackdropUrl: 'http://img/b.jpg'};
+		expect(currentCard(focused, [{Id: 'lib1'}, filled])).toBe(filled);
+	});
+
+	it('goes when its card leaves the list, and tells servers apart', () => {
+		expect(currentCard({Id: 'a'}, [{Id: 'b'}])).toBeNull();
+		expect(currentCard({Id: 'a', _serverUrl: 'http://one'}, [{Id: 'a', _serverUrl: 'http://two'}])).toBeNull();
+		expect(currentCard(null, [{Id: 'a'}])).toBeNull();
 	});
 });

@@ -10,6 +10,7 @@ const RESULT_CAP = 24;
 // Titles are localized here so the tab bar and the row headers share one source.
 const getSearchGroups = () => [
 	{key: 'books', title: $L('Books'), types: ['Book']},
+	{key: 'audiobooks', title: $L('Audiobooks'), types: ['AudioBook']},
 	{key: 'movies', title: $L('Movies'), types: ['Movie']},
 	{key: 'series', title: $L('Series'), types: ['Series']},
 	{key: 'seasons', title: $L('Seasons'), types: ['Season']},
@@ -46,6 +47,21 @@ export const groupSearchResults = (items) => {
 	return groups
 		.filter((g) => buckets[g.key] && buckets[g.key].length > 0)
 		.map((g) => ({...g, items: deduplicateMediaItems(buckets[g.key]).slice(0, RESULT_CAP)}));
+};
+
+// Jellyfin fills the page with whatever matched first, so lots of episodes or audiobook
+// chapters can push every movie and series out of it. When the page comes back full,
+// each group short of a full row is searched again on its own.
+export const searchLibrary = async (api, query, limit, serverType) => {
+	const page = (await api.search(query, limit))?.Items || [];
+	if (serverType !== 'jellyfin' || page.length < limit) return {Items: page};
+	// People and channels come from their own requests.
+	const refills = await Promise.all(getSearchGroups()
+		.filter((g) => g.key !== 'people' && g.key !== 'channels')
+		.filter((g) => page.filter((item) => g.types.includes(item.Type)).length < RESULT_CAP)
+		.map((g) => api.search(query, RESULT_CAP, g.types.join(',')).then((r) => r?.Items || [], () => [])));
+	const seen = new Set(page.map((item) => item.Id));
+	return {Items: [...page, ...refills.flat().filter((item) => !seen.has(item.Id) && seen.add(item.Id))]};
 };
 
 // Card shape by item type: 16/9 for video-like, square for music and people,

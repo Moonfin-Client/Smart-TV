@@ -2,10 +2,11 @@ import {useCallback, useRef, useEffect, memo} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
+import {glideToCard} from '../../utils/focusScroll';
 import {KEYS} from '../../utils/keys';
 import {isGameLibrary} from '../../utils/gameLibrary';
 import {useSettings} from '../../context/SettingsContext';
-import {MATERIAL_ICON_PATHS} from '../../views/Settings/materialIconMap';
+import {HOME_MATERIAL_ICON_PATHS} from '../icons/homeIconPaths';
 import useItemMenuHold from '../../hooks/useItemMenuHold';
 
 import css from './LibraryButtonRow.module.less';
@@ -36,10 +37,10 @@ const ICON_BY_COLLECTION_TYPE = {
 const iconPathFor = (library) => {
 	const collectionType = (library.CollectionType || '').toLowerCase();
 	if (isGameLibrary(library.Id, library.CollectionType, library.Name)) {
-		return MATERIAL_ICON_PATHS.extension;
+		return HOME_MATERIAL_ICON_PATHS.extension;
 	}
 	const name = ICON_BY_COLLECTION_TYPE[collectionType];
-	return MATERIAL_ICON_PATHS[name] || MATERIAL_ICON_PATHS.folder;
+	return HOME_MATERIAL_ICON_PATHS[name] || HOME_MATERIAL_ICON_PATHS.folder;
 };
 
 const LibraryButton = memo(function LibraryButton({item, spotlightId, onSelect, onFocusItem, onSpotlightLeft, onSpotlightRight}) {
@@ -81,7 +82,6 @@ const LibraryButtonRow = ({
 }) => {
 	const {settings} = useSettings();
 	const scrollerRef = useRef(null);
-	const scrollerRectRef = useRef(null);
 	const scrollTimeoutRef = useRef(null);
 	const rowElementRef = useRef(null);
 
@@ -93,14 +93,6 @@ const LibraryButtonRow = ({
 		return () => registerRowRef?.(rowIndex, null);
 	}, [rowIndex, registerRowRef]);
 
-	useEffect(() => {
-		scrollerRectRef.current = null;
-		const invalidate = () => {
-			scrollerRectRef.current = null;
-		};
-		window.addEventListener('resize', invalidate);
-		return () => window.removeEventListener('resize', invalidate);
-	}, [settings.navbarPosition]);
 
 	const handleSelect = useCallback((item) => {
 		onSelectItem?.(item);
@@ -115,17 +107,10 @@ const LibraryButtonRow = ({
 			if (scrollTimeoutRef.current) {
 				window.cancelAnimationFrame(scrollTimeoutRef.current);
 			}
+			// Read before the browser's own focus scroll moves the lane, so the glide starts from what was on screen.
+			const start = scroller.scrollLeft;
 			scrollTimeoutRef.current = window.requestAnimationFrame(() => {
-				const cardRect = card.getBoundingClientRect();
-				if (!scrollerRectRef.current) {
-					scrollerRectRef.current = scroller.getBoundingClientRect();
-				}
-				const scrollerRect = scrollerRectRef.current;
-				if (cardRect.left < scrollerRect.left) {
-					scroller.scrollLeft -= (scrollerRect.left - cardRect.left + 50);
-				} else if (cardRect.right > scrollerRect.right) {
-					scroller.scrollLeft += (cardRect.right - scrollerRect.right + 50);
-				}
+				glideToCard(scroller, card, start);
 			});
 		}
 	}, [onFocus, rowIndex]);

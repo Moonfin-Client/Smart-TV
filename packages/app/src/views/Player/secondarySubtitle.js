@@ -28,6 +28,7 @@ export const getSecondarySubtitleColorOptions = () => [
 export const isSecondaryEligible = (stream) =>
 	stream.isTextBased === true &&
 	!stream.isEmbeddedNative &&
+	!stream.inBandText &&
 	SECONDARY_CODECS.includes((stream.codec || '').toLowerCase());
 
 /**

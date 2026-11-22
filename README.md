@@ -1,5 +1,5 @@
 <h1 align="center">Moonfin for Smart-TVs</h1>
-<h3 align="center">Premium Jellyfin and Emby client for webOS and Tizen TVs</h3>
+<h3 align="center">Premium Jellyfin, Emby, Plex and Silo client for webOS and Tizen TVs</h3>
 
 ---
 
@@ -19,23 +19,26 @@
 
 ## What is Moonfin for Smart TVs?
 
-Moonfin is a Jellyfin and Emby client for Samsung Smart TVs (Tizen), LG Smart TVs (webOS), Fire TV sticks running Vega OS and Xbox consoles. One shared codebase powers every platform, with a video pipeline tuned for each, so you get hardware-accelerated playback, a UI designed around a remote instead of a mouse, and features that most TV clients leave out.
+Moonfin is a Jellyfin, Emby, Plex and Silo client for Samsung Smart TVs (Tizen), LG Smart TVs (webOS), Fire TV sticks running Vega OS and Xbox consoles. One shared codebase powers every platform, with a video pipeline tuned for each, so you get hardware-accelerated playback, a UI designed around a remote instead of a mouse, and features that most TV clients leave out.
 
 ## Features
 
 - **Hardware-accelerated playback** through Samsung AVPlay, webOS Starfish, the Fire TV WebView and the Xbox console's own player, with direct play first and a transcode fallback only when needed.
-- **Lossless audio passthrough** for DTS, DTS-HD, and Dolby TrueHD to a capable receiver on LG and Samsung TVs. On Xbox, an experimental Passthrough setting does the same for TrueHD, DTS and Dolby Digital. Without it, the console decodes the sound and sends it to the receiver as PCM.
-- **Multi-server and Emby support**, including Emby Connect, Quick Connect, and a unified library view across all your Jellyfin servers.
-- **A setup wizard on first run** that walks you through the look of the app with live previews built from your own artwork, including five detail screen styles: Classic, Modern, Spotlight, Nouveau, and Minimalist.
-- **Kids Mode and Blocked Ratings.** Kids Mode strips the app back for a child and locks the way out with a PIN, and blocked ratings apply everywhere, from home rows and search to detail screens and playback.
-- **A proper on-screen keyboard** with layouts that follow your language, plus sign-in that finds servers on your network by itself.
+- **Lossless audio passthrough** for DTS, DTS-HD, and Dolby TrueHD to a capable receiver on Samsung TVs, and for DTS and DTS-HD on LG TVs that support them. LG never passes TrueHD through from an app, so there Moonfin plays another track or has the server convert it. On Xbox, an experimental Passthrough setting does the same for TrueHD, DTS and Dolby Digital. Without it, the console decodes the sound and sends it to the receiver as PCM.
+- **Multi-server, Emby and Plex support**, including Emby Connect, Plex sign-in through plex.tv with Plex Home users and Live TV, Moonbase features on Plex through Moonbase for Plex, Quick Connect with a QR code for your phone, and a unified library view across all your Jellyfin servers that can merge their movie and show libraries into one of each.
+- **Silo support**, through Silo's own API: the household's profiles with their PINs, signing in with a code approved on another device, Silo's playback plans, markers and seek previews, Silo's own home sections, requests and calendar, and Watch Party for watching together. See [Connecting to Silo](#connecting-to-silo).
+- **A setup wizard on first run** that walks you through the look of the app with live previews built from your own artwork, including nine detail screen styles, with Frost as the default. Settings show a live preview of what each setting changes.
+- **Kids Mode and Blocked Ratings.** Kids Mode strips the app back for a child and locks the way out with a PIN, and blocked ratings apply everywhere, from home rows and search to detail screens and playback. Sign-in PINs can be kept on the server through the Moonfin plugin, so one PIN works on every device.
+- **A proper on-screen keyboard** in four styles with layouts that follow your language, plus sign-in that finds servers on your network by itself.
 - **Native Seerr integration** for browsing, discovering, and requesting content in HD or 4K from your TV, with requests, issue reporting, and a watchlist button built into the detail screen.
-- **Retro games** played right on the TV from a server game library, with save states synced through the server. Needs webOS 5 or Tizen 5 and newer. See [Retro Games](https://github.com/Moonfin-Client/Plugin/wiki/Retro-Games).
-- **Live TV and DVR** with a program guide that opens on your last channel, a quick channel changer during live playback, and recording management.
-- **Advanced subtitles**, including PGS image subtitles and styled ASS/SSA through libass, plus in-app subtitle downloads.
-- **SyncPlay and remote control**, for watching together in sync with others and for driving the TV from other Jellyfin apps, including typing a search from your phone.
+- **A Calendar** of upcoming episodes and movies from Sonarr and Radarr, and **smart search** that finds titles from a few words describing them, through the Moonbase plugin or Moonbase for Plex.
+- **Retro games** played right on the TV from a server game library or your own RomM account, with save states and battery saves synced through the server. Needs webOS 5 or Tizen 5 and newer. See [Retro Games](https://github.com/Moonfin-Client/Plugin/wiki/Retro-Games).
+- **Live TV and DVR** with a program guide that opens on your last channel, a quick channel changer, rewind and Jump to Live during live playback, and recording right from the player.
+- **Advanced subtitles**, including PGS image subtitles, styled ASS/SSA through libass, dual subtitles, and in-app subtitle downloads in up to five languages at once.
+- **Music, books and comics**, with a music player that keeps playing while you browse, a paginated EPUB reader that syncs your place with jellyfin-web, and CBZ and CBT comics, plus CBR, CB7 and PDF on newer TVs, each library with a choice of styles.
+- **Watch Parties** on Jellyfin, Emby and Plex through Moonbase, with chat, reactions and voting on what to watch, plus SyncPlay on Jellyfin and Silo's own Watch Party on Silo. **Remote control** lets other Jellyfin apps drive the TV, including typing a search from your phone.
 - **Themes** with four built-in looks including Glass and 8-bit Hero, a Theme Store for community themes, custom themes, and accent color customization. Loading animations and the screensaver's backdrop, clock or logo are yours to customize with a live preview, and screens show skeleton placeholders while they load.
-- **A featured media bar** with six layouts, including the rounded Aya hero.
+- **A featured media bar** with six layouts, including the rounded Aya hero, over **Carousel home rows** that show the focused title's details in a panel under each row. Rows can also come from IMDb, TMDB, MDBList and JustWatch charts, Seerr, Sonarr and Radarr, and your own lists, see [Home Rows](https://github.com/Moonfin-Client/Plugin/wiki/Home-Rows).
 - **Personal ratings** as a like, stars, or a score out of ten, usable as a library filter.
 - **Achievement Badges** on Jellyfin servers that run the Achievement Badges plugin, and **anime markers** like Filler, Manga Canon, and Subbed/Dubbed on cards and detail screens from the Moonbase plugin.
 - **Automatic performance tuning** that matches visual effects to how capable your TV is, with a manual override.
@@ -85,11 +88,19 @@ The easiest route on each brand:
 - **Samsung:** the [Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung) tool, which signs and installs the `.wgt` for you.
 - **Fire TV (Vega OS):** the [Amazon Appstore](https://www.amazon.com/Moonfin/dp/B0H76BG3DW). The `.vpkg` from the Releases page can still be sideloaded with Developer Mode on the stick and the Vega SDK's `vega device install-app` on a computer.
 - **Xbox:** the [Microsoft Store](https://apps.microsoft.com/detail/9plb327dd51d). The `.zip` from the Releases page can still be sideloaded on a console in Developer Mode through the Xbox Device Portal.
-  - The console draws every app's interface at 1080p and scales it up to the TV, so on a 4K set the text and posters look a little softer than the TV's own apps. That is how Xbox runs apps, Plex and Jellyfin look the same, and video is not affected: it goes through the console's own player at 4K and in HDR.
+  - The console draws every app's interface at 1080p and scales it up to the TV, so on a 4K set the text and posters look a little softer than the TV's own apps. That is how Xbox runs apps, Plex and Jellyfin look the same, and video is not affected: it goes through the console's own player at 4K and in HDR or Dolby Vision.
 
 Step-by-step instructions for all of them, including turning on Developer Mode, are on the [Installation and Sideloading](https://github.com/Moonfin-Client/Smart-TV/wiki/Installation-and-Sideloading) page. Once installed, [Getting Started](https://github.com/Moonfin-Client/Smart-TV/wiki/Getting-Started) walks through connecting to your server.
 
-Seerr is optional and connects through the [Moonfin server plugin](https://github.com/Moonfin-Client/Plugin) rather than directly, so nothing needs to be entered on the TV. See [Seerr Setup](https://github.com/Moonfin-Client/Smart-TV/wiki/Seerr-Setup).
+Seerr is optional and connects through the [Moonfin server plugin](https://github.com/Moonfin-Client/Plugin), or Moonbase for Plex on a Plex server, rather than directly, so nothing needs to be entered on the TV. See [Seerr Setup](https://github.com/Moonfin-Client/Smart-TV/wiki/Seerr-Setup).
+
+### Connecting to Silo
+
+Moonfin talks to [Silo](https://github.com/Silo-Server/silo-server) through its native API (`/api/v2`), not its Jellyfin-compatible service. Add the server by its native address, which is usually port 8090 with Silo's Docker setup (8080 otherwise), not the Jellyfin-compatible one on port 8096. Silo servers on your local network also show up during sign-in.
+
+Requests use Silo's own requests feature in place of Seerr, and Watch Together uses Silo's Watch Party in place of SyncPlay. Settings sync, admin defaults, custom themes, server messages, extra ratings, reviews and log uploads need the [Moonbase plugin](https://github.com/Moonfin-Client/Plugin) installed in Silo.
+
+Silo has no Live TV, music, playlists or retro games, and it doesn't take remote control from other apps, so those aren't available while a Silo server is active. If a Silo server's API doesn't match your version of Moonfin, Moonfin won't connect to it and says whether to update Moonfin or Silo. Live updates and the Watch Party on LG and Samsung need a recent Silo build.
 
 ## Documentation
 
@@ -146,6 +157,7 @@ To submit a change, fork the repo, create a feature branch, make your changes wi
 - **Issues** for bugs and feature requests: [GitHub Issues](https://github.com/Moonfin-Client/Smart-TV/issues)
 - **Discussions** for questions and ideas: [GitHub Discussions](https://github.com/Moonfin-Client/Smart-TV/discussions)
 - **Jellyfin** for server-related questions: [jellyfin.org](https://jellyfin.org)
+- **Silo** for Silo server questions: [Silo on GitHub](https://github.com/Silo-Server/silo-server)
 
 ## Credits
 
@@ -162,6 +174,6 @@ This project is licensed under the MPL 2.0 license. Some parts incorporate conte
 
 ---
 <p align="center">
-   <strong>Moonfin for Smart TVs</strong> is an independent client and is not affiliated with the Jellyfin or Emby projects.<br>
+   <strong>Moonfin for Smart TVs</strong> is an independent client and is not affiliated with the Jellyfin, Emby or Silo projects or with Plex.<br>
    <a href="https://github.com/Moonfin-Client">Back to main Moonfin project</a>
 </p>

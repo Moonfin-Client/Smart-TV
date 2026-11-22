@@ -280,6 +280,8 @@ export const plexItemToJellyfin = (m) => {
 		IsFolder: FOLDER_TYPES.includes(type)
 	};
 	if (m.titleSort != null) item.SortName = m.titleSort;
+	// A track's originalTitle is its artist, read below.
+	if (!isTrack && typeof m.originalTitle === 'string' && m.originalTitle) item.OriginalTitle = m.originalTitle;
 	if (type === 'movie' || type === 'episode' || type === 'clip') item.MediaType = 'Video';
 	if (type === 'clip' && EXTRA_TYPES[m.subtype]) item.ExtraType = EXTRA_TYPES[m.subtype];
 	if (isTrack) item.MediaType = 'Audio';
@@ -287,6 +289,7 @@ export const plexItemToJellyfin = (m) => {
 	if (m.playlistItemID != null) item.PlaylistItemId = String(m.playlistItemID);
 	// Removing a playlist only drops the list, never the media in it.
 	if (type === 'playlist') item.CanDelete = true;
+	if (type === 'collection' && (m.smart === 1 || m.smart === '1' || m.smart === true)) item._smart = true;
 	if (m.summary != null) item.Overview = m.summary;
 	if (m.year != null) item.ProductionYear = m.year;
 	const premiere = date(m.originallyAvailableAt);
@@ -296,6 +299,8 @@ export const plexItemToJellyfin = (m) => {
 	if (typeof m.audienceRating === 'number') item.CommunityRating = m.audienceRating;
 	else if (rating != null && !fromTomatoes) item.CommunityRating = rating;
 	if (rating != null && fromTomatoes) item.CriticRating = Math.round(rating * 10);
+	// Plex sorts Critic Rating on `rating` whatever its source, so a merged list orders by it too, on the same 0 to 100 scale.
+	if (rating != null) item._criticSort = Math.round(rating * 10);
 	if (m.contentRating != null) item.OfficialRating = m.contentRating;
 	item.Genres = tags(m.Genre);
 	if (m.studio != null) item.Studios = [{Name: m.studio}];

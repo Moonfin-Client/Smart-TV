@@ -8,8 +8,7 @@ import {
 	homeRowsFromSections,
 	homeRowsToRowOrder,
 	homeRowsToSections,
-	mergeHomeRows,
-	withSeasonalRow
+	mergeHomeRows
 } from './homeLayout';
 
 const enabledIds = (rows) => rows.filter((row) => row.enabled).map((row) => row.id);
@@ -247,6 +246,7 @@ describe('the seasonal row in a saved layout', () => {
 		const saved = [{id: 'resume', enabled: true, order: 0}];
 		expect(rowById(mergeHomeRows(saved), 'seasonal').enabled).toBe(false);
 		expect(rowById(mergeHomeRows(saved, {seasonal: true}), 'seasonal').enabled).toBe(true);
+		expect(rowById(mergeHomeRows(saved, {mdblist_watching_now: true}), 'mdblist_watching_now').enabled).toBe(true);
 	});
 
 	test('a layout that names it keeps its own flag whatever the toggle says', () => {
@@ -258,29 +258,32 @@ describe('the seasonal row in a saved layout', () => {
 		const rows = homeRowsFromProfile({homeSections: [{kind: 'builtin', type: 'resume', enabled: true, order: 0}]}, {seasonal: true});
 		expect(rowById(rows, 'seasonal').enabled).toBe(true);
 	});
+});
 
-	const layout = () => [
-		{id: 'resume', enabled: true, order: 0},
-		{id: 'nextup', enabled: true, order: 1},
-		{id: 'latest-media', enabled: true, order: 2},
-		{id: 'seasonal', enabled: false, order: 3}
-	];
-
-	test('switching it on puts it right after Continue Watching and Next Up', () => {
-		const rows = withSeasonalRow(layout(), true);
-		expect(rows.map((row) => row.id)).toEqual(['resume', 'nextup', 'seasonal', 'latest-media']);
-		expect(rowById(rows, 'seasonal').enabled).toBe(true);
-		expect(rows.map((row) => row.order)).toEqual([0, 1, 2, 3]);
+describe('Silo home section rows in the layout', () => {
+	const section = (pluginSection, serverId) => ({
+		kind: 'pluginDynamic',
+		type: 'none',
+		enabled: true,
+		order: 1,
+		serverId,
+		pluginSource: 'server',
+		pluginSection,
+		pluginDisplayText: 'Hidden gems'
 	});
 
-	test('switching it off leaves it where it is', () => {
-		const rows = withSeasonalRow(withSeasonalRow(layout(), true), false);
-		expect(rows.map((row) => row.id)).toEqual(['resume', 'nextup', 'seasonal', 'latest-media']);
-		expect(rowById(rows, 'seasonal').enabled).toBe(false);
+	test('a Silo section picked on another client comes back as it was written', () => {
+		const written = section('12', 'http://silo:8090');
+		const rows = homeRowsFromProfile({homeSections: [{type: 'resume', enabled: true, order: 0}, written]});
+		expect(rowById(rows, 'pluginDynamic:server:http://silo:8090:server:12')).toMatchObject({source: 'server', itemId: '12', name: 'Hidden gems'});
+		expect(homeRowsToSections(rows)).toContainEqual(written);
+		expect(homeRowsToRowOrder(rows)).toEqual(['resume']);
 	});
 
-	test('a layout without the row gets one when it is switched on', () => {
-		const rows = withSeasonalRow([{id: 'resume', enabled: true, order: 0}], true);
-		expect(rows.map((row) => row.id)).toEqual(['resume', 'seasonal']);
+	test('a section-type row from Moonbase\'s defaults names no server and keeps none', () => {
+		const written = section('type:hidden_gems', '');
+		const rows = homeRowsFromProfile({homeSections: [written]});
+		expect(rows.find((row) => row.source === 'server')).toMatchObject({serverUrl: '', itemId: 'type:hidden_gems'});
+		expect(homeRowsToSections(rows)).toContainEqual({...written, order: 0});
 	});
 });

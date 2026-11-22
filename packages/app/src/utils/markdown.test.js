@@ -1,4 +1,4 @@
-import {parseMarkdown, parseInlines, markdownLinks} from './markdown';
+import {parseMarkdown, parseInlines} from './markdown';
 
 const t = (text) => ({type: 'text', text});
 
@@ -97,21 +97,5 @@ describe('parseMarkdown', () => {
 	test('nothing in gives nothing out', () => {
 		expect(parseMarkdown('')).toEqual([]);
 		expect(parseMarkdown(null)).toEqual([]);
-	});
-});
-
-describe('markdownLinks', () => {
-	test('every link once, from every kind of block', () => {
-		const blocks = parseMarkdown('See [docs](https://a.test/docs).\n\n- [same](https://a.test/docs)\n- **[wiki](https://a.test/wiki)**\n\n> [](https://a.test/bare)');
-
-		expect(markdownLinks(blocks)).toEqual([
-			{href: 'https://a.test/docs', label: 'docs'},
-			{href: 'https://a.test/wiki', label: 'wiki'},
-			{href: 'https://a.test/bare', label: 'https://a.test/bare'}
-		]);
-	});
-
-	test('a text with no links has none', () => {
-		expect(markdownLinks(parseMarkdown('plain'))).toEqual([]);
 	});
 });

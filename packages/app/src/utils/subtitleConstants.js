@@ -1,4 +1,5 @@
 import $L from '@enact/i18n/$L';
+import {subtitleFontFamily} from '../services/subtitleFonts';
 
 export const SUBTITLE_SIZE_OPTIONS = [
 	{ value: 'small', label: $L('Small'), fontSize: 36 },
@@ -50,7 +51,18 @@ export const SUBTITLE_STYLE_KEYS = [
 	'subtitleShadowOpacity',
 	'subtitleShadowBlur',
 	'subtitleBackgroundColor',
-	'subtitleBackground'
+	'subtitleBackground',
+	'subtitleBold'
+];
+
+// The outline width, the drop shadow and the font have no HDR twin.
+export const SUBTITLE_SHARED_STYLE_KEYS = [
+	'subtitleStrokeWidth',
+	'subtitleDropShadow',
+	'subtitleDropShadowIntensity',
+	'subtitleDropShadowOffset',
+	'subtitleDropShadowBlur',
+	'subtitleFont'
 ];
 
 export const hdrKeyFor = (key) => `${key}Hdr`;
@@ -99,15 +111,26 @@ export const getSubtitleOverlayStyle = (settings, shiftPercent = 0) => {
 
 export const getSubtitleFontPx = (settings) => SIZE_MAP[settings?.subtitleSize] || 44;
 
+// The size setting as a multiple of an ASS track's own sizes. Medium leaves the track as authored.
+export const getAssFontScale = (settings) => getSubtitleFontPx(settings) / SIZE_MAP.medium;
+
 export const getSubtitleTextStyle = (settings) => {
 	const shadowColor = toCssColor(settings.subtitleShadowColor || '#000000', settings.subtitleShadowOpacity !== undefined ? settings.subtitleShadowOpacity : 100);
 	const blur = `${settings.subtitleShadowBlur || 0.1}em`;
+	const w = `${2 * (settings.subtitleStrokeWidth || 100) / 100}px`;
+	// Painted last so it sits under the outline. Offset and blur count in steps of 2% of the text size.
+	const em = (steps) => `${(steps || 0) * 2 / 100}em`;
+	const dropShadow = settings.subtitleDropShadow
+		? `, ${em(settings.subtitleDropShadowOffset)} ${em(settings.subtitleDropShadowOffset)} ${em(settings.subtitleDropShadowBlur)} ${toCssColor('#000000', settings.subtitleDropShadowIntensity || 80)}`
+		: '';
 
 	return {
 		fontSize: `${getSubtitleFontPx(settings)}px`,
+		fontFamily: subtitleFontFamily(settings.subtitleFont, settings.subtitleBold),
+		fontWeight: settings.subtitleBold ? 700 : undefined,
 		backgroundColor: toCssColor(settings.subtitleBackgroundColor || '#000000', settings.subtitleBackground !== undefined ? settings.subtitleBackground : 0),
 		color: toCssColor(settings.subtitleColor || '#ffffff', 100),
-		textShadow: `-2px -2px ${blur} ${shadowColor}, 2px -2px ${blur} ${shadowColor}, -2px 2px ${blur} ${shadowColor}, 2px 2px ${blur} ${shadowColor}, 0 0 ${blur} ${shadowColor}`
+		textShadow: `-${w} -${w} ${blur} ${shadowColor}, ${w} -${w} ${blur} ${shadowColor}, -${w} ${w} ${blur} ${shadowColor}, ${w} ${w} ${blur} ${shadowColor}, 0 0 ${blur} ${shadowColor}${dropShadow}`
 	};
 };
 

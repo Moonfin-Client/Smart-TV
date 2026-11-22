@@ -17,7 +17,8 @@
 		transform: scale(1.05) translateZ(0);
 		z-index: 10;
 
-		.image {
+		.image,
+		.placeholder {
 			border-color: var(--theme-focus-border-color, #ffffff);
 			box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
 			border-width: 4px;
@@ -204,6 +205,34 @@
 	text-overflow: ellipsis;
 }
 
+// Classic home rows draw two left aligned lines under the art, the name and then its
+// detail, with the line heights set so every row comes out the same height.
+.homeText {
+	text-align: left;
+
+	// Room for three lines, the title's and two details', so even the lowest padding keeps the
+	// next row off a card's text.
+	.info {
+		padding: 16px 0 0;
+		min-height: 86px;
+	}
+
+	.title,
+	.seriesName {
+		font-size: 22px;
+		font-weight: 600;
+		line-height: 30px;
+		margin: 0;
+	}
+
+	.episodeInfo {
+		font-size: 20px;
+		font-weight: 400;
+		line-height: 28px;
+		color: rgba(255, 255, 255, 0.65);
+	}
+}
+
 .progressBar {
 	position: absolute;
 	bottom: 6px;
@@ -232,13 +261,13 @@
 	position: absolute;
 	top: 8px;
 	right: 8px;
-	padding: 4px 8px;
+	padding: 4px 10px;
 	background: var(--theme-surface, rgba(0, 0, 0, 0.75));
 	border-radius: 4px;
-	font-size: 12px;
+	font-size: 18px;
 	color: var(--theme-text-primary, #ffffff);
 	font-weight: 500;
-	max-width: 120px;
+	max-width: 180px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -255,23 +284,19 @@
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
-.seerr5 {
-	background: var(--theme-on-surface, #fff);
-	border: 3px solid var(--theme-status-available, #22c55e);
-}
+// Sheets put the Seerr mark in the corner a favorite would use, and in Seerr's own color.
+.seerrMissing.seerrLeft {
+	background: #6366f1;
+	height: 32px;
+	left: 7px;
+	right: auto;
+	top: 7px;
+	width: 32px;
 
-.seerr4 {
-	background: var(--theme-status-available, #22c55e);
-}
-
-.seerr3 {
-	background: transparent;
-	border: 3px solid var(--theme-accent, #9333ea);
-}
-
-.seerr2 {
-	background: var(--theme-on-surface, #fff);
-	border: 3px solid var(--theme-status-pending, #eab308);
+	svg {
+		height: 26px;
+		width: 26px;
+	}
 }
 
 .seerrMissing {
@@ -285,6 +310,30 @@
 		height: 14px;
 		color: #ffffff;
 		fill: #ffffff;
+	}
+}
+
+// The banner sits inside the art's own border, so the focus ring still shows all the way around.
+.seerrBanner {
+	border: var(--theme-card-border, 4px solid transparent);
+	border-color: transparent;
+	border-bottom-width: 0;
+	border-radius: var(--theme-card-radius, 20px) var(--theme-card-radius, 20px) 0 0;
+	background-clip: padding-box;
+	box-sizing: content-box;
+}
+
+.card:focus .seerrBanner {
+	border-width: 4px 4px 0;
+}
+
+.underSeerrBanner {
+	.serverBadge,
+	.seerrBadge,
+	.watchedBadge,
+	.unplayedCount,
+	.favoriteBadge {
+		top: 28px;
 	}
 }
 
@@ -369,3 +418,7 @@
 :global(.vega) .imageContainer.previewHost {
 	border-radius: 0;
 }
+
+// The badges that move below the server's name, as serverNameCorner.js places them. The Seerr banner starts the corner
+// at 28px instead of 8px.
+.server-name-corner(28px);
