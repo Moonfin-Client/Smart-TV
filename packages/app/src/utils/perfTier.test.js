@@ -57,13 +57,21 @@ describe('computePerfTier', () => {
 describe('smoothScrollingFor', () => {
 	afterEach(() => applyPerfTier(null));
 
-	test('glides by default only on the High tier', () => {
-		applyPerfTier('high');
-		expect(smoothScrollingFor(null)).toBe(true);
-		applyPerfTier('mid');
-		expect(smoothScrollingFor(null)).toBe(false);
-		applyPerfTier('low');
-		expect(smoothScrollingFor(null)).toBe(false);
+	test('below the High tier it only defaults on where the engine can slide', () => {
+		const animate = window.Element.prototype.animate;
+		try {
+			window.Element.prototype.animate = undefined;
+			applyPerfTier('high');
+			expect(smoothScrollingFor(null)).toBe(true);
+			applyPerfTier('mid');
+			expect(smoothScrollingFor(null)).toBe(false);
+			applyPerfTier('low');
+			expect(smoothScrollingFor(null)).toBe(false);
+			window.Element.prototype.animate = () => ({});
+			expect(smoothScrollingFor(null)).toBe(true);
+		} finally {
+			window.Element.prototype.animate = animate;
+		}
 	});
 
 	test('a choice someone made wins over the tier', () => {

@@ -427,7 +427,7 @@ export const SETTINGS_SCHEMA = [
 						kind: KIND.TOGGLE,
 						key: 'smoothScrollingChoice',
 						label: () => $L('Smooth Scrolling'),
-						desc: () => $L('Glide between rows and cards instead of jumping. On by default only on TVs fast enough for it.'),
+						desc: () => $L('Glide between rows and cards instead of jumping.'),
 						icon: 'swipe',
 						isOn: (ctx) => smoothScrollingFor(ctx.settings.smoothScrollingChoice),
 						onToggle: (ctx) => ctx.actions.setSetting('smoothScrollingChoice', !smoothScrollingFor(ctx.settings.smoothScrollingChoice))

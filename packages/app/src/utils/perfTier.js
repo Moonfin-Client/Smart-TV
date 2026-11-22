@@ -19,9 +19,12 @@ export const getDetectedPerfTier = () => {
 
 export const getPerfTier = () => overrideTier || getDetectedPerfTier();
 
-// Someone's own choice wins. Otherwise only the High tier glides rows, since a glide
-// on a TV that rasters in software costs more frames than it saves.
-export const smoothScrollingFor = (choice) => (typeof choice === 'boolean' ? choice : getPerfTier() === 'high');
+// Whether the engine can run an animation on the compositor, so a slide doesn't cost the main thread its frames.
+export const canSlide = () => typeof window !== 'undefined' && typeof window.Element?.prototype.animate === 'function';
+
+// Someone's own choice wins. Otherwise the High tier glides rows, and the tiers below slide them wherever
+// the engine can, since a glide drawn by script on a TV that rasters in software costs more frames than it saves.
+export const smoothScrollingFor = (choice) => (typeof choice === 'boolean' ? choice : getPerfTier() === 'high' || canSlide());
 
 export const applyPerfTier = (mode) => {
 	overrideTier = (mode === 'low' || mode === 'mid' || mode === 'high') ? mode : null;

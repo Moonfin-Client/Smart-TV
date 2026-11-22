@@ -983,6 +983,7 @@ const Browse = ({
 					style={rowPeek ? {height: rem(rowPeek)} : undefined}
 					data-pointer-rows
 				>
+					<div className={css.rowsTrack}>
 					{filteredRows.map((row, index) => {
 						if (row.isPlaceholder || index >= mountedRows) {
 							return (
@@ -1141,6 +1142,7 @@ const Browse = ({
 					{filteredRows.length === 0 && (
 						<div className={css.empty}>{$L('No content found')}</div>
 					)}
+					</div>
 				</div>
 				</MediaPreviewContext.Provider>
 			</div>

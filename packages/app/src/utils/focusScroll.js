@@ -1,4 +1,5 @@
 import Spotlight from '@enact/spotlight';
+import {canSlide, getPerfTier} from './perfTier';
 
 // Spotlight focuses without scrolling, so anything taller than its box has to
 // bring the focused row into view itself. scrollIntoView options are ignored on
@@ -75,10 +76,75 @@ export const whenStill = (fn) => {
 	window.requestAnimationFrame(() => whenStill(fn));
 };
 
+// A sliding track is drawn away from where it lays out, so the browser's own scroll to a newly focused element
+// would aim at the drawn spot and throw the scroller off. A scroller being slid keeps its offset through a focus.
+if (typeof window !== 'undefined' && window.HTMLElement) {
+	const nativeFocus = window.HTMLElement.prototype.focus;
+	window.HTMLElement.prototype.focus = function (...args) {
+		if (!moving.size) return nativeFocus.apply(this, args);
+		const kept = [];
+		moving.forEach((glide) => {
+			if (glide.player) kept.push([glide.node, glide.node.scrollTop, glide.node.scrollLeft]);
+		});
+		const result = nativeFocus.apply(this, args);
+		kept.forEach(([node, top, left]) => {
+			if (node.scrollTop !== top) node.scrollTop = top;
+			if (node.scrollLeft !== left) node.scrollLeft = left;
+		});
+		return result;
+	};
+}
+
 const endGlide = (axis, node, glide) => {
 	window.cancelAnimationFrame(glide.frame);
+	if (glide.player) {
+		clearTimeout(glide.timer);
+		glide.player.onfinish = null;
+		glide.player.cancel();
+	}
 	moving.delete(glide);
 	glides[axis].delete(node);
+};
+
+// Below the High tier the scroller jumps straight to the end and its track is drawn sliding in from where it
+// was. The compositor runs that at the screen's own rate, while a glide drawn by script on those TVs only gets
+// two or three frames, since painting the focus change takes most of the main thread.
+const SLIDE_EASE = 'cubic-bezier(0.33, 1, 0.68, 1)';
+
+const slideTrackOf = (node) => (
+	getPerfTier() !== 'high' && canSlide() && node.children && node.children.length === 1 ? node.children[0] : null
+);
+
+const shiftOf = (track, axis) => {
+	const style = window.getComputedStyle(track);
+	const matrix = (style.transform || style.webkitTransform || '').match(/^matrix(3d)?\(([^)]*)\)/);
+	if (!matrix) return 0;
+	const values = matrix[2].split(',').map(parseFloat);
+	const index = matrix[1] ? (axis === 'x' ? 12 : 13) : (axis === 'x' ? 4 : 5);
+	return values[index] || 0;
+};
+
+// The offset a move under way shows right now, which is where the next one carries on from whatever the
+// browser's own focus scroll has done to the node since.
+const shownAt = (glide, axis) => (glide.player ? glide.target - shiftOf(glide.track, axis) : glide.at);
+
+const slide = (node, track, axis, target, duration, start, running) => {
+	const {offset} = AXES[axis];
+	const from = running ? shownAt(running, axis) : (typeof start === 'number' ? start : node[offset]);
+	if (running) endGlide(axis, node, running);
+	node[offset] = target;
+	const shift = target - from;
+	if (Math.abs(shift) < 1) return;
+	const at = (px) => (axis === 'x' ? `translate3d(${px}px, 0, 0)` : `translate3d(0, ${px}px, 0)`);
+	const player = track.animate([{transform: at(shift)}, {transform: at(0)}], {duration, easing: SLIDE_EASE});
+	const glide = {target, track, node, player};
+	const done = () => endGlide(axis, node, glide);
+	player.onfinish = done;
+	// The compositor only starts the clock once the frame with the focus change is up, which a slow TV can take a
+	// while over, so this is only a backstop for a slide that never reports back.
+	glide.timer = setTimeout(done, duration * 4 + 1000);
+	glides[axis].set(node, glide);
+	moving.add(glide);
 };
 
 export const stopScrollAnimation = (node) => {
@@ -88,13 +154,18 @@ export const stopScrollAnimation = (node) => {
 	});
 };
 
-const animate = (node, axis, target, duration, start, ease = easeOutCubic) => {
+// A glide given its own `ease` keeps step with something else moving, so it stays on the script's clock.
+const animate = (node, axis, target, duration, start, ease) => {
 	const {offset} = AXES[axis];
 	const running = glides[axis].get(node);
+	const track = ease ? null : slideTrackOf(node);
+	if (track) {
+		slide(node, track, axis, target, duration, start, running);
+		return;
+	}
+	const curve = ease || easeOutCubic;
+	const from = running ? shownAt(running, axis) : (typeof start === 'number' ? start : node[offset]);
 	if (running) endGlide(axis, node, running);
-	// A glide under way carries on from the offset it last wrote, whatever the browser's own focus scroll has
-	// done to the node since.
-	const from = running ? running.at : (typeof start === 'number' ? start : node[offset]);
 	const distance = target - from;
 	if (!distance) {
 		node[offset] = target;
@@ -107,7 +178,7 @@ const animate = (node, axis, target, duration, start, ease = easeOutCubic) => {
 	const step = () => {
 		if (!started) started = Date.now() - FRAME_MS;
 		const t = Math.min(1, (Date.now() - started) / duration);
-		glide.at = from + distance * ease(t);
+		glide.at = from + distance * curve(t);
 		node[offset] = glide.at;
 		if (t < 1) glide.frame = window.requestAnimationFrame(step);
 		else endGlide(axis, node, glide);

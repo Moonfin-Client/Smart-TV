@@ -1,4 +1,5 @@
 import {cubicBezier, glideScroll, glideToCard, setSmoothScrolling, whenStill} from './focusScroll';
+import {applyPerfTier} from './perfTier';
 
 jest.mock('@enact/spotlight', () => ({getPointerMode: () => false}));
 
@@ -125,5 +126,91 @@ describe('focus glides', () => {
 		runFor(300);
 		runFor(16);
 		expect(held).toHaveBeenCalled();
+	});
+});
+
+describe('compositor slides', () => {
+	let players;
+	let animate;
+
+	// A lane holding the one track that slides.
+	const laneWithTrack = (scrollLeft = 0) => {
+		const node = lane(scrollLeft);
+		node.appendChild(document.createElement('div'));
+		return node;
+	};
+
+	beforeEach(() => {
+		players = [];
+		animate = window.Element.prototype.animate;
+		window.Element.prototype.animate = function (keyframes, options) {
+			const player = {keyframes, options, track: this, cancel: jest.fn()};
+			players.push(player);
+			return player;
+		};
+	});
+
+	afterEach(() => {
+		players.forEach((player) => player.onfinish && player.onfinish());
+		window.Element.prototype.animate = animate;
+		jest.restoreAllMocks();
+		applyPerfTier(null);
+	});
+
+	it('jumps the lane to the end and slides its track in from what was on screen', () => {
+		const node = laneWithTrack(0);
+		node.scrollLeft = 300;
+		expect(glideScroll(node, 'x', 500, 0)).toBe(500);
+		expect(node.scrollLeft).toBe(500);
+		expect(players).toHaveLength(1);
+		expect(players[0].track).toBe(node.firstChild);
+		expect(players[0].keyframes).toEqual([{transform: 'translate3d(500px, 0, 0)'}, {transform: 'translate3d(0px, 0, 0)'}]);
+	});
+
+	it('carries a second move on from where the first one shows', () => {
+		const node = laneWithTrack(0);
+		glideScroll(node, 'x', 500, 0);
+		// Part way along, the track still sits 200 px short of the end.
+		jest.spyOn(window, 'getComputedStyle').mockReturnValue({transform: 'matrix(1, 0, 0, 1, 200, 0)'});
+		glideScroll(node, 'x', 900, 500);
+		expect(players[0].cancel).toHaveBeenCalled();
+		expect(node.scrollLeft).toBe(900);
+		expect(players[1].keyframes[0]).toEqual({transform: 'translate3d(600px, 0, 0)'});
+	});
+
+	it('holds work back until the slide reports it has finished', () => {
+		glideScroll(laneWithTrack(0), 'x', 500, 0);
+		const held = jest.fn();
+		jest.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 0);
+		whenStill(held);
+		expect(held).not.toHaveBeenCalled();
+		players[0].onfinish();
+		whenStill(held);
+		expect(held).toHaveBeenCalled();
+	});
+
+	it("keeps a sliding lane where it is through the browser's own scroll to a focused card", () => {
+		const node = laneWithTrack(0);
+		const card = document.createElement('button');
+		node.firstChild.appendChild(card);
+		document.body.appendChild(node);
+		glideScroll(node, 'x', 500, 0);
+		// The engine's focus scroll, which aims at where the slide draws the card.
+		card.addEventListener('focus', () => {
+			node.scrollLeft = 1200;
+		});
+		card.focus();
+		expect(document.activeElement).toBe(card);
+		expect(node.scrollLeft).toBe(500);
+		node.remove();
+	});
+
+	it('keeps the High tier on the script glide', () => {
+		applyPerfTier('high');
+		jest.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 0);
+		const node = laneWithTrack(0);
+		glideScroll(node, 'x', 500, 0);
+		expect(players).toHaveLength(0);
+		expect(node.scrollLeft).toBe(0);
 	});
 });

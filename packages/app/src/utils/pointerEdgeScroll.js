@@ -43,10 +43,12 @@ const scrollerInward = (px, py, axis, dx, dy) => {
 // The list can run on past its last row, room kept for the remote, which a pointer has no use for.
 const rowStops = (el) => {
 	const origin = el.getBoundingClientRect().top - el.scrollTop;
+	// The rows can sit in one track inside the list, which is what slides when the remote moves them.
+	const rows = el.children.length === 1 ? el.children[0].children : el.children;
 	const tops = [];
 	let end = 0;
-	for (let i = 0; i < el.children.length; i++) {
-		const box = el.children[i].getBoundingClientRect();
+	for (let i = 0; i < rows.length; i++) {
+		const box = rows[i].getBoundingClientRect();
 		if (!box.height) continue;
 		tops.push(box.top - origin);
 		end = Math.max(end, box.bottom - origin);
