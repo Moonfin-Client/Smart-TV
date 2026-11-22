@@ -133,3 +133,30 @@ describe('RatingsRow sample ratings', () => {
 		expect(screen.getByText('7.4')).toBeTruthy();
 	});
 });
+
+describe('RatingsRow single line', () => {
+	test('fits every line drawn together, each measured with its zoom reset', async () => {
+		const reads = [];
+		const scrollWidth = jest.spyOn(window.HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function () {
+			reads.push(this.style.zoom);
+			return 300;
+		});
+		const clientWidth = jest.spyOn(window.HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(() => 200);
+		try {
+			const {container} = render(
+				<div>
+					<RatingsRow item={movie} serverUrl='http://server' pluginEnabled={false} compact singleLineWidth={200} />
+					<RatingsRow item={{...movie, Id: 'm4'}} serverUrl='http://server' pluginEnabled={false} compact singleLineWidth={200} />
+				</div>
+			);
+			await Promise.resolve();
+			const lines = Array.from(container.firstChild.children);
+			expect(lines).toHaveLength(2);
+			lines.forEach((line) => expect(Number(line.style.zoom)).toBeCloseTo(200 / 300, 5));
+			expect(reads).toEqual(['', '']);
+		} finally {
+			scrollWidth.mockRestore();
+			clientWidth.mockRestore();
+		}
+	});
+});
