@@ -67,7 +67,7 @@ describe('the Xbox bridge', () => {
 	test('a request the host makes resolves with the answer that names it', async () => {
 		const asked = requestThroughShell('http://silo:8090/api/v2/account/me', {method: 'GET', headers: {Authorization: 'Bearer t'}, signal: 'not sent'}, 4000);
 		const message = sent();
-		expect(message).toEqual({v: 1, type: 'HTTP_REQUEST', payload: {id: message.payload.id, url: 'http://silo:8090/api/v2/account/me', method: 'GET', headers: {Authorization: 'Bearer t'}, body: null, timeoutMs: 4000}});
+		expect(message).toEqual({v: 1, type: 'HTTP_REQUEST', payload: {id: message.payload.id, url: 'http://silo:8090/api/v2/account/me', method: 'GET', headers: {Authorization: 'Bearer t'}, body: null, timeoutMs: 4000, quiet: false}});
 		hostSays('HTTP_RESPONSE', {id: message.payload.id + 1, status: 500, body: ''});
 		hostSays('HTTP_RESPONSE', {id: message.payload.id, status: 200, body: '{}', headers: {'content-type': 'application/json'}});
 		await expect(asked).resolves.toEqual({id: message.payload.id, status: 200, body: '{}', headers: {'content-type': 'application/json'}});
@@ -77,7 +77,7 @@ describe('the Xbox bridge', () => {
 		requestThroughShell('http://192.168.1.20:8090/api/v2/system/info', {quiet: true}, 3000);
 		requestThroughShell('http://silo:8090/api/v2/account/me');
 		expect(sent(0).payload.quiet).toBe(true);
-		expect('quiet' in sent(1).payload).toBe(false);
+		expect(sent(1).payload.quiet).toBe(false);
 	});
 
 	test('a request nothing answers resolves with status 0', async () => {

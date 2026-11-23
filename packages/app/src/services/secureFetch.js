@@ -208,18 +208,17 @@ export const originFreeFetch = (url, options = {}, timeoutMs) => {
 
 // A Plex server only lets app.plex.tv read its answers across origins, Silo sends no CORS
 // headers, and the page on Fire TV sits at file:// and on Xbox at http://moonfin.internal,
-// so the shell makes those requests there. The shell can't stop a request it has sent, so a caller that gives up only stops one
-// that hasn't gone out yet. One already sent is waited for and keeps its place in the queue.
+// so the shell makes those requests there. The shell can't stop a request it has sent, so a
+// caller that gives up only stops one that hasn't gone out yet. One already sent is waited
+// for and keeps its place in the queue.
 export const corsFreeFetch = async (url, options = {}, timeoutMs) => {
 	const bridge = isVega() || isXbox() ? await loadShellBridge() : null;
 	if (!bridge?.requestThroughShell) return platformFetch(url, options, timeoutMs);
 	if (options.signal?.aborted) throw abortError();
 	return traceRequest(`${options.method || 'GET'} (shell)`, url, async () => {
 		let answer = await bridge.requestThroughShell(url, options, timeoutMs);
-		// A certificate the shell refused, once the user's setting lets it through, as platformFetch does. Only the
-		// Xbox host says that is why, and only its requests take the setting. Requests sent together each get their retry,
-		// also those that fail after another one already brought the host to the shell.
-		// Not after a redirect, which a server already acted on and the setting can't reach.
+		// When the shell refused the certificate and the setting allows it, try once more, even if another request already
+		// let the host through. Only the Xbox host reports this, and never after a redirect, since that server already acted.
 		if (!answer.status && answer.failure === 'certificate' && !answer.redirected && (shellAllowedHosts.has(httpsHostOf(url)) || await allowHostInShell(url))) {
 			if (options.signal?.aborted) throw abortError();
 			answer = await bridge.requestThroughShell(url, options, timeoutMs);

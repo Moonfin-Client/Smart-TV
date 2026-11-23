@@ -76,7 +76,7 @@ namespace Moonfin.Xbox
 
             nativePlayer = new NativePlayer(VideoHost, VideoBackdrop, Dispatcher, SendToPage, authority => insecureHosts.Contains(authority));
             socketRelay = new SocketRelay(Dispatcher, SendToPage, authority => insecureHosts.Contains(authority));
-            // An answer is for a page that asked, which may still be loading, as a Reply is.
+            // Answers go out even while the page is loading, like replies do, so a request made at startup still gets one.
             httpRelay = new HttpRelay((type, payload) => RunScript(Bridge.ToPageScript(type, payload), true), authority => insecureHosts.Contains(authority));
 
             // Xbox keeps a border around the content for sets that cut the edges off. The web

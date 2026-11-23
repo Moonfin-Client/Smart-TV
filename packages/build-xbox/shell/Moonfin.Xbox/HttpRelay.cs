@@ -12,35 +12,21 @@ using Windows.Web.Http.Filters;
 
 namespace Moonfin.Xbox
 {
-    // Requests the page makes through the host, for servers that dont let other sites
-    // read their answers.
-    //
-    // The page is at http://moonfin.internal and the WebView holds it to CORS. Silo sends
-    // no CORS headers and a Plex server only allows app.plex.tv, so the WebView would hold
-    // every answer back. A request from here has no origin to check. The Fire TV shell does
-    // the same, and the page side is corsFreeFetch in packages/app/src/services/secureFetch.js
-    // with requestThroughShell in packages/platform-xbox/src/bridge.js.
-    //
-    // Page to host: HTTP_REQUEST  {id, url, method, headers, body, timeoutMs, quiet}
-    // Host to page: HTTP_RESPONSE {id, status, body, headers, failure, redirected}, a status of 0 when nothing
-    //              answered, with failure "certificate" (a handshake refused) or "timeout" when that is why, and
-    //              redirected set when a server had already answered the request with a redirect, so it isnt
-    //              to be sent again. A request with quiet set isnt logged.
+    // Makes requests for the page. The WebView holds the page at http://moonfin.internal to
+    // CORS, and Silo sends no CORS headers while Plex only allows app.plex.tv, so the WebView
+    // would hold back every answer. corsFreeFetch is the page side, and Bridge.cs lists the messages.
     internal sealed class HttpRelay
     {
-        private const int MaxHeaders = 32;
         private const int MaxRedirects = 10;
         private const uint MaxResponseBytes = 24 * 1024 * 1024;
         private const int ReadPieceBytes = 64 * 1024;
         private static readonly TimeSpan ShortestWait = TimeSpan.FromSeconds(1);
-        // A Plex tuner is given five minutes to start (TUNE_TIMEOUT_MS in plexApi.js).
+        // Plex live TV gives a tuner five minutes to start.
         private static readonly TimeSpan LongestWait = TimeSpan.FromMinutes(5);
 
         private readonly Action<string, IJsonValue> sendToPage;
         private readonly Func<string, bool> isInsecureHost;
 
-        // One for servers the user chose to trust as they are, one for every other, each
-        // shared so requests to a server reuse its connections.
         private HttpClient client;
         private HttpClient lenientClient;
 
@@ -57,8 +43,7 @@ namespace Moonfin.Xbox
             return true;
         }
 
-        // Runs on the UI thread, and the awaits come back to it, so the answer goes to the
-        // page from there.
+        // Runs on the UI thread and every await comes back to it, so answers go to the page from there.
         private async void Relay(JsonObject payload)
         {
             IJsonValue idValue = Bridge.Named(payload, "id");
@@ -72,7 +57,6 @@ namespace Moonfin.Xbox
                 return;
             }
 
-            // Discovery walks a whole subnet, where nearly every request is meant to fail.
             IJsonValue quietValue = Bridge.Named(payload, "quiet");
             bool quiet = quietValue != null && quietValue.ValueType == JsonValueType.Boolean && quietValue.GetBoolean();
 
@@ -80,25 +64,20 @@ namespace Moonfin.Xbox
             string body = Bridge.NamedString(payload, "body");
             string contentType = null;
             var requestHeaders = new List<KeyValuePair<string, string>>();
-            // The others that describe the body go on the body, where Windows takes them.
-            var contentHeaders = new List<KeyValuePair<string, string>>();
             IJsonValue headers = Bridge.Named(payload, "headers");
             if (headers != null && headers.ValueType == JsonValueType.Object)
             {
-                int count = 0;
                 foreach (KeyValuePair<string, IJsonValue> header in headers.GetObject())
                 {
-                    if (count++ >= MaxHeaders) break;
                     if (header.Value.ValueType != JsonValueType.String) continue;
                     string value = header.Value.GetString();
+                    // Content-Type goes on the body, and the page never sends other body headers.
                     if (string.Equals(header.Key, "Content-Type", StringComparison.OrdinalIgnoreCase)) contentType = value;
-                    else if (header.Key.StartsWith("Content-", StringComparison.OrdinalIgnoreCase)) contentHeaders.Add(new KeyValuePair<string, string>(header.Key, value));
-                    else requestHeaders.Add(new KeyValuePair<string, string>(header.Key, value));
+                    else if (!header.Key.StartsWith("Content-", StringComparison.OrdinalIgnoreCase)) requestHeaders.Add(new KeyValuePair<string, string>(header.Key, value));
                 }
             }
 
             HttpRequestMessage request = null;
-            // Which step of a redirect chain is being asked, with which client, and whether its server answered.
             int redirects = 0;
             bool strict = true;
             bool answered = false;
@@ -106,21 +85,18 @@ namespace Moonfin.Xbox
             {
                 try
                 {
-                    // Redirects are followed here rather than by Windows, so that each server is
-                    // checked against the user's certificate choice, and so that the page's headers,
-                    // tokens among them, stay on a redirect within the server and are left off one
-                    // to another.
+                    // Redirects are followed here instead of by Windows, so each server gets its own
+                    // certificate check and the page's tokens never reach another server.
                     bool sameServer = true;
                     for (; ; redirects++)
                     {
-                        request?.Dispose();
-                        // So that a NewRequest that throws leaves the catch no disposed request to read.
-                        request = null;
-                        request = NewRequest(method, uri, requestHeaders, sameServer, body, contentType, contentHeaders);
+                        HttpRequestMessage previous = request;
+                        request = NewRequest(method, uri, requestHeaders, sameServer, body, contentType);
+                        previous?.Dispose();
                         strict = !isInsecureHost(uri.Authority);
                         HttpClient chosen = strict ? Client() : LenientClient();
                         answered = false;
-                        // Only the headers first, so an answer too large to take is turned away before it is read.
+                        // Headers first, so an answer that's too large is turned away before its body is read.
                         using (HttpResponseMessage answer = await chosen.SendRequestAsync(request, HttpCompletionOption.ResponseHeadersRead).AsTask(cancel.Token))
                         {
                             answered = true;
@@ -134,7 +110,7 @@ namespace Moonfin.Xbox
                                     return;
                                 }
                                 int status = (int)answer.StatusCode;
-                                // A browser asks the next place with GET, and without the body, after a 303, and after a 301 or 302 to a POST.
+                                // Like a browser, switch to GET and drop the body after a 303, or after a 301 or 302 to a POST.
                                 if ((status == 303 && method != "HEAD") || ((status == 301 || status == 302) && method == "POST"))
                                 {
                                     method = "GET";
@@ -142,7 +118,7 @@ namespace Moonfin.Xbox
                                 }
                                 if (!SameServer(uri, next))
                                 {
-                                    // A body (a login, a refresh token) never goes on to another server, nor anything from https to http.
+                                    // A body like a login or a refresh token never goes to another server, and nothing goes from https down to http.
                                     if (body != null || (uri.Scheme == "https" && next.Scheme == "http"))
                                     {
                                         if (!quiet) HostLog.Write("http", uri.Host + " redirected to another server, not followed");
@@ -169,9 +145,8 @@ namespace Moonfin.Xbox
                 }
                 catch (Exception ex)
                 {
-                    // Why it failed, for the page: a server too slow, or a handshake refused for its
-                    // certificate. Only one the server never answered: a server let through shows its
-                    // ignored certificate problem on every request, whatever else went wrong after.
+                    // Only a request the server never answered can have failed on its certificate, since a
+                    // trusted server still reports its ignored problems on every request.
                     string failure = null;
                     if (cancel.IsCancellationRequested) failure = "timeout";
                     else if (!answered && request?.TransportInformation != null && CertificateRefused(request.TransportInformation.ServerCertificateErrorSeverity, strict)) failure = "certificate";
@@ -185,10 +160,10 @@ namespace Moonfin.Xbox
             }
         }
 
-        // Another server gets only the headers a browser would send it without asking first.
+        // Another server only gets the headers a browser would send it without a preflight.
         private static readonly HashSet<string> HarmlessHeaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Accept", "Accept-Language", "Range" };
 
-        private static HttpRequestMessage NewRequest(string method, Uri uri, List<KeyValuePair<string, string>> headers, bool allHeaders, string body, string contentType, List<KeyValuePair<string, string>> contentHeaders)
+        private static HttpRequestMessage NewRequest(string method, Uri uri, List<KeyValuePair<string, string>> headers, bool allHeaders, string body, string contentType)
         {
             var request = new HttpRequestMessage(new HttpMethod(method), uri);
             foreach (KeyValuePair<string, string> header in headers)
@@ -198,19 +173,13 @@ namespace Moonfin.Xbox
             }
             if (body != null)
             {
-                // The body goes as UTF-8 whatever charset the page named, and says so.
+                // The body always goes as UTF-8, whatever charset the page named, and the header says so.
                 string mediaType = (contentType ?? "text/plain").Split(';')[0].Trim();
                 request.Content = new HttpStringContent(body, UnicodeEncoding.Utf8, mediaType.Length > 0 ? mediaType : "text/plain");
-                foreach (KeyValuePair<string, string> header in contentHeaders)
-                {
-                    // Its length is the content's own.
-                    if (!string.Equals(header.Key, "Content-Length", StringComparison.OrdinalIgnoreCase)) request.Content.Headers.TryAppendWithoutValidation(header.Key, header.Value);
-                }
             }
             return request;
         }
 
-        // Where a redirect points, or null when the answer isnt one to follow.
         private static Uri RedirectOf(HttpResponseMessage answer, Uri from)
         {
             int status = (int)answer.StatusCode;
@@ -220,22 +189,20 @@ namespace Moonfin.Xbox
             return next;
         }
 
-        // The same host, at the same scheme and port, or moved from http on any port to https on
-        // 443 or the same port, as isSameOriginRedirect in Moonfin-Core. Another port on the host
-        // could be another service.
+        // An http to https upgrade on the same host counts as the same server. Any other port
+        // change could be a different service.
         private static bool SameServer(Uri from, Uri to)
         {
             if (!string.Equals(from.Host, to.Host, StringComparison.OrdinalIgnoreCase)) return false;
             return (from.Scheme == to.Scheme && from.Port == to.Port) || (from.Scheme == "http" && to.Scheme == "https" && (to.Port == 443 || to.Port == from.Port));
         }
 
-        // The body a piece at a time, so one with no length given stops at the limit rather
-        // than being read whole first. Null when it is larger than that.
+        // Reads in pieces so a body with no length stops at the limit instead of being read whole.
+        // Returns null when it's too large.
         private static async Task<MemoryStream> ReadBody(IHttpContent content, CancellationToken cancel)
         {
             ulong? announced = content.Headers.ContentLength;
             if (announced.HasValue && announced.Value > MaxResponseBytes) return null;
-            // Room for what it says it holds, up to a megabyte until more arrives.
             var bytes = new MemoryStream(announced.HasValue ? (int)Math.Min(announced.Value, 1024 * 1024) : 0);
             using (Stream stream = (await content.ReadAsInputStreamAsync().AsTask(cancel)).AsStreamForRead())
             {
@@ -254,7 +221,7 @@ namespace Moonfin.Xbox
             }
         }
 
-        // The lenient client lets the problems it ignores through, so only a fatal one stopped it.
+        // The lenient client ignores the usual problems, so only a fatal one can have stopped it.
         private static bool CertificateRefused(SocketSslErrorSeverity severity, bool strict)
         {
             return strict ? severity != SocketSslErrorSeverity.None : severity == SocketSslErrorSeverity.Fatal;
@@ -272,16 +239,15 @@ namespace Moonfin.Xbox
             sendToPage("HTTP_RESPONSE", answer);
         }
 
-        // As a browser reads a body as text: UTF-8 without its byte order mark, and a byte
-        // that isnt UTF-8 (a subtitle file saved as Latin-1) as a replacement character
-        // rather than a failed request.
+        // Decodes like a browser does. The byte order mark is dropped, and a byte that isn't UTF-8,
+        // like in a Latin-1 subtitle file, becomes a replacement character instead of failing the request.
         private static string DecodeText(byte[] bytes, int length)
         {
             int start = length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF ? 3 : 0;
             return System.Text.Encoding.UTF8.GetString(bytes, start, length - start);
         }
 
-        // Named in lower case, as the page looks them up.
+        // Lowercased, since the page looks them up that way.
         private static JsonObject HeadersOf(HttpResponseMessage answer)
         {
             var headers = new JsonObject();
@@ -308,14 +274,11 @@ namespace Moonfin.Xbox
             return lenientClient ?? (lenientClient = CreateClient(true));
         }
 
-        // The page's own requests carry no cookies either, and the API's answers arent
-        // worth keeping.
         private static HttpClient CreateClient(bool acceptUntrustedCertificate)
         {
             var filter = new HttpBaseProtocolFilter();
-            // A server that asks for a password gets its 401 back to the page, never a system dialog.
+            // A 401 goes back to the page instead of opening a Windows sign-in dialog.
             filter.AllowUI = false;
-            // Relay follows them itself.
             filter.AllowAutoRedirect = false;
             filter.CookieUsageBehavior = HttpCookieUsageBehavior.NoCookies;
             filter.CacheControl.ReadBehavior = HttpCacheReadBehavior.NoCache;
@@ -326,7 +289,7 @@ namespace Moonfin.Xbox
                 filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.Expired);
                 filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.InvalidName);
                 filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.IncompleteChain);
-                // The WebView takes every certificate of a server the user accepted, so these too.
+                // The WebView accepts any certificate from a server the user trusted, so these are ignored too.
                 filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.RevocationFailure);
                 filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.RevocationInformationMissing);
                 filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.WrongUsage);

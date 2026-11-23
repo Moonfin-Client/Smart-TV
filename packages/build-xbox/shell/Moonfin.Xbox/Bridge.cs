@@ -44,7 +44,8 @@ namespace Moonfin.Xbox
     //   SOCKET_OPEN          {id, url, protocols}, a WebSocket the host opens (SocketRelay)
     //   SOCKET_SEND          {id, data}
     //   SOCKET_CLOSE         {id, code, reason}
-    //   HTTP_REQUEST         {id, url, method, headers, body, timeoutMs}, a request the host makes (HttpRelay)
+    //   HTTP_REQUEST         {id, url, method, headers, body, timeoutMs, quiet}, a request the host makes (HttpRelay),
+    //                        where quiet keeps a failure out of the log during a network scan
     //
     // Host to page:
     //   APP_STATE    {state: "active" | "background"}
@@ -55,7 +56,9 @@ namespace Moonfin.Xbox
     //   SOCKET_OPENED  {id, protocol}
     //   SOCKET_MESSAGE {id, data}
     //   SOCKET_CLOSED  {id, code, reason}, also for a socket that failed to open (1006)
-    //   HTTP_RESPONSE  {id, status, body, headers}, status 0 when nothing answered
+    //   HTTP_RESPONSE  {id, status, body, headers, failure, redirected}, status 0 when nothing answered,
+    //                  failure "certificate" or "timeout" when that's why, and redirected when a server
+    //                  already answered with a redirect
     //   REPLY        the answer to a message that carried an id
     internal static class Bridge
     {
