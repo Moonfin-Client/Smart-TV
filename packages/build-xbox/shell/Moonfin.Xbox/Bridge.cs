@@ -65,9 +65,9 @@ namespace Moonfin.Xbox
         public const int Version = 1;
         public const string PageEvent = "moonfin:xbox";
 
-        // The probe's report is the longest thing the page sends and stays well under
-        // this. A longer message is dropped unread.
-        public const int MaxMessageLength = 256 * 1024;
+        // The longest thing the page sends is a diagnostic report through HttpRelay. Moonbase takes
+        // up to 1 MiB, and this leaves room for the JSON escaping. A longer message is dropped unread.
+        public const int MaxMessageLength = 4 * 1024 * 1024;
 
         public static PageMessage Parse(string raw)
         {

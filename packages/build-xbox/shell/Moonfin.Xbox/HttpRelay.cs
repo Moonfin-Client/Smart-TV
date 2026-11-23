@@ -118,8 +118,9 @@ namespace Moonfin.Xbox
                                 }
                                 if (!SameServer(uri, next))
                                 {
-                                    // A body like a login or a refresh token never goes to another server, and nothing goes from https down to http.
-                                    if (body != null || (uri.Scheme == "https" && next.Scheme == "http"))
+                                    // Only a bodyless GET or HEAD goes on to another server, since the relay can't ask
+                                    // it first the way a browser's preflight would, and nothing goes from https down to http.
+                                    if (body != null || (method != "GET" && method != "HEAD") || (uri.Scheme == "https" && next.Scheme == "http"))
                                     {
                                         if (!quiet) HostLog.Write("http", uri.Host + " redirected to another server, not followed");
                                         Answer(id, 0, "", null);
