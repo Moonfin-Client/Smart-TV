@@ -403,9 +403,11 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 	const [permissions, setPermissions] = useState(null);
 	const [myUserId, setMyUserId] = useState(contextUser?.seerrUserId ?? null);
 	const [activeIssue, setActiveIssue] = useState(null);
-	const loadingMoreRef = useRef(false);
-	// The latest loadMore, so a load that dropped its page can ask again with the current list and filter.
+	// The load generation whose page read is out, so a read left over from an older filter doesn't block the new list.
+	const loadingMoreRef = useRef(null);
+	// The latest loadMore and the timer that asks again after removals kept moving a page.
 	const loadMoreRef = useRef(null);
+	const loadMoreRetryRef = useRef(null);
 	const focusFirstRequestRef = useRef(false);
 
 	// Bumped by each full load, which asks the arr about every title again.
@@ -498,13 +500,13 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 	}, [tab, requestFilter, issueFilter, reload]);
 
 	const loadMore = useCallback(async () => {
-		if (loadingMoreRef.current || !hasMore || loading) return;
-		loadingMoreRef.current = true;
-		let dropped = false;
+		if (loadingMoreRef.current === loadGenRef.current || !hasMore) return;
+		const gen = loadGenRef.current;
+		loadingMoreRef.current = gen;
+		let moved = false;
 		const filter = tab === 'requests' ? requestFilter : issueFilter;
 		const current = tab === 'requests' ? requests : issues;
 		const removalsAtStart = removalsRef.current;
-		const gen = loadGenRef.current;
 		const settle = async () => {
 			while (pendingRemovalsRef.current.size) await Promise.all([...pendingRemovalsRef.current]);
 		};
@@ -513,27 +515,21 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 			let {results, raw} = await loadPage(tab, filter, at);
 			// Each removal that finishes meanwhile moves the server's list up by one, past the page that was asked
 			// for. Read again from where the page now starts until no removal moved it during the read. If
-			// removals keep moving it, the page is dropped and the next scroll asks again.
+			// removals keep moving it, the page is dropped and asked for again a second later.
 			for (let reads = 1; tab === 'requests'; reads++) {
 				await settle();
-				if (gen !== loadGenRef.current) {
-					dropped = true;
-					return;
-				}
+				if (gen !== loadGenRef.current) return;
 				const next = Math.max(current.length - (removalsRef.current - removalsAtStart), 0);
 				if (next === at) break;
 				if (reads >= 6) {
-					dropped = true;
+					moved = true;
 					return;
 				}
 				at = next;
 				({results, raw} = await loadPage(tab, filter, at));
 			}
 			// A reload for another tab or filter replaced the list meanwhile.
-			if (gen !== loadGenRef.current) {
-				dropped = true;
-				return;
-			}
+			if (gen !== loadGenRef.current) return;
 			const append = (prev) => {
 				const seen = {};
 				prev.forEach((item) => {
@@ -548,19 +544,22 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 			}
 			setHasMore(raw.length >= PAGE_SIZE);
 		} catch (err) {
-			if (gen !== loadGenRef.current) {
-				dropped = true;
-				return;
-			}
+			if (gen !== loadGenRef.current) return;
 			console.warn('[SeerrRequests] Load more failed:', err.message);
 			setHasMore(false);
 		} finally {
-			loadingMoreRef.current = false;
-			// A scroll to the end while this load held the lock was skipped, so nothing else asks again.
-			if (dropped) setTimeout(() => loadMoreRef.current?.(), 0);
+			if (loadingMoreRef.current === gen) loadingMoreRef.current = null;
+			// The grid may already be at its end, where a scroll that came while this read was out was skipped
+			if (moved) {
+				clearTimeout(loadMoreRetryRef.current);
+				loadMoreRetryRef.current = setTimeout(() => loadMoreRef.current?.(), 1000);
+			}
 		}
-	}, [tab, requestFilter, issueFilter, requests, issues, hasMore, loading, loadPage]);
-	loadMoreRef.current = loadMore;
+	}, [tab, requestFilter, issueFilter, requests, issues, hasMore, loadPage]);
+	useEffect(() => {
+		loadMoreRef.current = loadMore;
+	}, [loadMore]);
+	useEffect(() => () => clearTimeout(loadMoreRetryRef.current), []);
 
 	// Only once per load. The download poll, load more and approve all hand back a new list too,
 	// and none of those should move focus.
@@ -764,7 +763,7 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 	// The list tags each item with a data-index and reads it back off whatever
 	// gains focus to work out how far to scroll, so it has to reach the element.
 	const renderItem = useCallback(({index, ...itemProps}) => {
-		if (index >= items.length - 5 && hasMore && !loadingMoreRef.current) {
+		if (index >= items.length - 5 && hasMore && loadingMoreRef.current !== loadGenRef.current) {
 			loadMore();
 		}
 		const item = items[index];
