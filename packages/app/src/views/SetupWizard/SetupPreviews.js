@@ -20,6 +20,7 @@ import RatingsRow from '../../components/RatingsRow';
 import MediaBarNewReleaseLabel from '../../components/MediaBarNewReleaseLabel';
 import PosterLabels from '../../components/PosterLabels';
 import {iconViewBox} from '../../components/icons/iconViewBox';
+import {AppsIcon, ChevronDownIcon, SearchIcon, SettingsIcon} from '../../components/icons/navIcons';
 import {MaterialIcon} from '../../components/icons/materialIcons';
 import {getRtFallbackIcon} from '../../components/icons/rtIcons';
 import {buildDisplayRatings, isMdblistEnabled} from '../../services/mdblistApi';
@@ -34,7 +35,7 @@ import {formatFileSize} from '../../utils/formatFileSize';
 import {homeBackdropStyle} from '../../utils/homeBackdropStyle';
 import {applyOledMode} from '../../utils/oledMode';
 import {normalizeRatingStyle} from '../../utils/personalRating';
-import {rootScale} from '../../utils/rootScale';
+import {rem, rootScale} from '../../utils/rootScale';
 import {memoryCache} from '../Browse/browseCache';
 import {classicCardSize} from '../../components/MediaCard/MediaCard';
 import {CAROUSEL_PANEL_SCRIM, homeRowSpacing, modernCardMetrics} from '../../components/MediaCard/modernCardLayout';
@@ -48,6 +49,11 @@ import {premiereDim, premiereScrim} from '../Details/premiere/premiereRules';
 import {QUICK_LOOK_BUTTON_CAP, quickLookSurface} from '../Details/quickLook/quickLookRules';
 import {FROST_BUTTON_CAP} from '../Details/frost/frostRules';
 import frostCss from '../Details/frost/FrostDetailContent.module.less';
+import navBarCss from '../../components/NavBar/NavBar.module.less';
+import atlasCss from '../../components/NavStyles/AtlasBar.module.less';
+import mosaicCss from '../../components/NavStyles/MosaicNav.module.less';
+import reelCss from '../../components/NavStyles/ReelNav.module.less';
+import tablineCss from '../../components/NavStyles/TablineBar.module.less';
 import {scrimStyle} from '../../utils/scrimImage';
 import {serverBlurredUrl} from '../../utils/serverBlur';
 import {splitNouveauActions} from '../Details/nouveau/nouveauActionSplit';
@@ -132,6 +138,7 @@ export const usePreviewPalette = () => {
 			// a theme asking for a transparent nav surface, the same as the real ones.
 			navbarRail: navbarOverlay,
 			navbarSurface: theme.transparentNavbarSurface ? 'transparent' : navbarOverlay,
+			navBorder: theme.borders.navBorder ? `${theme.borders.navBorder.width}px solid ${toCssColor(theme.borders.navBorder.color)}` : null,
 			navColorForSlot: (slot) => (navCycle.length > 0 ? toCssColor(navCycle[slot % navCycle.length]) : null),
 			cardRadius: radiusToCss(theme.borders.cardRadius),
 			cardRadiusRing: grownRadius(theme.borders.cardRadius, 3.5),
@@ -1255,11 +1262,130 @@ const NavbarRows = ({items, rows, t, topInset = 12, modern = true, focusFirst = 
 	</div>
 );
 
+// The other bar and sidebar styles draw from their own stylesheets, laid out at the 1920 wide size
+// those are written for and scaled onto this half size screen. The build turns their px into rem,
+// so the root font is divided back out, the way the preview's own drawing ignores it too.
+const RealNavLayer = ({children}) => {
+	const screenWidth = useContext(ScreenWidth);
+	return (
+		<div
+			style={{
+				position: 'absolute',
+				top: 0,
+				left: 0,
+				width: rem(screenWidth * 2),
+				height: rem(screenWidth * 2 * DESIGN_H / DESIGN_W),
+				transform: `scale(${1 / (2 * rootScale())})`,
+				transformOrigin: '0 0',
+				pointerEvents: 'none'
+			}}
+		>
+			{children}
+		</div>
+	);
+};
+
+// A real button sizes its border box, so the divs standing in for the user and Mosaic buttons do too.
+const BUTTON_BOX = {boxSizing: 'border-box'};
+
+// The real navbar's user button, which Tabline and Atlas share, without the focus.
+const PreviewUserButton = () => {
+	const {settings} = useSettings();
+	const {avatarUrl, initial, onError} = useUserAvatar();
+	const style = {opacity: (settings.userOpacity ?? 85) / 100};
+	return (
+		<div className={`${navBarCss.navBtn} ${navBarCss.navBtnIcon} ${navBarCss.userBtn}`} style={BUTTON_BOX}>
+			{avatarUrl
+				? <img className={navBarCss.userAvatarImg} src={avatarUrl} alt='' style={style} onError={onError} />
+				: <div className={navBarCss.userAvatar} style={style}>{initial}</div>}
+		</div>
+	);
+};
+
+const TablinePreview = ({buttons, clock, t}) => (
+	<RealNavLayer>
+		<div className={tablineCss.bar}>
+			<div className={tablineCss.scrim} />
+			<div className={tablineCss.row}>
+				<div className={tablineCss.tabs}>
+					{buttons.filter((button) => button.id !== 'search').map((button) => {
+						const current = button.id === 'home';
+						return (
+							<div key={button.id} className={current ? `${tablineCss.tab} ${tablineCss.current}` : tablineCss.tab}>
+								<span>{button.label}</span>
+								<span className={tablineCss.line} style={current ? {background: t.accent} : null} />
+							</div>
+						);
+					})}
+				</div>
+				<div className={tablineCss.right}>
+					<div className={tablineCss.iconButton}><SearchIcon className={tablineCss.icon} /></div>
+					{clock && <div className={tablineCss.clock}>{clock}</div>}
+					<PreviewUserButton />
+				</div>
+			</div>
+		</div>
+	</RealNavLayer>
+);
+
+// The same tabs atlasPanelKind opens a panel under, matched by the preview's own button ids.
+const ATLAS_PANEL_IDS = ['livetv', 'seerr', 'libraries'];
+const opensAtlasPanel = (button) => ATLAS_PANEL_IDS.indexOf(button.id) >= 0 || button.id.indexOf('library-') === 0;
+
+const AtlasPreview = ({buttons, clock, t}) => (
+	<RealNavLayer>
+		<div className={atlasCss.bar} style={{background: t.navbarSurface, borderBottom: t.navBorder || '1px solid rgba(255, 255, 255, 0.06)'}}>
+			<div className={atlasCss.avatar}><PreviewUserButton /></div>
+			<div className={atlasCss.tabs}>
+				{buttons.filter((button) => button.id !== 'settings').map((button) => {
+					const Icon = button.Icon;
+					return (
+						<div key={button.id} className={button.id === 'home' ? `${atlasCss.tab} ${atlasCss.tabCurrent}` : atlasCss.tab}>
+							<Icon className={atlasCss.tabIcon} />
+							<span className={atlasCss.tabLabel}>{button.label}</span>
+							{opensAtlasPanel(button) && <span className={atlasCss.chevron}><ChevronDownIcon className={atlasCss.chevronIcon} /></span>}
+						</div>
+					);
+				})}
+			</div>
+			{clock && <div className={atlasCss.clock}>{clock}</div>}
+			<div className={atlasCss.iconButton}><SettingsIcon className={atlasCss.icon} /></div>
+		</div>
+	</RealNavLayer>
+);
+
+const REEL_DOTS_ABOVE = ['dot1', 'dot2', 'dot3'];
+const REEL_DOTS_BELOW = ['dot3', 'dot2', 'dot1'];
+
+// Home is the page on screen, so its icon sits in the ring.
+const ReelPreview = ({buttons}) => {
+	const Icon = buttons[0].Icon;
+	return (
+		<RealNavLayer>
+			<div className={reelCss.rest}>
+				{REEL_DOTS_ABOVE.map((dot) => <span key={`above-${dot}`} className={`${reelCss.dot} ${reelCss[dot]}`} />)}
+				<div className={reelCss.restButton}><Icon className={reelCss.restIcon} /></div>
+				{REEL_DOTS_BELOW.map((dot) => <span key={`below-${dot}`} className={`${reelCss.dot} ${reelCss[dot]}`} />)}
+			</div>
+		</RealNavLayer>
+	);
+};
+
+const MosaicPreview = () => (
+	<RealNavLayer>
+		<div className={mosaicCss.menuButton} style={BUTTON_BOX}><AppsIcon className={mosaicCss.menuIcon} /></div>
+	</RealNavLayer>
+);
+
+const TOP_BAR_PREVIEWS = {tabline: TablinePreview, atlas: AtlasPreview};
+const SIDEBAR_PREVIEWS = {reel: ReelPreview, mosaic: MosaicPreview};
+
 // The toolbar draws no band of its own. An avatar sits on the left, the
 // buttons live in one translucent pill in the middle, and the clock keeps the
 // right, all floating straight over the content. Everything is drawn at half the real
 // bar's size, since the design screen is half of 1920, and the pill stops at the real one's
-// 1400px cap and clips where the real one scrolls.
+// 1400px cap and clips where the real one scrolls. Tabline and Atlas draw over the same band
+// instead, since Home leaves its rows where they are under every bar style.
 const TopNavbarPreview = ({items, rows, t, userName, modern, focusFirst, hasLiveTv}) => {
 	const {settings} = useSettings();
 	const buttons = useNavButtons(false, hasLiveTv);
@@ -1268,31 +1394,37 @@ const TopNavbarPreview = ({items, rows, t, userName, modern, focusFirst, hasLive
 	// Home pins a focused row just under the bar, which is what leaves a Carousel row room for its
 	// whole panel, so Carousel rows come up into the band's empty lower part to sit under the pill.
 	const carousel = rows ? rows[0].carousel : settings.homeRowsStyle === 'carousel';
+	const StyledBar = TOP_BAR_PREVIEWS[settings.topNavbarStyle];
 	return (
-		<div style={{width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden'}}>
+		<div style={{width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: StyledBar ? 'relative' : undefined}}>
 			<div style={{height: 95, flexShrink: 0, marginBottom: carousel ? -75 : 0, padding: '27px 24px', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-				<div style={{position: 'absolute', left: 24, top: '50%', transform: 'translateY(-50%)'}}>
-					<NavAvatar name={userName} size={32} />
-				</div>
-				<div style={{backgroundColor: t.navbarSurface, borderRadius: 36, display: 'flex', maxWidth: 700, overflow: 'hidden'}}>
-					{buttons.map((button, i) => (
-						<div key={button.id} style={{minWidth: 35, height: 35, marginLeft: i === 0 ? 0 : 1, padding: expanded ? '0 12px' : 0, boxSizing: 'border-box', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-							<NavButtonIcon button={button} color={navIconColor(t, i)} size={18} />
-							{expanded && (
-								<span style={{marginLeft: 5, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', color: t.onSurfaceA(0.8)}}>
-									{button.label}
-								</span>
-							)}
+				{!StyledBar && (
+					<>
+						<div style={{position: 'absolute', left: 24, top: '50%', transform: 'translateY(-50%)'}}>
+							<NavAvatar name={userName} size={32} />
 						</div>
-					))}
-				</div>
-				{clock && (
-					<div style={{position: 'absolute', right: 24, top: '50%', transform: 'translateY(-50%)', fontSize: 14, fontWeight: 600, color: t.onSurfaceA(0.8)}}>
-						{clock}
-					</div>
+						<div style={{backgroundColor: t.navbarSurface, borderRadius: 36, display: 'flex', maxWidth: 700, overflow: 'hidden'}}>
+							{buttons.map((button, i) => (
+								<div key={button.id} style={{minWidth: 35, height: 35, marginLeft: i === 0 ? 0 : 1, padding: expanded ? '0 12px' : 0, boxSizing: 'border-box', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+									<NavButtonIcon button={button} color={navIconColor(t, i)} size={18} />
+									{expanded && (
+										<span style={{marginLeft: 5, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', color: t.onSurfaceA(0.8)}}>
+											{button.label}
+										</span>
+									)}
+								</div>
+							))}
+						</div>
+						{clock && (
+							<div style={{position: 'absolute', right: 24, top: '50%', transform: 'translateY(-50%)', fontSize: 14, fontWeight: 600, color: t.onSurfaceA(0.8)}}>
+								{clock}
+							</div>
+						)}
+					</>
 				)}
 			</div>
 			{items && <NavbarRows items={items} rows={rows} t={t} modern={modern} focusFirst={focusFirst} />}
+			{StyledBar && <StyledBar buttons={buttons} clock={clock} t={t} />}
 		</div>
 	);
 };
@@ -1303,50 +1435,54 @@ const TopNavbarPreview = ({items, rows, t, userName, modern, focusFirst, hasLive
 // Like the real rail, the user keeps the top and the clock the bottom, the
 // buttons center between them, and a list too long to fit runs off the bottom
 // rather than over the user. The clock only shows while the rail is open, though
-// its room is kept either way.
+// its room is kept either way. Reel and Mosaic draw their resting control instead, and keep the
+// rail's room too, since Home does.
 const LeftNavbarPreview = ({items, rows, t, userName, modern, open = false, focusFirst, hasLiveTv}) => {
 	const {settings} = useSettings();
 	const buttons = useNavButtons(true, hasLiveTv);
 	const clock = settings.showClock === false ? null : formatClockTime(new Date(), settings.clockDisplay);
+	const StyledNav = SIDEBAR_PREVIEWS[settings.sidebarStyle];
 	return (
 		<div style={{position: 'relative', width: '100%', height: '100%', display: 'flex', overflow: 'hidden'}}>
 			<div style={{width: 72, flexShrink: 0}} />
 			{items && <NavbarRows items={items} rows={rows} t={t} topInset={24} modern={modern} focusFirst={focusFirst} />}
-			<div
-				style={{
-					position: 'absolute',
-					top: 0,
-					bottom: 0,
-					left: 0,
-					width: open ? 240 : 72,
-					background: open ? `linear-gradient(to right, ${t.navbarRail} 0%, ${t.navbarRail} 94%, transparent 100%)` : 'none',
-					display: 'flex',
-					flexDirection: 'column'
-				}}
-			>
-				<div style={{flexShrink: 0, padding: '12px 0 6px 23px'}}>
-					<NavAvatar name={userName} size={26} />
-				</div>
-				<div style={{flex: '1 1 auto', minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column'}}>
-					<div style={{flexShrink: 0, margin: 'auto 0'}}>
-						{buttons.map((button, i) => (
-							<div key={button.id} style={{height: 40, paddingLeft: 24, display: 'flex', alignItems: 'center'}}>
-								<NavButtonIcon button={button} color={navIconColor(t, i)} />
-								{open && (
-									<span style={{marginLeft: 14, fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: t.onSurfaceA(0.8)}}>
-										{button.label}
-									</span>
-								)}
-							</div>
-						))}
+			{StyledNav ? <StyledNav buttons={buttons} /> : (
+				<div
+					style={{
+						position: 'absolute',
+						top: 0,
+						bottom: 0,
+						left: 0,
+						width: open ? 240 : 72,
+						background: open ? `linear-gradient(to right, ${t.navbarRail} 0%, ${t.navbarRail} 94%, transparent 100%)` : 'none',
+						display: 'flex',
+						flexDirection: 'column'
+					}}
+				>
+					<div style={{flexShrink: 0, padding: '12px 0 6px 23px'}}>
+						<NavAvatar name={userName} size={26} />
 					</div>
-				</div>
-				{clock && (
-					<div style={{flexShrink: 0, padding: '8px 0 10px', textAlign: 'center', fontSize: 9, fontWeight: 500, whiteSpace: 'nowrap', color: 'rgba(255, 255, 255, 0.5)', opacity: open ? 1 : 0}}>
-						{clock}
+					<div style={{flex: '1 1 auto', minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column'}}>
+						<div style={{flexShrink: 0, margin: 'auto 0'}}>
+							{buttons.map((button, i) => (
+								<div key={button.id} style={{height: 40, paddingLeft: 24, display: 'flex', alignItems: 'center'}}>
+									<NavButtonIcon button={button} color={navIconColor(t, i)} />
+									{open && (
+										<span style={{marginLeft: 14, fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: t.onSurfaceA(0.8)}}>
+											{button.label}
+										</span>
+									)}
+								</div>
+							))}
+						</div>
 					</div>
-				)}
-			</div>
+					{clock && (
+						<div style={{flexShrink: 0, padding: '8px 0 10px', textAlign: 'center', fontSize: 9, fontWeight: 500, whiteSpace: 'nowrap', color: 'rgba(255, 255, 255, 0.5)', opacity: open ? 1 : 0}}>
+							{clock}
+						</div>
+					)}
+				</div>
+			)}
 		</div>
 	);
 };

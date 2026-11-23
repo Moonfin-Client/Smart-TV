@@ -22,6 +22,7 @@ import ModernDetailContent from '../ModernDetailContent';
 import useDetailPage, {focusAtTop, hasSpottable, scrollPage} from '../useDetailPage';
 import {ACTIONS, NAVBAR, drawsStage, stageSubtitle} from '../stage/stageRules';
 import {premiereDim, premiereNeighbour, premiereScrim} from './premiereRules';
+import {sideNavRoom, sideOffsetClass} from '../sideNavRoom';
 
 import stageCss from '../stage/StageDetailContent.module.less';
 import css from './PremiereDetailContent.module.less';
@@ -63,6 +64,7 @@ const PremiereScreen = (props) => {
 	const stopsRef = useRef([]);
 	const overviewRef = useRef(null);
 	const navbarTop = settings.navbarPosition !== 'left';
+	const sideRoom = sideNavRoom(settings);
 
 	// Focus lands first and the page is put back where it was, so the browser's own scroll to the
 	// focused card never runs ahead, and then the section is brought up near the top of the screen,
@@ -170,7 +172,7 @@ const PremiereScreen = (props) => {
 	if (seerrOnly) {
 		showStop = isShow ? page.seerrSeasonsStop() : null;
 	} else if (item.Type === 'Series' || item.Type === 'Season' || (item.Type === 'Episode' && showsSection('moreEpisodes'))) {
-		showStop = framed(page.episodesStop({cardWidth: navbarTop ? EPISODE_CARD.top : EPISODE_CARD.sidebar}), $L('Episodes'));
+		showStop = framed(page.episodesStop({cardWidth: sideRoom === 'rail' ? EPISODE_CARD.sidebar : EPISODE_CARD.top}), $L('Episodes'));
 	}
 	const stops = [
 		showStop,
@@ -184,7 +186,7 @@ const PremiereScreen = (props) => {
 	return (
 		<div
 			ref={scrollerRef}
-			className={`${css.scroller} ${navbarTop ? '' : css.sidebarOffset}`}
+			className={`${css.scroller} ${sideOffsetClass(sideRoom, css)}`}
 			style={{backgroundColor: `rgb(${base})`}}
 			onScroll={page.handleScroll}
 			onKeyDown={handleKeyDown}

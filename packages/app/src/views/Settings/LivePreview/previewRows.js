@@ -95,6 +95,8 @@ export const SCENE_BY_KEY = {
 	showClock: 'home',
 	clockDisplay: 'home',
 	navbarPosition: 'home',
+	topNavbarStyle: 'home',
+	sidebarStyle: 'home',
 	navbarAlwaysExpanded: 'home',
 	...sceneFor(NAV_BUTTON_KEYS, 'home'),
 	navbarColor: 'home',

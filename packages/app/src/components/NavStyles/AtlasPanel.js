@@ -73,21 +73,29 @@ export const atlasLinks = (kind, entry, handlers, allLibraries = []) => {
 const itemsOf = (result) => (Array.isArray(result) ? result : result?.Items || []);
 
 const loadPanel = async (kind, entry, api, serverType) => {
+	let failed = false;
+	// A failed request leaves its part of the panel empty, and the load isn't cached so the next
+	// open asks again.
+	const soft = (request) => request.catch(() => {
+		failed = true;
+		return null;
+	});
 	if (kind === 'livetv') {
-		const recordings = await api.getLiveTvRecordings({limit: 2}).catch(() => null);
-		return {cards: itemsOf(recordings).slice(0, 2), cardsTitle: $L('Recent Recordings')};
+		const recordings = await soft(api.getLiveTvRecordings({limit: 2}));
+		return {cards: itemsOf(recordings).slice(0, 2), cardsTitle: $L('Recent Recordings'), failed};
 	}
 	if (kind === 'discover') {
 		const [trending, popular] = await Promise.all([
-			seerrApi.trending(1).catch(() => null),
-			seerrApi.trendingMovies(1).catch(() => null)
+			soft(seerrApi.trending(1)),
+			soft(seerrApi.trendingMovies(1))
 		]);
 		return {
 			seerr: true,
 			cards: (trending?.results || []).slice(0, 2),
 			cardsTitle: $L('Trending'),
 			posters: (popular?.results || []).slice(0, 4),
-			postersTitle: $L('Popular Movies')
+			postersTitle: $L('Popular Movies'),
+			failed
 		};
 	}
 	const library = entry.library;
@@ -97,8 +105,8 @@ const loadPanel = async (kind, entry, api, serverType) => {
 	// Plex has no resume list for one library, so it would show every library's titles.
 	const skipResume = music || (library._serverType || serverType) === 'plex';
 	const [resume, latest] = await Promise.all([
-		skipResume ? null : libraryApi.getResumeItems(2, library.Id).catch(() => null),
-		libraryApi.getLatest(library.Id, 4).catch(() => null)
+		skipResume ? null : soft(libraryApi.getResumeItems(2, library.Id)),
+		soft(libraryApi.getLatest(library.Id, 4))
 	]);
 	// A title read from another server carries that server along, so Details and the images reach it.
 	return {
@@ -106,11 +114,13 @@ const loadPanel = async (kind, entry, api, serverType) => {
 		cardsTitle: $L('Continue in {section}').replace('{section}', library.Name),
 		posters: tagWithServerOf(library, itemsOf(latest).slice(0, 4)),
 		postersTitle: $L('Recently Added'),
-		square: music
+		square: music,
+		failed
 	};
 };
 
-// Read once per session for each panel. A home refresh empties it.
+// Read once per session for each panel, keeping only loads that came back whole. A home refresh
+// empties it.
 const panelCache = new Map();
 if (typeof window !== 'undefined') {
 	window.addEventListener('moonfin:browseRefresh', () => panelCache.clear());
@@ -131,7 +141,7 @@ const usePanelData = (kind, entry) => {
 		if (kind === 'libraries') return undefined;
 		let live = true;
 		loadPanel(kind, entry, api, serverType).then((loaded) => {
-			panelCache.set(cacheKey, loaded);
+			if (!loaded.failed) panelCache.set(cacheKey, loaded);
 			if (live) setData(loaded);
 		}, () => {});
 		return () => {

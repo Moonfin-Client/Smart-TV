@@ -8,6 +8,7 @@ import {FALL_COUNTS} from '../../../components/SeasonalTheme/seasonalParticles';
 import {seekBackIcon, seekForwardIcon} from '../../Player/PlayerConstants';
 import {getPerfTier} from '../../../utils/perfTier';
 import {describeRow} from './previewRows';
+import {NavbarPreview} from '../../SetupWizard/SetupPreviews';
 import SettingsLivePreview from './SettingsLivePreview';
 
 // The CLI ships a second copy of React, so the components' JSX goes through the copy under test.
@@ -288,6 +289,75 @@ describe('SettingsLivePreview', () => {
 		unmount();
 		draw({navbarPosition: 'left', showClock: false}, 'setting-showClock', 'home');
 		expect(rail().queryByText(/^\d{1,2}:\d{2}/)).toBeNull();
+	});
+
+	test('the top bar style being tried takes the classic pill\'s place over Home\'s rows', () => {
+		const frame = () => within(find('.frame'));
+		const row = describeRow('setting-topNavbarStyle', {...defaultSettings});
+		const {rerender} = draw({}, 'setting-topNavbarStyle', 'home');
+		const tryStyle = (value) => rerender(
+			<SettingsLivePreview scene='home' row={row} trying={{key: 'topNavbarStyle', value, index: 0}} onPickScene={() => {}} onLeaveChips={() => {}} />
+		);
+		expect(screen.getByText('Shows on the Home preview')).toBeTruthy();
+		// The classic pill only draws icons while the labels are folded away.
+		expect(frame().queryByText('Genres')).toBeNull();
+		expect(find('.frame .tab')).toBeNull();
+
+		tryStyle('tabline');
+		expect(find('.frame .scrim')).not.toBeNull();
+		expect(find('.frame .current').textContent).toBe('Home');
+		const lines = Array.from(document.querySelectorAll('.frame .line'));
+		expect(lines.filter((line) => line.style.background).length).toBe(1);
+		// Search moves out of the tabs to an icon on the right.
+		expect(frame().queryByText('Search')).toBeNull();
+		expect(frame().getByText('Genres')).toBeTruthy();
+		expect(frame().getByText('Continue Watching')).toBeTruthy();
+
+		tryStyle('atlas');
+		expect(find('.frame .scrim')).toBeNull();
+		expect(find('.frame .tabCurrent').textContent).toBe('Home');
+		expect(frame().getByText('Search')).toBeTruthy();
+		expect(frame().queryByText('Settings')).toBeNull();
+		// Only the grouped libraries open a panel with nothing else set up.
+		expect(Array.from(document.querySelectorAll('.frame .chevron')).map((chevron) => chevron.parentNode.textContent)).toEqual(['Libraries']);
+		expect(frame().getByText('Continue Watching')).toBeTruthy();
+
+		tryStyle('classic');
+		expect(find('.frame .tab')).toBeNull();
+		expect(frame().queryByText('Genres')).toBeNull();
+	});
+
+	test('the sidebar style being tried draws its resting control in place of the rail', () => {
+		const frame = () => within(find('.frame'));
+		const row = describeRow('setting-sidebarStyle', {...defaultSettings, navbarPosition: 'left'});
+		const {rerender} = draw({navbarPosition: 'left'}, 'setting-sidebarStyle', 'home');
+		const tryStyle = (value) => rerender(
+			<SettingsLivePreview scene='home' row={row} trying={{key: 'sidebarStyle', value, index: 0}} onPickScene={() => {}} onLeaveChips={() => {}} />
+		);
+		expect(screen.getByText('Shows on the Home preview')).toBeTruthy();
+		// The classic rail keeps the user's initial at its top.
+		expect(frame().getByText('A')).toBeTruthy();
+
+		tryStyle('reel');
+		expect(frame().queryByText('A')).toBeNull();
+		expect(find('.frame .restButton')).not.toBeNull();
+		expect(document.querySelectorAll('.frame .rest .dot')).toHaveLength(6);
+		expect(frame().getByText('Continue Watching')).toBeTruthy();
+
+		tryStyle('mosaic');
+		expect(find('.frame .restButton')).toBeNull();
+		expect(find('.frame .menuButton')).not.toBeNull();
+		expect(frame().getByText('Continue Watching')).toBeTruthy();
+	});
+
+	test('the setup wizard\'s navigation preview draws the saved bar and sidebar styles', () => {
+		mockSettings = {...defaultSettings, topNavbarStyle: 'atlas', sidebarStyle: 'mosaic'};
+		const {unmount} = render(<NavbarPreview position='top' />);
+		expect(find('.tabCurrent').textContent).toBe('Home');
+		unmount();
+		render(<NavbarPreview position='left' />);
+		expect(find('.menuButton')).not.toBeNull();
+		expect(find('.tabCurrent')).toBeNull();
 	});
 
 	test('the stage gives up width so the inspector fits, and settles on one size', () => {

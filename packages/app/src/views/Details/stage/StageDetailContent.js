@@ -23,6 +23,7 @@ import {
 	ACTIONS, NAVBAR, STAGE_BUTTON_CAP, alignDelta, drawsStage, revealDelta, stageNeighbour, stagePoster, stageScrimAlpha,
 	stageSubtitle
 } from './stageRules';
+import {sideNavRoom, sideOffsetClass} from '../sideNavRoom';
 
 import css from './StageDetailContent.module.less';
 
@@ -175,7 +176,7 @@ const StageScreen = (props) => {
 				<div className={css.scrim} style={{backgroundColor: `rgba(0, 0, 0, ${stageScrimAlpha(blur)})`}} />
 			</div>
 			<div ref={scrollerRef} className={css.scroller} onScroll={page.handleScroll} onKeyDown={handleKeyDown}>
-				<div className={`${css.content} ${navbarTop ? '' : css.sidebarOffset}`}>
+				<div className={`${css.content} ${sideOffsetClass(sideNavRoom(settings), css)}`}>
 					<div className={css.top}>
 						<div className={css.posterColumn}>
 							<div className={`${css.poster} ${poster.wide ? css.posterWide : ''}`}>

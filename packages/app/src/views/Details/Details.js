@@ -52,6 +52,7 @@ import useDetailsTrailer from './useDetailsTrailer';
 import useDetailsReviews from './useDetailsReviews';
 import useSeerrOverlay from './useSeerrOverlay';
 import DetailScrollPage from './DetailScrollPage';
+import {sideNavRoom} from './sideNavRoom';
 import DetailBackdrop from './DetailBackdrop';
 import DetailActionButtons from './DetailActionButtons';
 import DetailTrackModals from './DetailTrackModals';
@@ -1150,7 +1151,7 @@ const Details = ({
 	}
 
 	if (isLoading || !item) {
-		return page(<DetailSkeleton detailStyle={detailStyle} sidebar={settings.navbarPosition === 'left'} />);
+		return page(<DetailSkeleton detailStyle={detailStyle} sideRoom={sideNavRoom(settings)} />);
 	}
 
 	const backdropId = getBackdropId(item);
@@ -1209,7 +1210,7 @@ const Details = ({
 	const endsAt = formatPlaybackEndsAt(item.RunTimeTicks / 10000000, settings.clockDisplay, settings.timeOffsetHours);
 	const officialRating = item.OfficialRating || '';
 	const seasonCount = item.ChildCount || seasons.length || 0;
-	const sidebarDocked = settings.navbarPosition === 'left';
+	const sideRoom = sideNavRoom(settings);
 
 	const mediaSource = item.MediaSources?.[selectedVersionIndex] || item.MediaSources?.[0];
 	// Both halves of the technical row are gated here, so neither screen has to
@@ -1469,7 +1470,7 @@ const Details = ({
 
 	if (isPerson) {
 		return (
-			<DetailScrollPage backdrop={backdrop} scrollerRef={pageScrollerRef} onScrollTo={handlePageScrollTo} sidebarDocked={sidebarDocked} footer={overlays}>
+			<DetailScrollPage backdrop={backdrop} scrollerRef={pageScrollerRef} onScrollTo={handlePageScrollTo} sideRoom={sideRoom} footer={overlays}>
 				<PersonScreen
 					item={item}
 					serverUrl={effectiveServerUrl}
@@ -1494,7 +1495,7 @@ const Details = ({
 			? <div className={css.toast} onAnimationEnd={handleToastEnd}>{toastMessage}</div>
 			: null;
 		return (
-			<DetailScrollPage backdrop={backdrop} scrollerRef={pageScrollerRef} onScrollTo={handlePageScrollTo} sidebarDocked={sidebarDocked} footer={toast}>
+			<DetailScrollPage backdrop={backdrop} scrollerRef={pageScrollerRef} onScrollTo={handlePageScrollTo} sideRoom={sideRoom} footer={toast}>
 				<PlaylistScreen
 					item={item}
 					serverUrl={effectiveServerUrl}
@@ -1517,7 +1518,7 @@ const Details = ({
 
 	if (isAlbum) {
 		return (
-			<DetailScrollPage backdrop={backdrop} scrollerRef={pageScrollerRef} onScrollTo={handlePageScrollTo} sidebarDocked={sidebarDocked}>
+			<DetailScrollPage backdrop={backdrop} scrollerRef={pageScrollerRef} onScrollTo={handlePageScrollTo} sideRoom={sideRoom}>
 				<AlbumScreen
 					item={item}
 					serverUrl={effectiveServerUrl}
@@ -1541,7 +1542,7 @@ const Details = ({
 
 	if (isMusicArtist) {
 		return (
-			<DetailScrollPage backdrop={backdrop} scrollerRef={pageScrollerRef} onScrollTo={handlePageScrollTo} sidebarDocked={sidebarDocked}>
+			<DetailScrollPage backdrop={backdrop} scrollerRef={pageScrollerRef} onScrollTo={handlePageScrollTo} sideRoom={sideRoom}>
 				<ArtistScreen
 					item={item}
 					serverUrl={effectiveServerUrl}
@@ -1560,7 +1561,7 @@ const Details = ({
 
 	if (isAudioTrack) {
 		return (
-			<DetailScrollPage backdrop={backdrop} scrollerRef={pageScrollerRef} onScrollTo={handlePageScrollTo} sidebarDocked={sidebarDocked}>
+			<DetailScrollPage backdrop={backdrop} scrollerRef={pageScrollerRef} onScrollTo={handlePageScrollTo} sideRoom={sideRoom}>
 				<AudioTrackScreen
 					item={item}
 					serverUrl={effectiveServerUrl}
@@ -1631,7 +1632,7 @@ const Details = ({
 
 	if (isSeason) {
 		return (
-			<DetailScrollPage backdrop={backdrop} scrollerRef={pageScrollerRef} onScrollTo={handlePageScrollTo} sidebarDocked={sidebarDocked} footer={overlays}>
+			<DetailScrollPage backdrop={backdrop} scrollerRef={pageScrollerRef} onScrollTo={handlePageScrollTo} sideRoom={sideRoom} footer={overlays}>
 				<SeasonScreen
 					item={item}
 					serverUrl={effectiveServerUrl}
@@ -1650,7 +1651,7 @@ const Details = ({
 	}
 
 	return (
-		<DetailScrollPage backdrop={backdrop} scrollerRef={pageScrollerRef} onScrollTo={handlePageScrollTo} sidebarDocked={sidebarDocked} footer={overlays}>
+		<DetailScrollPage backdrop={backdrop} scrollerRef={pageScrollerRef} onScrollTo={handlePageScrollTo} sideRoom={sideRoom} footer={overlays}>
 			<ClassicDetailScreen
 				item={pageItem}
 				bookSeriesItem={bookSeriesItem}

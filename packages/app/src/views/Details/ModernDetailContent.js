@@ -47,6 +47,7 @@ import {sortLabel} from './nouveau/nouveauCollectionSort';
 import {collectionPlaylistItems} from './collectionPlaylist';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import NouveauSortDialog from './nouveau/sections/NouveauSortDialog';
+import {sideNavRoom, sideOffsetClass} from './sideNavRoom';
 
 import css from './ModernDetailContent.module.less';
 import sectionsCss from './nouveau/sections/NouveauSections.module.less';
@@ -859,7 +860,7 @@ const ModernDetailContent = (props) => {
 				<div className={css.scrim} style={scrimStyle(isPerson ? PERSON_SCRIM : SCRIM, gradientScale)} />
 			</div>
 			<Scroller cbScrollTo={handleScrollTo} onScroll={handleScroll} className={css.scroller} direction="vertical" horizontalScrollbar="hidden" verticalScrollbar="hidden">
-				<div className={`${css.content} ${settings.navbarPosition === 'left' ? css.sidebarOffset : ''}`} ref={contentRef} onKeyDown={handleContentKeyDown}>
+				<div className={`${css.content} ${sideOffsetClass(sideNavRoom(settings), css)}`} ref={contentRef} onKeyDown={handleContentKeyDown}>
 					{hasUpNext && <div className={css.aboveHero}>{renderTitleBlock()}</div>}
 					<div className={`${css.hero} ${hasUpNext ? css.hasUpNext : ''}`} onKeyDown={handleHeroKeyDown}>
 						<div className={`${css.heroMain} ${isPerson ? css.heroPerson : ''}`}>

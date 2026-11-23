@@ -44,6 +44,7 @@ import {
 import {splitAdditionalParts} from '../extraCategories';
 import ReviewCard from '../ReviewCard';
 import {scrimStyle} from '../../../utils/scrimImage';
+import {SIDE_CONTROL_ROOM, sideNavRoom, sideOffsetClass} from '../sideNavRoom';
 
 import sectionsCss from './sections/NouveauSections.module.less';
 import css from './NouveauDetailContent.module.less';
@@ -51,8 +52,9 @@ import css from './NouveauDetailContent.module.less';
 // Nouveau puts everything on one page. The backdrop sits behind, the hero sits at the top, and
 // every section follows it down the page as its own band rather than hiding behind a tab or a card.
 
-// The room a docked sidebar takes, which the stylesheet pads the content by.
-const SIDEBAR_OFFSET = 120;
+// The room the stylesheet pads the content by: the docked sidebar's rail, or for Reel and Mosaic
+// just enough on top of the content's own inset to clear their resting control.
+const SIDE_OFFSETS = {rail: 120, control: SIDE_CONTROL_ROOM - SECTION_INSET};
 
 // Same stops as .scrim in the stylesheet.
 const SCRIM = [
@@ -135,9 +137,9 @@ const NouveauDetailContent = (props) => {
 	}, []);
 
 	// What a rail actually has to fill: the page less its own insets on both sides, and less the
-	// sidebar when the navigation is docked rather than along the top.
-	const viewportWidth = windowWidth - SECTION_INSET * 2 -
-		(settings.navbarPosition === 'left' ? SIDEBAR_OFFSET : 0);
+	// room the navigation takes when it's docked rather than along the top.
+	const sideRoom = sideNavRoom(settings);
+	const viewportWidth = windowWidth - SECTION_INSET * 2 - (SIDE_OFFSETS[sideRoom] || 0);
 
 	// Blur and opacity share one stored value and the stored range runs past this scale, so
 	// anything above the top of the scale is held at full rather than blacking the artwork out.
@@ -852,7 +854,7 @@ const NouveauDetailContent = (props) => {
 				<div className={css.scrim} style={scrimStyle(SCRIM, backdropStyle['--gradient-scale'])} />
 			</div>
 			<div ref={scrollerRef} className={css.scroller}>
-				<div className={`${css.content} ${topBar ? '' : css.sidebarOffset}`}>
+				<div className={`${css.content} ${sideOffsetClass(sideRoom, css)}`}>
 					<div className={css.hero} style={topBar ? HERO_UNDER_TOP_BAR : undefined}>
 						<NouveauHero
 							{...props}

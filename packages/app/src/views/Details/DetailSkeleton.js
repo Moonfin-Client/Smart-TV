@@ -1,5 +1,6 @@
 import {SkeletonBox, SkeletonShimmer} from '../../components/Skeleton';
 import {frostStageStyle} from './frost/frostRules';
+import {SIDE_CONTROL_ROOM} from './sideNavRoom';
 
 import css from './DetailSkeleton.module.less';
 
@@ -20,6 +21,13 @@ const Gap = ({size}) => <div style={{height: rem(size)}} />;
 
 const spaced = (index, gap) => (index ? {marginLeft: rem(gap)} : undefined);
 
+// A style's left padding is [rail] beside the classic sidebar and its [own] with nothing on the
+// left, and beside the resting Reel or Mosaic control it's at least enough to clear it.
+const leftOf = (sideRoom, rail, own) => {
+	if (sideRoom === 'rail') return rail;
+	return sideRoom === 'control' ? Math.max(own, SIDE_CONTROL_ROOM) : own;
+};
+
 const Boxes = ({widths, height, gap, radius}) => (
 	<div className={css.row}>
 		{widths.map((width, i) => <Box key={i} width={width} height={height} radius={radius} style={spaced(i, gap)} />)}
@@ -35,10 +43,10 @@ const Actions = ({playWidth, circles}) => (
 
 // Poster on the right of a bottom aligned header, the buttons as labelled tiles centered under
 // it, then the cast.
-const Classic = ({sidebar}) => (
+const Classic = ({sideRoom}) => (
 	<>
 		<div className={css.classicBackdrop} />
-		<div className={css.content} style={{padding: `${rem(116)} ${rem(70)} 0 ${rem(sidebar ? 174 : 70)}`}}>
+		<div className={css.content} style={{padding: `${rem(116)} ${rem(70)} 0 ${rem(leftOf(sideRoom, 174, 70))}`}}>
 			<div className={css.classicHeader}>
 				<div className={css.classicInfo}>
 					<Box width="32vw" height={46} />
@@ -78,10 +86,10 @@ const Classic = ({sidebar}) => (
 );
 
 // Logo and title over the metadata, a rating, the buttons and the tab bar.
-const Modern = ({sidebar}) => (
+const Modern = ({sideRoom}) => (
 	<>
 		<div className={css.modernBackdrop} />
-		<div className={css.content} style={{padding: `${rem(135)} ${rem(58)} 0 ${rem(sidebar ? 174 : 58)}`}}>
+		<div className={css.content} style={{padding: `${rem(135)} ${rem(58)} 0 ${rem(leftOf(sideRoom, 174, 58))}`}}>
 			<Box width={408} height={109} />
 			<Gap size={9} />
 			<Box width="35vw" height={52} />
@@ -98,13 +106,13 @@ const Modern = ({sidebar}) => (
 );
 
 // The hero at the top with every button round, and the summary cards pinned to the bottom.
-const Spotlight = ({sidebar}) => {
+const Spotlight = ({sideRoom}) => {
 	const heroWidth = Math.min(1100, Math.max(450, window.innerWidth * 0.85)) + 'px';
 	const cardHeight = Math.min(200, Math.max(120, window.innerHeight * 0.28)) + 'px';
 	return (
 		<>
 			<div className={css.spotlightBackdrop} />
-			<div className={css.spotlightPage} style={sidebar ? {paddingLeft: rem(120)} : {paddingTop: rem(135)}}>
+			<div className={css.spotlightPage} style={sideRoom ? {paddingLeft: rem(120)} : {paddingTop: rem(135)}}>
 				<div style={{width: heroWidth}}>
 					<Box width={360} height={18} radius={3} />
 					<Gap size={10} />
@@ -137,10 +145,10 @@ const Spotlight = ({sidebar}) => {
 };
 
 // Genres over the branding, the metadata and the buttons, then the first rail of wide cards.
-const Nouveau = ({sidebar}) => (
+const Nouveau = ({sideRoom}) => (
 	<>
 		<div className={css.nouveauBackdrop} />
-		<div className={css.content} style={{padding: `${rem(56)} ${rem(56)} 0 ${rem(sidebar ? 176 : 56)}`}}>
+		<div className={css.content} style={{padding: `${rem(56)} ${rem(56)} 0 ${rem(leftOf(sideRoom, 176, 56))}`}}>
 			<Box width={300} height={15} radius={3} />
 			<Gap size={17} />
 			<Box width={480} height={106} />
@@ -165,8 +173,8 @@ const Nouveau = ({sidebar}) => (
 );
 
 // Everything sits on the bottom edge: the logo, the buttons and a rail of episode stills.
-const Minimalist = ({sidebar}) => (
-	<div className={css.minimalistContent} style={sidebar ? {paddingLeft: rem(176)} : undefined}>
+const Minimalist = ({sideRoom}) => (
+	<div className={css.minimalistContent} style={sideRoom ? {paddingLeft: rem(leftOf(sideRoom, 176, 56))} : undefined}>
 		<Box width={300} height={96} />
 		<Gap size={26} />
 		<Actions playWidth={178} circles={3} />
@@ -180,8 +188,8 @@ const Minimalist = ({sidebar}) => (
 );
 
 // The poster with play and the circles under it on the left, and the title block beside it.
-const Stage = ({sidebar}) => (
-	<div className={css.content} style={{padding: `${rem(172)} ${rem(80)} 0 ${rem(sidebar ? 200 : 80)}`}}>
+const Stage = ({sideRoom}) => (
+	<div className={css.content} style={{padding: `${rem(172)} ${rem(80)} 0 ${rem(leftOf(sideRoom, 200, 80))}`}}>
 		<div className={css.row} style={{alignItems: 'flex-start'}}>
 			<div>
 				<Box width={388} height={582} radius={13} />
@@ -208,10 +216,10 @@ const Stage = ({sidebar}) => (
 );
 
 // The title block centered low on the first screen, with Play and the circles under it.
-const Premiere = ({sidebar}) => (
+const Premiere = ({sideRoom}) => (
 	<div
 		className={css.content}
-		style={{display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', padding: `0 ${rem(154)} ${rem(90)} ${rem(sidebar ? 200 : 154)}`}}
+		style={{display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', padding: `0 ${rem(154)} ${rem(90)} ${rem(leftOf(sideRoom, 200, 154))}`}}
 	>
 		<Box width={701} height={93.5} />
 		<Gap size={23.4} />
@@ -248,9 +256,9 @@ const QuickLook = () => (
 );
 
 // Frost's window, toolbar and tab bar, on the same stage the page lays out on.
-const Frost = ({sidebar}) => (
+const Frost = ({sideRoom}) => (
 	<div className={css.content}>
-		<div className={css.frostStage} style={frostStageStyle(!sidebar)}>
+		<div className={css.frostStage} style={frostStageStyle(!sideRoom)}>
 			<SkeletonBox className={css.frostWindow} radius={rem(66)} />
 			<SkeletonBox className={css.frostToolbar} radius={rem(57)} />
 			<SkeletonBox className={css.frostTabs} radius={rem(45)} />
@@ -262,11 +270,11 @@ const LAYOUTS = {v1: Classic, v2: Modern, v3: Spotlight, v4: Nouveau, v5: Minima
 
 // Placeholders laid out like the chosen details style while the item loads, so the page fills
 // in where they stood.
-const DetailSkeleton = ({detailStyle, sidebar}) => {
+const DetailSkeleton = ({detailStyle, sideRoom}) => {
 	const Layout = LAYOUTS[detailStyle] || Modern;
 	return (
 		<SkeletonShimmer className={css.skeleton}>
-			<Layout sidebar={sidebar} />
+			<Layout sideRoom={sideRoom} />
 		</SkeletonShimmer>
 	);
 };

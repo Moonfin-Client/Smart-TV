@@ -12,6 +12,7 @@ import {
 	drawsMinimalist, minimalistBranding, minimalistCollectionCard, minimalistExtrasCard, minimalistScrimAlpha,
 	minimalistStillUrl, showsEpisodes, showsExtrasButton
 } from './minimalistRules';
+import {sideNavRoom, sideOffsetClass} from '../sideNavRoom';
 
 import css from './MinimalistDetailContent.module.less';
 
@@ -94,7 +95,7 @@ const MinimalistDetailContent = (props) => {
 				{settings.detailsBackdropEnabled !== false && backdropUrl && <img className={css.backdropImage} src={backdropUrl} alt="" />}
 				<div className={css.scrim} style={scrimStyle} />
 			</div>
-			<div className={`${css.content} ${settings.navbarPosition === 'left' ? css.sidebarOffset : ''}`}>
+			<div className={`${css.content} ${sideOffsetClass(sideNavRoom(settings), css)}`}>
 				<div className={css.upper}>
 					<div className={css.headline}>
 						{logoUrl

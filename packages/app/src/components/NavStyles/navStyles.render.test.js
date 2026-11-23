@@ -54,7 +54,8 @@ jest.mock('../../utils/navFocusTargets', () => ({
 	focusFirstContentTarget: jest.fn(),
 	rememberSidebarReturn: jest.fn()
 }));
-jest.mock('../../services/seerrApi', () => ({__esModule: true, default: {trending: () => Promise.resolve({results: []}), trendingMovies: () => Promise.resolve({results: []})}}));
+const mockTrending = jest.fn();
+jest.mock('../../services/seerrApi', () => ({__esModule: true, default: {trending: (...args) => mockTrending(...args), trendingMovies: () => Promise.resolve({results: []})}}));
 jest.mock('../../services/connectionPool', () => ({getApiForItem: () => null}));
 jest.mock('../../utils/gameLibrary', () => ({isGameLibrary: () => false}));
 jest.mock('../../utils/helpers', () => ({getFeaturedBackdropUrl: () => null}));
@@ -168,6 +169,36 @@ describe('AtlasBar', () => {
 		keyDown(document.activeElement, 38);
 		expect(document.querySelector('[data-spotlight-id="navbar-panel"]')).toBeNull();
 		expect(document.activeElement).toBe(tab);
+	});
+
+	test('a panel that failed to load tries again on the next open, and one that loaded keeps what it read', async () => {
+		window.dispatchEvent(new Event('moonfin:browseRefresh'));
+		mockTrending
+			.mockImplementationOnce(() => Promise.reject(new Error('offline')))
+			.mockImplementation(() => Promise.resolve({results: [{id: 1, title: 'Dune'}]}));
+		const backRef = {current: null};
+		render(<AtlasBar libraries={[]} backRef={backRef} {...handlers()} />);
+		const tab = document.querySelector('[data-spotlight-id="navbar-discover"]');
+		const open = async () => {
+			await act(async () => {
+				keyDown(tab, 40);
+			});
+		};
+		const close = () => act(() => {
+			backRef.current();
+		});
+
+		await open();
+		expect(mockTrending).toHaveBeenCalledTimes(1);
+		expect(screen.queryByText('Dune')).toBeNull();
+		close();
+		await open();
+		expect(mockTrending).toHaveBeenCalledTimes(2);
+		expect(screen.getByText('Dune')).toBeTruthy();
+		close();
+		await open();
+		expect(mockTrending).toHaveBeenCalledTimes(2);
+		expect(screen.getByText('Dune')).toBeTruthy();
 	});
 
 	test('Select on a tab navigates straight there', () => {
