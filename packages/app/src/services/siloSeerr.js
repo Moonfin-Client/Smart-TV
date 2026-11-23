@@ -77,8 +77,12 @@ const mediaStatusOf = (availability, state) => {
 		case 'pending': return MEDIA_PENDING;
 		case 'approved': case 'processing': return MEDIA_PROCESSING;
 		case 'partially_available': return MEDIA_PARTIAL;
-		case 'available': return MEDIA_AVAILABLE;
-		default: return MEDIA_UNKNOWN;
+		// A fulfilled request counts only while the title is still there: a partly available one stays partial, and
+		// one whose files are gone (missing) can be requested again.
+		case 'available':
+			if (availability === 'partial') return MEDIA_PARTIAL;
+			return availability === 'missing' ? MEDIA_UNKNOWN : MEDIA_AVAILABLE;
+		default: return availability === 'partial' ? MEDIA_PARTIAL : MEDIA_UNKNOWN;
 	}
 };
 
@@ -327,14 +331,16 @@ export const createSiloSeerr = ({call, library = null, baseUrl = '', random = Ma
 		};
 	};
 
-	// Titles already in the library are left out: search lists them under the library's own results.
+	// Titles fully in the library are left out, as Silo's web app does: search lists them under the library's own
+	// results. A partly available series stays, so its missing seasons can be requested.
 	const search = async (query, at) => {
 		if (query.startsWith(SILO_ROW_PREFIX)) {
 			const key = query.slice(SILO_ROW_PREFIX.length);
 			return row(key, `/requests/discover/rows/${encodeURIComponent(key)}`, at, true);
 		}
 		const body = await get('/requests/search', {q: query, media_type: 'all', page: at});
-		return page({...body, results: list(body.results).filter((r) => r && r.library_content_id == null)});
+		return page({...body, results: list(body.results).filter((r) => r &&
+			(r.availability == null ? r.library_content_id == null : r.availability !== 'available'))});
 	};
 
 	// The rows an admin added to Silo's Discover page, as search sliders. Their ids come from the row key, so a Home row
