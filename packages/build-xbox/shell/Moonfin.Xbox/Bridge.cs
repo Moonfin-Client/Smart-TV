@@ -44,6 +44,8 @@ namespace Moonfin.Xbox
     //   SOCKET_OPEN          {id, url, protocols}, a WebSocket the host opens (SocketRelay)
     //   SOCKET_SEND          {id, data}
     //   SOCKET_CLOSE         {id, code, reason}
+    //   HTTP_REQUEST         {id, url, method, headers, body, timeoutMs, quiet}, a request the host makes (HttpRelay),
+    //                        where quiet keeps a failure out of the log during a network scan
     //
     // Host to page:
     //   APP_STATE    {state: "active" | "background"}
@@ -54,15 +56,18 @@ namespace Moonfin.Xbox
     //   SOCKET_OPENED  {id, protocol}
     //   SOCKET_MESSAGE {id, data}
     //   SOCKET_CLOSED  {id, code, reason}, also for a socket that failed to open (1006)
+    //   HTTP_RESPONSE  {id, status, body, headers, failure, redirected}, status 0 when nothing answered,
+    //                  failure "certificate" or "timeout" when that's why, and redirected when a server
+    //                  already answered with a redirect
     //   REPLY        the answer to a message that carried an id
     internal static class Bridge
     {
         public const int Version = 1;
         public const string PageEvent = "moonfin:xbox";
 
-        // The probe's report is the longest thing the page sends and stays well under
-        // this. A longer message is dropped unread.
-        public const int MaxMessageLength = 256 * 1024;
+        // The longest thing the page sends is a diagnostic report through HttpRelay. Moonbase takes
+        // up to 1 MiB, and this leaves room for the JSON escaping. A longer message is dropped unread.
+        public const int MaxMessageLength = 4 * 1024 * 1024;
 
         public static PageMessage Parse(string raw)
         {

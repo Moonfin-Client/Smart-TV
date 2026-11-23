@@ -72,5 +72,30 @@ export const exitApp = () => postToShell('EXIT_APP');
 // it to go ahead for a server.
 export const allowInsecureHost = (authority) => postToShell('ALLOW_INSECURE_HOST', {host: authority});
 
+const waitingRequests = new Map();
+// A random start on each load, so an answer meant for the page before a reload can't
+// resolve one of this page's requests.
+let nextRequestId = Math.floor(Math.random() * 1e9);
+let hearingAnswers = false;
+
+// Bridge.cs lists what the host answers with.
+export const requestThroughShell = (url, {method = 'GET', headers = {}, body = null, quiet = false} = {}, timeoutMs = 15000) => new Promise((resolve) => {
+	if (!hearingAnswers) {
+		hearingAnswers = true;
+		onShellMessage('HTTP_RESPONSE', (answer) => waitingRequests.get(answer?.id)?.(answer));
+	}
+	const id = ++nextRequestId;
+	let timer = null;
+	const finish = (answer) => {
+		clearTimeout(timer);
+		waitingRequests.delete(id);
+		resolve(answer);
+	};
+	// The host gives up at the same time, so wait a second longer for its answer.
+	timer = setTimeout(() => finish({status: 0, body: '', failure: 'timeout'}), timeoutMs + 1000);
+	waitingRequests.set(id, finish);
+	if (!postToShell('HTTP_REQUEST', {id, url, method, headers, body, timeoutMs, quiet})) finish({status: 0, body: ''});
+});
+
 // A host that has the console's own player says so at boot.
 export const nativePlayerAvailable = () => !!bootData()?.nativePlayer;

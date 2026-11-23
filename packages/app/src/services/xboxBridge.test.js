@@ -1,4 +1,4 @@
-import {allowInsecureHost, askShell, bootData, exitApp, nativePlayerAvailable, onShellMessage, postToShell} from '../../../platform-xbox/src/bridge';
+import {allowInsecureHost, askShell, bootData, exitApp, nativePlayerAvailable, onShellMessage, postToShell, requestThroughShell} from '../../../platform-xbox/src/bridge';
 import {getCountryCode} from '../../../platform-xbox/src/countryCode';
 import {keepScreenOn, registerAppStateObserver, setupXboxLifecycle} from '../../../platform-xbox/src/video';
 
@@ -62,6 +62,35 @@ describe('the Xbox bridge', () => {
 		await keepScreenOn(false);
 		expect(sent(0)).toEqual({v: 1, type: 'KEEP_DISPLAY_ACTIVE', payload: {active: true}});
 		expect(sent(1)).toEqual({v: 1, type: 'KEEP_DISPLAY_ACTIVE', payload: {active: false}});
+	});
+
+	test('a request the host makes resolves with the answer that names it', async () => {
+		const asked = requestThroughShell('http://silo:8090/api/v2/account/me', {method: 'GET', headers: {Authorization: 'Bearer t'}, signal: 'not sent'}, 4000);
+		const message = sent();
+		expect(message).toEqual({v: 1, type: 'HTTP_REQUEST', payload: {id: message.payload.id, url: 'http://silo:8090/api/v2/account/me', method: 'GET', headers: {Authorization: 'Bearer t'}, body: null, timeoutMs: 4000, quiet: false}});
+		hostSays('HTTP_RESPONSE', {id: message.payload.id + 1, status: 500, body: ''});
+		hostSays('HTTP_RESPONSE', {id: message.payload.id, status: 200, body: '{}', headers: {'content-type': 'application/json'}});
+		await expect(asked).resolves.toEqual({id: message.payload.id, status: 200, body: '{}', headers: {'content-type': 'application/json'}});
+	});
+
+	test('a quiet request says so, and only then', () => {
+		requestThroughShell('http://192.168.1.20:8090/api/v2/system/info', {quiet: true}, 3000);
+		requestThroughShell('http://silo:8090/api/v2/account/me');
+		expect(sent(0).payload.quiet).toBe(true);
+		expect(sent(1).payload.quiet).toBe(false);
+	});
+
+	test('a request nothing answers resolves with status 0', async () => {
+		jest.useFakeTimers();
+		try {
+			const unanswered = requestThroughShell('http://silo:8090/a', {}, 2000);
+			jest.advanceTimersByTime(3000);
+			await expect(unanswered).resolves.toEqual({status: 0, body: '', failure: 'timeout'});
+		} finally {
+			jest.useRealTimers();
+		}
+		delete window.chrome;
+		await expect(requestThroughShell('http://silo:8090/b')).resolves.toEqual({status: 0, body: ''});
 	});
 
 	test('a question carries an id and resolves with the answer that repeats it', async () => {

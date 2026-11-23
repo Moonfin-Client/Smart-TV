@@ -67,6 +67,8 @@ namespace Moonfin.Xbox
 
         private readonly SocketRelay socketRelay;
 
+        private readonly HttpRelay httpRelay;
+
         public MainPage()
         {
             InitializeComponent();
@@ -74,6 +76,8 @@ namespace Moonfin.Xbox
 
             nativePlayer = new NativePlayer(VideoHost, VideoBackdrop, Dispatcher, SendToPage, authority => insecureHosts.Contains(authority));
             socketRelay = new SocketRelay(Dispatcher, SendToPage, authority => insecureHosts.Contains(authority));
+            // Answers go out even while the page is loading, like replies do, so a request made at startup still gets one.
+            httpRelay = new HttpRelay((type, payload) => RunScript(Bridge.ToPageScript(type, payload), true), authority => insecureHosts.Contains(authority));
 
             // Xbox keeps a border around the content for sets that cut the edges off. The web
             // app lays itself out for a TV already, so it is given the whole screen.
@@ -423,6 +427,7 @@ namespace Moonfin.Xbox
                 default:
                     if (nativePlayer.Handle(message)) break;
                     if (socketRelay.Handle(message)) break;
+                    if (httpRelay.Handle(message)) break;
                     HostLog.Write("bridge", "Unknown message " + message.Type);
                     Reply(message, null, "Unknown message " + message.Type);
                     break;

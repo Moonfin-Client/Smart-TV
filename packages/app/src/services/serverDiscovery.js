@@ -11,7 +11,7 @@
 import {detectServerType} from '../utils/connectionErrors';
 import {normalizeServerBaseUrl} from '../utils/serverUrl';
 import {resolvePlatformModule} from './platformModule';
-import {isVega} from '../platform';
+import {isVega, isXbox} from '../platform';
 import {loadShellBridge} from './shellBridge';
 import {plexVersion} from './plexMapper';
 import {isSiloSystemInfo} from './siloMapper';
@@ -163,15 +163,16 @@ const requestJson = (url, live) => new Promise((resolve) => {
 	}
 });
 
-// On Fire TV the shell asks instead, since the page at file:// can't read a Plex server's answer.
+// On Fire TV and Xbox the shell asks instead, since the page there can't read a Plex or Silo server's answer.
+const inShell = () => isVega() || isXbox();
 const requestJsonInShell = async (url) => {
-	const answer = await (await loadShellBridge()).requestThroughShell(url, {headers: {Accept: 'application/json'}}, REQUEST_TIMEOUT);
+	const answer = await (await loadShellBridge()).requestThroughShell(url, {headers: {Accept: 'application/json'}, quiet: true}, REQUEST_TIMEOUT);
 	return answer.status ? jsonAnswer(answer.status, answer.body, url) : SILENT;
 };
 
 const probePlex = async (base, state) => {
 	const url = base + '/identity';
-	const response = await (isVega() ? requestJsonInShell(url) : requestJson(url, state.live));
+	const response = await (inShell() ? requestJsonInShell(url) : requestJson(url, state.live));
 	const identity = response.ok ? response.data.MediaContainer : null;
 	if (!identity || !identity.machineIdentifier) return null;
 	return {
@@ -186,7 +187,7 @@ const probePlex = async (base, state) => {
 // A Silo answers its public system info with its API version, and its identity and branding with its id and name. Null
 // when something else answered, undefined when nothing did.
 const probeSilo = async (base, state) => {
-	const read = (path) => (isVega() ? requestJsonInShell(base + path) : requestJson(base + path, state.live));
+	const read = (path) => (inShell() ? requestJsonInShell(base + path) : requestJson(base + path, state.live));
 	const info = await read('/api/v2/system/info');
 	// Nothing listening: there's nothing else to ask either.
 	if (!info.answered) return undefined;
