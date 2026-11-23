@@ -3415,5 +3415,21 @@
     "Merge Libraries by Type": "Yhdistä kirjastot tyypin mukaan",
     "Show every server's movie libraries as one Movies library and their show libraries as one TV Shows library, with a title several servers hold listed once": "Näytä jokaisen palvelimen elokuvakirjastot yhtenä elokuvakirjastona ja niiden sarjakirjastot yhtenä TV-sarjakirjastona siten, että usealla palvelimella oleva teos näkyy luettelossa vain kerran",
     "{percent}% watched": "{percent}% katsottu",
-    "On {count} servers": "{count} palvelimella"
+    "On {count} servers": "{count} palvelimella",
+    "Glide between rows and cards instead of jumping.": "Liuta rivien ja korttien välillä hyppimisen sijaan.",
+    "Top Bar Style": "Yläpalkin tyyli",
+    "Sidebar Style": "Sivupalkin tyyli",
+    "Tabline": "Otsikkorivi",
+    "Atlas": "Atlas",
+    "Reel": "Reel",
+    "Mosaic": "Mosaic",
+    "The standard bar": "Vakiopalkki",
+    "Text tabs with an underline, no pill": "Alleviivatut tekstivälilehdet, ilman nappia",
+    "Tabs open a panel with shortcuts and artwork": "Välilehdet avaavat paneelin, jossa on pikakuvakkeita ja kuvamateriaalia",
+    "The standard sidebar": "Vakiomuotoinen sivupalkki",
+    "A wheel that turns through the destinations": "Pyörä, joka kulkee kohteiden läpi",
+    "A panel of tiles with library artwork": "Laattapaneeli, jossa on kirjaston taideteoksia",
+    "Browse all": "Selaa kaikkia",
+    "Continue in {section}": "Jatka {section}",
+    "Featured: {title}": "Esittelyssä: {title}"
 }
