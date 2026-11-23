@@ -404,6 +404,8 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 	const [myUserId, setMyUserId] = useState(contextUser?.seerrUserId ?? null);
 	const [activeIssue, setActiveIssue] = useState(null);
 	const loadingMoreRef = useRef(false);
+	// The latest loadMore, so a load that dropped its page can ask again with the current list and filter.
+	const loadMoreRef = useRef(null);
 	const focusFirstRequestRef = useRef(false);
 
 	// Bumped by each full load, which asks the arr about every title again.
@@ -496,8 +498,9 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 	}, [tab, requestFilter, issueFilter, reload]);
 
 	const loadMore = useCallback(async () => {
-		if (loadingMoreRef.current || !hasMore) return;
+		if (loadingMoreRef.current || !hasMore || loading) return;
 		loadingMoreRef.current = true;
+		let dropped = false;
 		const filter = tab === 'requests' ? requestFilter : issueFilter;
 		const current = tab === 'requests' ? requests : issues;
 		const removalsAtStart = removalsRef.current;
@@ -513,15 +516,24 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 			// removals keep moving it, the page is dropped and the next scroll asks again.
 			for (let reads = 1; tab === 'requests'; reads++) {
 				await settle();
-				if (gen !== loadGenRef.current) return;
+				if (gen !== loadGenRef.current) {
+					dropped = true;
+					return;
+				}
 				const next = Math.max(current.length - (removalsRef.current - removalsAtStart), 0);
 				if (next === at) break;
-				if (reads >= 6) return;
+				if (reads >= 6) {
+					dropped = true;
+					return;
+				}
 				at = next;
 				({results, raw} = await loadPage(tab, filter, at));
 			}
 			// A reload for another tab or filter replaced the list meanwhile.
-			if (gen !== loadGenRef.current) return;
+			if (gen !== loadGenRef.current) {
+				dropped = true;
+				return;
+			}
 			const append = (prev) => {
 				const seen = {};
 				prev.forEach((item) => {
@@ -536,13 +548,19 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 			}
 			setHasMore(raw.length >= PAGE_SIZE);
 		} catch (err) {
-			if (gen !== loadGenRef.current) return;
+			if (gen !== loadGenRef.current) {
+				dropped = true;
+				return;
+			}
 			console.warn('[SeerrRequests] Load more failed:', err.message);
 			setHasMore(false);
 		} finally {
 			loadingMoreRef.current = false;
+			// A scroll to the end while this load held the lock was skipped, so nothing else asks again.
+			if (dropped) setTimeout(() => loadMoreRef.current?.(), 0);
 		}
-	}, [tab, requestFilter, issueFilter, requests, issues, hasMore, loadPage]);
+	}, [tab, requestFilter, issueFilter, requests, issues, hasMore, loading, loadPage]);
+	loadMoreRef.current = loadMore;
 
 	// Only once per load. The download poll, load more and approve all hand back a new list too,
 	// and none of those should move focus.
