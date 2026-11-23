@@ -90,7 +90,7 @@ const heldEndedOnServer = (itemId) => {
 	return false;
 };
 
-const tellEndedOnServer = (itemId) => endedListeners.forEach((listener) => listener(itemId));
+const tellEndedOnServer = (itemId, reason = null) => endedListeners.forEach((listener) => listener(itemId, reason));
 
 const holdEndedOnServer = (itemId, generation) => {
 	if (generation !== endedHoldGeneration) return false;
@@ -120,7 +120,8 @@ export const heardEndedOnServer = (err, generation = endedHoldGeneration) => {
 	if (isEndedOnServer(err) && holdEndedOnServer(err.itemId, generation)) tellEndedOnServer(err.itemId);
 };
 
-// `listener(itemId)` hears each time the end of an item's session reaches the app (the player acts on the first).
+// `listener(itemId, reason)` hears each time the end of an item's session reaches the app (the player acts on the
+// first). `reason` is an admin's, when Silo's playback control lane said why.
 // Returns the unsubscribe.
 export const onEndedOnServer = (listener) => {
 	endedListeners.add(listener);
@@ -1614,6 +1615,23 @@ export const reportProgress = async (positionTicks, options = {}) => {
 		stopProgressReporting(); // eslint-disable-line no-use-before-define
 		tellEndedOnServer(e.itemId);
 	}
+};
+
+const sessionServerUrl = (session) => String(session.serverCredentials?.serverUrl || jellyfinApi.getServerUrl() || '').replace(/\/+$/, '');
+
+// Whether the player plays this Silo session on this server. A replan keeps the session id, so it holds through one.
+export const playsSiloSession = (baseUrl, playSessionId) => Boolean(currentSession && playSessionId &&
+	currentSession.playSessionId === playSessionId && sessionServerUrl(currentSession) === String(baseUrl || '').replace(/\/+$/, ''));
+
+// An admin terminated the playing session from Silo's dashboard: Silo has already ended it, so the player stops at
+// once, as it does on a progress report refused with 410, and says why. Any other session is left alone.
+export const endSessionByServer = (playSessionId, reason = null) => {
+	if (!currentSession || currentSession.playSessionId !== playSessionId) return false;
+	const itemId = currentSession.itemId;
+	if (!holdEndedOnServer(itemId, endedHoldGeneration)) return false;
+	stopProgressReporting(); // eslint-disable-line no-use-before-define
+	tellEndedOnServer(itemId, reason);
+	return true;
 };
 
 const sendStopRequest = ({endpoint, json}) => {

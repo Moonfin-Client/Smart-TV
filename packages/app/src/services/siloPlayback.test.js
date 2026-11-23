@@ -161,7 +161,7 @@ describe('plans', () => {
 });
 
 describe('sessions', () => {
-	const setup = (answers) => {
+	const setup = (answers, extra = {}) => {
 		const calls = [];
 		const call = jest.fn(async (path, options = {}) => {
 			calls.push({path, method: options.method || 'GET', body: options.body});
@@ -176,7 +176,8 @@ describe('sessions', () => {
 			getDeviceInfo: () => ({appVersion: '3.0.0'}),
 			platform: 'webos',
 			getItem: async () => ({MediaSources: [siloVersionToMediaSource(version, 'movie-1')]}),
-			wait: async () => {}
+			wait: async () => {},
+			...extra
 		});
 		return {playback, calls};
 	};
@@ -236,6 +237,32 @@ describe('sessions', () => {
 		const {DefaultAudioStreamIndex, DefaultSubtitleStreamIndex} = info.MediaSources[0];
 		await playback.getPlaybackInfo('movie-1', {StartTimeTicks: 6000000000, AudioStreamIndex: DefaultAudioStreamIndex, SubtitleStreamIndex: DefaultSubtitleStreamIndex});
 		expect(calls.find((c) => c.path.endsWith('/replan')).body).toMatchObject({operation: 'seek_reanchor', position_seconds: 600});
+	});
+
+	test('the control lane follows a session from its start through a replan to its stop, and a preview gets none', async () => {
+		const onSessionPlaying = jest.fn();
+		const onSessionEnded = jest.fn();
+		const {playback} = setup({
+			'GET /api/v2/playback/capabilities': capabilities,
+			'POST /api/v2/playback/start': plan('original_http', 'k1'),
+			'POST /api/v2/playback/s1/replan': plan('server_remux_hls', 'k2'),
+			'DELETE /api/v2/playback/s1': {outcome: 'stopped'}
+		}, {onSessionPlaying, onSessionEnded});
+		await playback.previewPlaybackInfo('movie-1', {});
+		await playback.reportPlaybackStart({PlaySessionId: 's1'});
+		expect(onSessionPlaying).not.toHaveBeenCalled();
+		await playback.getPlaybackInfo('movie-1', {});
+		expect(onSessionPlaying).not.toHaveBeenCalled();
+		await playback.reportPlaybackStart({PlaySessionId: 's1'});
+		const lane = onSessionPlaying.mock.calls[0][0];
+		expect(lane).toMatchObject({sessionId: 's1', installationId: 'inst'});
+		expect(lane.live()).toBe(true);
+		await playback.getPlaybackInfo('movie-1', {EnableDirectPlay: false});
+		expect(onSessionPlaying).toHaveBeenCalledTimes(2);
+		onSessionEnded.mockClear();
+		await playback.reportPlaybackStopped({PlaySessionId: 's1', PositionTicks: 1});
+		expect(onSessionEnded).toHaveBeenCalledWith('s1');
+		expect(lane.live()).toBe(false);
 	});
 
 	test('a preview ends its session at once, and Play afterwards starts a new one', async () => {

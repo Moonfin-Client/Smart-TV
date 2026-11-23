@@ -12,6 +12,7 @@ import {createSiloEvents, noteSiloPlaybackEnded} from './siloEvents';
 import {findSiloMoonbase} from './siloMoonbase';
 import {createSiloItems} from './siloItems';
 import {createSiloPlayback} from './siloPlayback';
+import {endSiloPlaybackControl, followSiloPlaybackControl, forgetSiloPlaybackControlServer} from './siloPlaybackControl';
 import {createSiloPlayerExtras, siloPlayingFile} from './siloPlayerExtras';
 import {createSiloTrackChoices} from './siloTrackChoices';
 import {siloItemMediaSources} from './siloMediaSources';
@@ -269,7 +270,20 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		getDeviceInfo,
 		platform,
 		getItem: (itemId, fileId) => items.readItem(itemId, fileId),
-		onPlaying: extras.notePlayingFile
+		onPlaying: extras.notePlayingFile,
+		// The lane is this server's: its tickets, URL and token, whichever server is signed in.
+		onSessionPlaying: ({sessionId, installationId, live}) => followSiloPlaybackControl({
+			baseUrl: base(),
+			sessionId,
+			appVersion: getDeviceInfo().appVersion,
+			live,
+			capabilities: () => call('/api/v2/playback/sessions/control/capabilities'),
+			ticket: () => call(`/api/v2/playback/sessions/${encodeURIComponent(sessionId)}/control/ws-ticket`, {
+				method: 'POST', body: {installation_id: installationId}
+			}),
+			accessExpiresAt: () => session()?.tokens?.expiresAt || null
+		}),
+		onSessionEnded: (sessionId) => endSiloPlaybackControl(base(), sessionId)
 	});
 
 	const events = createSiloEvents({
@@ -422,6 +436,7 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		logout: async () => {
 			const current = session();
 			if (!current) return;
+			forgetSiloPlaybackControlServer(base());
 			try {
 				await call('/api/v2/auth/logout', {method: 'POST', profile: false});
 			} catch (err) {

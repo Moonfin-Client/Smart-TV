@@ -23,6 +23,9 @@ import {setTmdbThumbsAvailable} from '../utils/tmdbThumb';
 import {configureIncompleteRecordings} from '../services/incompleteRecordings';
 import serverLogger from '../services/serverLogger';
 import * as remoteControl from '../services/remoteControl';
+import {endSessionByServer, playsSiloSession} from '../services/playback';
+import {roomBlocksTransport} from '../services/syncPlay';
+import {setSiloPlaybackControlHandlers} from '../services/siloPlaybackControl';
 import {isBackKey, KEYS, remoteShortcut} from '../utils/keys';
 import {drawsStage} from '../views/Details/stage/stageRules';
 import {QUICK_LOOK_ID} from '../views/Details/quickLook/quickLookRules';
@@ -235,8 +238,9 @@ const AppContent = (props) => {
 	const [remoteMessage, setRemoteMessage] = useState(null);
 	const clearRemoteMessage = useCallback(() => setRemoteMessage(null), []);
 	// The player closed because an admin ended its Silo session, so the screen it returns to says why.
-	const showEndedOnServer = useCallback(() => {
-		setRemoteMessage({key: Date.now(), title: $L('Playback was ended on the Silo server.')});
+	// An admin's reason for ending it, when Silo gave one, goes under.
+	const showEndedOnServer = useCallback((reason) => {
+		setRemoteMessage({key: Date.now(), title: $L('Playback was ended on the Silo server.'), ...(reason ? {body: reason} : null)});
 	}, []);
 	const unifiedMode = settings.unifiedLibraryMode && hasMultipleServers;
 	const mergeLibraries = mergesLibraries(settings, hasMultipleServers);
@@ -2123,6 +2127,14 @@ const AppContent = (props) => {
 	};
 
 	useEffect(() => remoteControl.setAppControls(remoteAppRef), []);
+
+	// Silo's playback control lane runs its commands the way a Jellyfin remote's are run.
+	useEffect(() => setSiloPlaybackControlHandlers({
+		run: remoteControl.handleMessage,
+		plays: playsSiloSession,
+		terminate: endSessionByServer,
+		transportHeld: roomBlocksTransport
+	}), []);
 
 	const [seerrRequestsTab, setSeerrRequestsTab] = useState('requests');
 

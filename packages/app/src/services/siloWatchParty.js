@@ -1327,6 +1327,10 @@ export const createWatchParty = ({silo, moonbase = () => null, sync = syncPlay, 
 		get correctsDrift() {
 			return kind !== 'moonbase';
 		},
+		// A guest without control: a pause or resume asked of the player goes nowhere.
+		get blocksTransport() {
+			return attached() && !room?.canControlTransport;
+		},
 		// Requests carry where this player was, and a guest without control is told so instead.
 		request: (action, positionTicks) => {
 			if (!attached()) return;
