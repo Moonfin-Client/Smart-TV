@@ -2296,5 +2296,7 @@
     "Waiting for {name}'s player": "Esperando al jugador {name}",
     "You're the host now": "Eres el anfitrión ahora",
     "Your own order for each collection": "Tu propio pedido para cada colección",
-    "Your watch party": "Tu grupo para ver el partido"
+    "Your watch party": "Tu grupo para ver el partido",
+    "Glide between rows and cards instead of jumping.": "Deslízate entre filas y tarjetas en lugar de saltar.",
+    "Watch Parties are turned off on this server.": "Las sesiones de visionado en grupo están desactivadas en este servidor."
 }
