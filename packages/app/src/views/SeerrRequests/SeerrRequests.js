@@ -408,6 +408,9 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 	// The latest loadMore and the timer that asks again after removals kept moving a page.
 	const loadMoreRef = useRef(null);
 	const loadMoreRetryRef = useRef(null);
+	// The load generation whose first page is in the list; until the newest one is, the list is the old filter's.
+	const loadedGenRef = useRef(0);
+	const unmountedRef = useRef(false);
 	const focusFirstRequestRef = useRef(false);
 
 	// Bumped by each full load, which asks the arr about every title again.
@@ -486,6 +489,7 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 				setIssues(results);
 			}
 			setHasMore(raw.length >= PAGE_SIZE);
+			loadedGenRef.current = gen;
 		} catch (err) {
 			if (gen !== loadGenRef.current) return;
 			console.error('[SeerrRequests] Load failed:', err);
@@ -500,7 +504,8 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 	}, [tab, requestFilter, issueFilter, reload]);
 
 	const loadMore = useCallback(async () => {
-		if (loadingMoreRef.current === loadGenRef.current || !hasMore) return;
+		if (loadingMoreRef.current === loadGenRef.current || loadedGenRef.current !== loadGenRef.current || !hasMore) return;
+		clearTimeout(loadMoreRetryRef.current);
 		const gen = loadGenRef.current;
 		loadingMoreRef.current = gen;
 		let moved = false;
@@ -550,7 +555,7 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 		} finally {
 			if (loadingMoreRef.current === gen) loadingMoreRef.current = null;
 			// The grid may already be at its end, where a scroll that came while this read was out was skipped
-			if (moved) {
+			if (moved && !unmountedRef.current) {
 				clearTimeout(loadMoreRetryRef.current);
 				loadMoreRetryRef.current = setTimeout(() => loadMoreRef.current?.(), 1000);
 			}
@@ -559,7 +564,10 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 	useEffect(() => {
 		loadMoreRef.current = loadMore;
 	}, [loadMore]);
-	useEffect(() => () => clearTimeout(loadMoreRetryRef.current), []);
+	useEffect(() => () => {
+		unmountedRef.current = true;
+		clearTimeout(loadMoreRetryRef.current);
+	}, []);
 
 	// Only once per load. The download poll, load more and approve all hand back a new list too,
 	// and none of those should move focus.
