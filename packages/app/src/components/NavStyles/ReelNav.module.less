@@ -1,0 +1,300 @@
+// The window sits on the screen's vertical center at 540.
+.reel {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 0;
+	height: 0;
+	z-index: 1000;
+	transition: opacity 0.25s ease;
+}
+
+.trailerHidden {
+	opacity: 0;
+}
+
+.rest {
+	position: fixed;
+	top: 0;
+	bottom: 0;
+	left: 15px;
+	width: 72px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+}
+
+.dot {
+	width: 6px;
+	height: 6px;
+	margin: 5px 0;
+	border-radius: 3px;
+	background: #ffffff;
+}
+
+.dot1 {
+	opacity: 0.18;
+}
+
+.dot2 {
+	opacity: 0.32;
+}
+
+.dot3 {
+	opacity: 0.5;
+}
+
+.restButton {
+	width: 66px;
+	height: 66px;
+	margin: 6px 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: none;
+	outline: none;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.14);
+	color: #ffffff;
+	cursor: pointer;
+	pointer-events: auto;
+
+	&:focus {
+		background: #ffffff;
+		color: #101010;
+	}
+}
+
+.restIcon {
+	width: 36px;
+	height: 36px;
+	fill: currentColor;
+}
+
+.overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	color: #ffffff;
+}
+
+// The dim and the left scrim in one painted layer, so the wheel turning over them never
+// repaints either.
+.shade {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: rgba(0, 0, 0, 0.3);
+	background-image: linear-gradient(90deg, rgba(8, 9, 11, 0.96) 0%, rgba(8, 9, 11, 0.88) 52%, rgba(8, 9, 11, 0) 100%);
+	background-size: 780px 100%;
+	background-repeat: no-repeat;
+	will-change: transform;
+}
+
+.profile {
+	position: absolute;
+	top: 39px;
+	left: 42px;
+	display: flex;
+	align-items: center;
+}
+
+.avatarButton {
+	position: relative;
+	width: 57px;
+	height: 57px;
+	padding: 0;
+	border: none;
+	outline: none;
+	border-radius: 50%;
+	background: #2b3440;
+	overflow: hidden;
+	cursor: pointer;
+
+	&:focus {
+		box-shadow: 0 0 0 4px #ffffff;
+	}
+}
+
+.avatarImage {
+	width: 57px;
+	height: 57px;
+	object-fit: cover;
+}
+
+.avatarInitial {
+	font-size: 27px;
+	font-weight: 600;
+	color: rgba(255, 255, 255, 0.85);
+}
+
+.profileName {
+	margin-left: 18px;
+	font-size: 22px;
+	font-weight: 600;
+	color: rgba(255, 255, 255, 0.85);
+}
+
+.hairline {
+	position: absolute;
+	left: 36px;
+	width: 600px;
+	height: 1px;
+	background: rgba(255, 255, 255, 0.16);
+}
+
+.hairlineTop {
+	top: 483px;
+}
+
+.hairlineBottom {
+	top: 597px;
+}
+
+.marker {
+	position: absolute;
+	left: 9px;
+	top: 526px;
+	width: 0;
+	height: 0;
+	border-top: 14px solid transparent;
+	border-bottom: 14px solid transparent;
+	border-left: 15px solid #00a4dc;
+}
+
+.chevron {
+	position: absolute;
+	left: 60px;
+	width: 60px;
+	height: 48px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: rgba(255, 255, 255, 0.4);
+	cursor: pointer;
+}
+
+.chevronUp {
+	top: 162px;
+}
+
+.chevronDown {
+	top: 870px;
+}
+
+.chevronIcon {
+	width: 45px;
+	height: 45px;
+	fill: currentColor;
+}
+
+.entry {
+	position: absolute;
+	top: 540px;
+	left: 0;
+	height: 90px;
+	margin-top: -45px;
+	display: flex;
+	align-items: center;
+	white-space: nowrap;
+	cursor: pointer;
+	transform-origin: left center;
+	transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.jump {
+	transition: none;
+}
+
+.entryIcon {
+	width: 51px;
+	height: 51px;
+	flex-shrink: 0;
+	fill: currentColor;
+}
+
+.entryLabel {
+	margin-left: 24px;
+	font-size: 48px;
+	font-weight: 600;
+	letter-spacing: -0.015em;
+}
+
+.inWindow .entryLabel {
+	font-weight: 700;
+}
+
+.currentDot {
+	width: 14px;
+	height: 14px;
+	margin-left: 18px;
+	flex-shrink: 0;
+	border-radius: 50%;
+}
+
+.slotDown0 {
+	transform: translate(60px, 0) scale(1);
+	opacity: 1;
+}
+
+.slotUp1 {
+	transform: translate(45px, -111px) scale(0.72);
+	opacity: 0.62;
+}
+
+.slotDown1 {
+	transform: translate(45px, 111px) scale(0.72);
+	opacity: 0.62;
+}
+
+.slotUp2 {
+	transform: translate(33px, -201px) scale(0.56);
+	opacity: 0.36;
+}
+
+.slotDown2 {
+	transform: translate(33px, 201px) scale(0.56);
+	opacity: 0.36;
+}
+
+.slotUp3 {
+	transform: translate(24px, -273px) scale(0.46);
+	opacity: 0.16;
+}
+
+.slotDown3 {
+	transform: translate(24px, 273px) scale(0.46);
+	opacity: 0.16;
+}
+
+.slotUp4 {
+	transform: translate(18px, -330px) scale(0.4);
+	opacity: 0;
+}
+
+.slotDown4 {
+	transform: translate(18px, 330px) scale(0.4);
+	opacity: 0;
+}
+
+// Holds focus while the wheel is open. It covers the window, so a click there opens the
+// entry in it.
+.window {
+	position: absolute;
+	top: 483px;
+	left: 0;
+	width: 640px;
+	height: 114px;
+	padding: 0;
+	border: none;
+	outline: none;
+	background: transparent;
+	cursor: pointer;
+}

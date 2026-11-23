@@ -3,17 +3,11 @@ import $L from '@enact/i18n/$L';
 import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import {useSettings} from '../../context/SettingsContext';
-import {useSeerr} from '../../context/SeerrContext';
-import {useSyncPlay} from '../../context/SyncPlayContext';
-import useWatchParty from '../../hooks/useWatchParty';
-import {useServerMessages} from '../../context/ServerMessagesContext';
-import {useAchievements} from '../../context/AchievementsContext';
+import {useNavVisibility} from '../NavStyles/navDestinations';
 import SeerrIcon from '../icons/SeerrIcon';
 import SyncPlayIcon from '../icons/SyncPlayIcon';
 import {CalendarIcon, FavoritesIcon, FriendsIcon, GenresIcon, HomeIcon, LiveTvIcon, MessagesIcon, SearchIcon, SettingsIcon, ShuffleIcon, libraryNavIcon} from '../icons/navIcons';
 import useClock from '../../hooks/useClock';
-import {librariesForNav} from '../../utils/liveTvLibrary';
-import {isKidsMode} from '../../utils/kidsMode';
 import {shadowToCss, toCssColor, toCssColorWithAlpha} from '../../theme/themeSpec';
 import {resolveOverlayColor} from '../../theme/overlayColors';
 import {CONTENT_FOCUS_TARGETS, focusFirstContentTarget} from '../../utils/navFocusTargets';
@@ -62,33 +56,15 @@ const NavBar = ({
 	hideForTrailer
 }) => {
 	const {settings, activeTheme} = useSettings();
-	const {isEnabled: seerrEnabled, displayName, pluginInfo} = useSeerr();
-	const {isInGroup} = useSyncPlay();
-	const {room: watchPartyRoom} = useWatchParty();
-	const {messages, unreadCount} = useServerMessages();
-	const {socialAvailable, badgeCount: friendsBadge} = useAchievements();
 	const [libraryMenuOpen, setLibraryMenuOpen] = useState(false);
 	const showClock = settings.showClock !== false;
 	const clock = useClock(showClock);
 
-	const showShuffle = settings.showShuffleButton !== false;
-	const showGenres = settings.showGenresButton !== false;
-	const showFavorites = settings.showFavoritesButton !== false;
-	// Checked alongside the show* preferences and never written into them, since those sync and
-	// would follow the account to the parent's other devices.
-	const kidsMode = isKidsMode(settings);
-	const showLiveTv = !kidsMode && settings.showLiveTvButton !== false && hasLiveTv;
-	const showSeerr = !kidsMode && seerrEnabled && settings.showSeerrButton !== false;
-	const showCalendar = !kidsMode && settings.showCalendarButton !== false && pluginInfo?.calendarAvailable === true;
-	// Every server type gets the button, and the screen says so when Moonbase is missing.
-	const showSyncPlay = !kidsMode && settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false;
-	const navLibraries = librariesForNav(libraries, showLiveTv, {hideLiveTv: kidsMode});
-	const showLibraries = !kidsMode && settings.showLibrariesInToolbar !== false && navLibraries.length > 0;
-	// Only with something to show, so the menu never has a button that does nothing.
-	const showMessages = settings.showServerMessagesButton === true && messages.length > 0;
-	// Only where the Achievement Badges plugin has friends switched on, so it never takes a
-	// colour slot for a button that cant open.
-	const showFriends = !kidsMode && socialAvailable && settings.showFriendsButton === true;
+	const {
+		showShuffle, showGenres, showFavorites, showLiveTv, showSeerr, showCalendar, showSyncPlay,
+		navLibraries, showLibraries, showMessages, showFriends, seerrLabel: displayName, watchPartyActive,
+		unreadCount, friendsBadge
+	} = useNavVisibility(libraries, hasLiveTv);
 
 	const navPillStyle = useMemo(() => {
 		// The pill wears the overlay color at the chosen opacity, and only a theme
@@ -175,7 +151,7 @@ const NavBar = ({
 					)}
 
 					{showSyncPlay && (
-						<NavPillButton Icon={SyncPlayIcon} slot={nextSlot()} label={$L('Watch Parties')} onClick={onSyncPlay} spotlightId="navbar-syncplay" active={Boolean(watchPartyRoom) || isInGroup} />
+						<NavPillButton Icon={SyncPlayIcon} slot={nextSlot()} label={$L('Watch Parties')} onClick={onSyncPlay} spotlightId="navbar-syncplay" active={watchPartyActive} />
 					)}
 
 					{showSeerr && (

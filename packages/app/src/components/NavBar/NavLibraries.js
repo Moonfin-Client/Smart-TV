@@ -33,7 +33,10 @@ const FOCUS_DELAY = 50;
 // library. Hover is what focuses under a pointer, so closing on blur would
 // collapse it the moment the cursor drifted off, and the list wraps so every
 // library is on screen to click rather than in a strip to scroll.
-const NavLibraries = ({libraries, slot, activeView, onSelectLibrary, leftTargetId, onMenuOpen}) => {
+//
+// A bar style that draws its entries another way passes its own button as Tab, and
+// the group keeps the same behavior around it.
+const NavLibraries = ({libraries, slot, activeView, onSelectLibrary, leftTargetId, onMenuOpen, Tab, className}) => {
 	const [expanded, setExpanded] = useState(false);
 	const [byPointer, setByPointer] = useState(false);
 	const blurTimeoutRef = useRef(null);
@@ -118,21 +121,41 @@ const NavLibraries = ({libraries, slot, activeView, onSelectLibrary, leftTargetI
 
 	return (
 		<LibrariesContainer
-			className={[css.librariesGroup, expanded && css.expanded, expanded && byPointer && css.wrapped].filter(Boolean).join(' ')}
+			className={[css.librariesGroup, expanded && css.expanded, expanded && byPointer && css.wrapped, className].filter(Boolean).join(' ')}
 			onFocus={handleFocus}
 			onBlur={handleBlur}
 		>
-			<NavPillButton
-				Icon={LibrariesIcon}
-				slot={slot}
-				label={$L('Libraries')}
-				onClick={handleToggle}
-				spotlightId={PILL_ID}
-				className={css.librariesBtn}
-				onSpotlightLeft={handleSpotlightLeft}
-			/>
+			{Tab ? (
+				<Tab
+					label={$L('Libraries')}
+					onClick={handleToggle}
+					spotlightId={PILL_ID}
+					className={css.librariesBtn}
+					onSpotlightLeft={handleSpotlightLeft}
+				/>
+			) : (
+				<NavPillButton
+					Icon={LibrariesIcon}
+					slot={slot}
+					label={$L('Libraries')}
+					onClick={handleToggle}
+					spotlightId={PILL_ID}
+					className={css.librariesBtn}
+					onSpotlightLeft={handleSpotlightLeft}
+				/>
+			)}
 			<div className={css.librariesList} ref={listRef}>
-				{expanded && libraries.map((lib, index) => (
+				{expanded && libraries.map((lib, index) => (Tab ? (
+					<Tab
+						key={lib.Id}
+						item
+						label={lib.Name}
+						current={activeView === lib.Id}
+						onClick={handleLibraryClick}
+						onSpotlightUp={handleLibraryUp}
+						data-library-id={lib.Id}
+					/>
+				) : (
 					<SpottableButton
 						key={lib.Id}
 						className={`${css.navBtn} ${css.libraryBtn} ${activeView === lib.Id ? css.active : ''}`}
@@ -143,7 +166,7 @@ const NavLibraries = ({libraries, slot, activeView, onSelectLibrary, leftTargetI
 					>
 						<span className={css.navLabel}>{lib.Name}</span>
 					</SpottableButton>
-				))}
+				)))}
 			</div>
 		</LibrariesContainer>
 	);

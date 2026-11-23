@@ -3122,5 +3122,20 @@
 	"Unavailable": "Unavailable",
 	"{percent}% watched": "{percent}% watched",
 	"On {count} servers": "On {count} servers",
-	"Not changed on {servers}": "Not changed on {servers}"
+	"Not changed on {servers}": "Not changed on {servers}",
+	"Top Bar Style": "Top Bar Style",
+	"Sidebar Style": "Sidebar Style",
+	"Tabline": "Tabline",
+	"Atlas": "Atlas",
+	"Reel": "Reel",
+	"Mosaic": "Mosaic",
+	"The standard bar": "The standard bar",
+	"Text tabs with an underline, no pill": "Text tabs with an underline, no pill",
+	"Tabs open a panel with shortcuts and artwork": "Tabs open a panel with shortcuts and artwork",
+	"The standard sidebar": "The standard sidebar",
+	"A wheel that turns through the destinations": "A wheel that turns through the destinations",
+	"A panel of tiles with library artwork": "A panel of tiles with library artwork",
+	"Browse all": "Browse all",
+	"Continue in {section}": "Continue in {section}",
+	"Featured: {title}": "Featured: {title}"
 }

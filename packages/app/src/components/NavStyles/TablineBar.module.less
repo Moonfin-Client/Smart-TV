@@ -1,0 +1,164 @@
+@import '../../styles/mixins.less';
+
+.bar {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 105px;
+	z-index: 1000;
+	transition: opacity 0.25s ease;
+}
+
+.trailerHidden {
+	opacity: 0;
+}
+
+// Its own layer, so content scrolling under the gradient never repaints it.
+.scrim {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 225px;
+	background: linear-gradient(180deg, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0.35) 55%, rgba(0, 0, 0, 0) 100%);
+	pointer-events: none;
+	will-change: transform;
+}
+
+.row {
+	position: absolute;
+	top: 33px;
+	left: 96px;
+	right: 96px;
+	height: 72px;
+	display: flex;
+	align-items: center;
+}
+
+// Scrolls sideways when the tabs outgrow the bar. The libraries panel anchors on the row
+// instead, so this clip never crops it.
+.tabs {
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 72px;
+	display: flex;
+	align-items: center;
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: none;
+	padding: 0 12px;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.menuAnchor {
+	position: static !important;
+}
+
+.tab {
+	position: relative;
+	height: 72px;
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	padding: 0;
+	border: none;
+	outline: none;
+	background: transparent;
+	color: rgba(255, 255, 255, 0.68);
+	font-size: 24px;
+	font-weight: 500;
+	white-space: nowrap;
+	cursor: pointer;
+	transform-origin: center;
+	transition: transform 0.15s ease-out;
+
+	:global(.perf-low) &,
+	:global(.perf-mid) & {
+		transition: none;
+	}
+}
+
+.current {
+	color: #ffffff;
+	font-weight: 600;
+}
+
+.line {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 9px;
+	height: 4px;
+	border-radius: 3px;
+}
+
+.tab:focus {
+	color: #ffffff;
+	font-weight: 700;
+	transform: scale(1.12);
+	text-shadow: 0 0 27px rgba(255, 255, 255, 0.45);
+
+	.line {
+		left: -9px;
+		right: -9px;
+		bottom: 6px;
+		background: #ffffff !important;
+	}
+}
+
+.item {
+	margin-left: 45px;
+}
+
+.right {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	margin-left: 60px;
+}
+
+.iconButton {
+	width: 54px;
+	height: 54px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: none;
+	outline: none;
+	border-radius: 50%;
+	background: transparent;
+	color: rgba(255, 255, 255, 0.85);
+	cursor: pointer;
+
+	&:focus {
+		background: #ffffff;
+		color: #101010;
+	}
+}
+
+.icon {
+	width: 36px;
+	height: 36px;
+	fill: currentColor;
+}
+
+.clock {
+	font-size: 24px;
+	font-weight: 500;
+	color: rgba(255, 255, 255, 0.85);
+	white-space: nowrap;
+}
+
+// Kept last so the spacing wins over the margins the rules above set.
+.tabs {
+	.flex-row-gap(45px);
+}
+
+.right {
+	.flex-row-gap(33px);
+}

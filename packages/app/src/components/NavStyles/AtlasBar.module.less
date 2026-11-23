@@ -1,0 +1,394 @@
+@import '../../styles/mixins.less';
+
+@panel-fill: #1b1f26;
+
+.bar {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 96px;
+	z-index: 1000;
+	display: flex;
+	align-items: center;
+	padding: 0 60px;
+	box-sizing: border-box;
+	color: #ffffff;
+	transition: opacity 0.25s ease;
+}
+
+.trailerHidden {
+	opacity: 0;
+}
+
+.dim {
+	position: fixed;
+	top: 96px;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 999;
+	background: rgba(0, 0, 0, 0.55);
+}
+
+.avatar {
+	flex: 0 0 auto;
+	margin-right: 30px;
+}
+
+.tabs {
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 96px;
+	display: flex;
+	align-items: stretch;
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.tab {
+	position: relative;
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	height: 96px;
+	padding: 0 27px;
+	border: none;
+	outline: none;
+	border-radius: 21px 21px 0 0;
+	background: transparent;
+	color: rgba(255, 255, 255, 0.72);
+	font-size: 22px;
+	font-weight: 500;
+	white-space: nowrap;
+	cursor: pointer;
+
+	&::after {
+		content: '';
+		position: absolute;
+		left: 27px;
+		right: 27px;
+		bottom: 0;
+		height: 4px;
+		border-radius: 2px;
+		background: #ffffff;
+		opacity: 0;
+	}
+
+	&:focus {
+		color: #ffffff;
+	}
+
+	&:focus::after {
+		opacity: 1;
+	}
+}
+
+.tabCurrent {
+	color: #ffffff;
+}
+
+.tabOpen {
+	background: @panel-fill;
+	color: #ffffff;
+	font-weight: 600;
+}
+
+.tabIcon {
+	width: 30px;
+	height: 30px;
+	fill: currentColor;
+	flex-shrink: 0;
+}
+
+.tabLabel {
+	margin-left: 12px;
+}
+
+.chevron {
+	display: flex;
+	align-items: center;
+	margin-left: 9px;
+}
+
+.chevronIcon {
+	width: 24px;
+	height: 24px;
+	fill: currentColor;
+	opacity: 0.6;
+
+	.tabOpen & {
+		opacity: 1;
+	}
+}
+
+.clock {
+	flex: 0 0 auto;
+	margin-left: 30px;
+	font-size: 24px;
+	font-weight: 500;
+	color: rgba(255, 255, 255, 0.85);
+	white-space: nowrap;
+}
+
+.iconButton {
+	flex: 0 0 auto;
+	width: 54px;
+	height: 54px;
+	margin-left: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: none;
+	outline: none;
+	border-radius: 50%;
+	background: transparent;
+	color: rgba(255, 255, 255, 0.8);
+	cursor: pointer;
+
+	&:focus {
+		background: #ffffff;
+		color: #101010;
+	}
+}
+
+.icon {
+	width: 36px;
+	height: 36px;
+	fill: currentColor;
+}
+
+.panel {
+	position: absolute;
+	top: 96px;
+	left: 60px;
+	right: 60px;
+	height: 495px;
+	display: flex;
+	padding: 42px 48px;
+	box-sizing: border-box;
+	border-radius: 0 0 27px 27px;
+	background: @panel-fill;
+	box-shadow: 0 45px 90px rgba(0, 0, 0, 0.55);
+	color: #ffffff;
+	text-align: left;
+}
+
+.linksColumn {
+	width: 330px;
+	flex-shrink: 0;
+	display: flex;
+	flex-direction: column;
+	overflow-y: auto;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.sectionTitle {
+	margin-bottom: 12px;
+	font-size: 18px;
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: rgba(255, 255, 255, 0.55);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.link {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: 60px;
+	padding: 0 24px;
+	border: none;
+	outline: none;
+	border-radius: 30px;
+	background: transparent;
+	color: rgba(255, 255, 255, 0.82);
+	font-size: 22px;
+	font-weight: 500;
+	text-align: left;
+	cursor: pointer;
+
+	&:focus {
+		background: #ffffff;
+		color: #101010;
+		font-weight: 600;
+	}
+}
+
+.linkLabel {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.linkChevron {
+	width: 24px;
+	height: 24px;
+	flex-shrink: 0;
+	fill: currentColor;
+	opacity: 0;
+
+	.link:focus & {
+		opacity: 1;
+	}
+}
+
+.divider {
+	width: 1px;
+	flex-shrink: 0;
+	margin-left: 60px;
+	background: rgba(255, 255, 255, 0.08);
+}
+
+.column {
+	flex-shrink: 0;
+	display: flex;
+	flex-direction: column;
+	margin-left: 60px;
+}
+
+.postersColumn {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.columnTitle {
+	margin-bottom: 18px;
+	font-size: 22px;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.cardRow {
+	display: flex;
+	align-items: flex-start;
+}
+
+.card,
+.poster {
+	flex-shrink: 0;
+	padding: 0;
+	border: none;
+	outline: none;
+	background: transparent;
+	color: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.card {
+	width: 300px;
+}
+
+.cardArt,
+.posterArt {
+	position: relative;
+	overflow: hidden;
+	background-color: #1a1a1a;
+	background-size: cover;
+	background-position: center;
+}
+
+.cardArt {
+	height: 168px;
+	border-radius: 15px;
+}
+
+.card:focus .cardArt,
+.poster:focus .posterArt {
+	box-shadow: 0 0 0 4px #ffffff;
+}
+
+.progressTrack {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 6px;
+	background: rgba(255, 255, 255, 0.18);
+}
+
+.progressFill {
+	height: 6px;
+}
+
+.cardTitle,
+.cardSub {
+	width: 300px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.cardTitle {
+	margin-top: 12px;
+	font-size: 21px;
+	font-weight: 600;
+}
+
+.cardSub {
+	margin-top: 6px;
+	font-size: 18px;
+	color: rgba(255, 255, 255, 0.6);
+}
+
+.poster {
+	width: 138px;
+}
+
+.posterArt {
+	height: 207px;
+	border-radius: 12px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.square .posterArt {
+	height: 138px;
+}
+
+.poster.wide {
+	width: 300px;
+}
+
+.wide .posterArt {
+	height: 168px;
+	border-radius: 15px;
+}
+
+.posterName {
+	padding: 0 12px;
+	font-size: 20px;
+	font-weight: 600;
+	text-align: center;
+}
+
+// Kept last so the spacing wins over the margins the rules above set.
+.linksColumn {
+	.flex-col-gap(6px);
+}
+
+.cardRow {
+	.flex-row-gap(24px);
+}
+
+.postersColumn .cardRow {
+	.flex-row-gap(18px);
+}

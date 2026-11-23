@@ -114,6 +114,16 @@ const GameSystem = lazy(() => import('../views/GameSystem'));
 const GameDetails = lazy(() => import('../views/GameDetails'));
 const GamePlayer = lazy(() => import('../views/GamePlayer'));
 const SetupWizard = lazy(() => import('../views/SetupWizard'));
+// The other navigation styles load only for someone who picks one, so the classic bar costs
+// nothing extra at startup.
+const TOP_NAV_STYLES = {
+	tabline: lazy(() => import('../components/NavStyles/TablineBar')),
+	atlas: lazy(() => import('../components/NavStyles/AtlasBar'))
+};
+const SIDE_NAV_STYLES = {
+	reel: lazy(() => import('../components/NavStyles/ReelNav')),
+	mosaic: lazy(() => import('../components/NavStyles/MosaicNav'))
+};
 const Calendar = lazy(() => import('../views/Calendar'));
 const CalendarMonth = lazy(() => import('../views/Calendar/CalendarMonth'));
 const SettingsPanel = lazy(() => import('../components/SettingsPanel'));
@@ -378,6 +388,8 @@ const AppContent = (props) => {
 	const cleanupHandlersRef = useRef(null);
 	const backHandlerRef = useRef(null);
 	const itemMenuBackRef = useRef(null);
+	// An open Atlas panel, Reel or Mosaic closes on Back before the page under it hears it.
+	const navBackRef = useRef(null);
 	const detailsItemStackRef = useRef([]);
 	// Play from a card's menu opens the item's screen, which starts it once it knows what to play.
 	const [detailsAutoPlay, setDetailsAutoPlay] = useState(false);
@@ -1214,6 +1226,8 @@ const AppContent = (props) => {
 				if (showSettingsPanel) {
 					return;
 				}
+
+				if (navBackRef.current?.()) return;
 
 				if (itemMenuBackRef.current?.()) return;
 
@@ -2425,53 +2439,46 @@ const AppContent = (props) => {
 		panelIndex !== PANELS.SEERR_BROWSE &&
 		!(panelIndex === PANELS.DETAILS && ['Playlist', 'MusicAlbum', 'MusicArtist'].includes(selectedItem?.Type));
 
+	const SideNav = SIDE_NAV_STYLES[settings.sidebarStyle] || Sidebar;
+	const TopNav = TOP_NAV_STYLES[settings.topNavbarStyle] || NavBar;
+	const navProps = {
+		activeView: getActiveView(),
+		libraries,
+		hasLiveTv,
+		onHome: handleNavHome,
+		onSearch: handleOpenSearch,
+		onShuffle: handleShuffle,
+		onGenres: handleOpenGenres,
+		onFavorites: handleOpenFavorites,
+		onLiveTv: handleOpenLiveTv,
+		onDiscover: handleOpenSeerr,
+		onCalendar: handleOpenCalendar,
+		onSyncPlay: settings.syncplayEnabled !== false ? openWatchTogether : undefined,
+		onSettings: handleOpenSettings,
+		onSelectLibrary: handleSelectLibrary,
+		onUserMenu: handleOpenAccountModal,
+		onMessages: handleOpenServerMessages,
+		onFriends: handleOpenFriends,
+		music: navMusic,
+		onOpenMusic: handleOpenMusic,
+		onSelectItem: handleSelectItem,
+		onSelectSeerrItem: handleSelectSeerrItem,
+		onOpenSeerrShortcut: handleOpenSeerrShortcut,
+		onOpenRecordings: handleOpenRecordings,
+		onPlayRecording: handlePlayRecording,
+		backRef: navBackRef
+	};
+
 	return (
 		<div className={css.app} {...props}>
 			{showNavBar && settings.navbarPosition === 'left' ? (
-				<Sidebar
-					libraries={libraries}
-					hasLiveTv={hasLiveTv}
-					onHome={handleNavHome}
-					onSearch={handleOpenSearch}
-					onShuffle={handleShuffle}
-					onGenres={handleOpenGenres}
-					onFavorites={handleOpenFavorites}
-					onLiveTv={handleOpenLiveTv}
-					onDiscover={handleOpenSeerr}
-					onCalendar={handleOpenCalendar}
-					onSyncPlay={settings.syncplayEnabled !== false ? openWatchTogether : undefined}
-					onSettings={handleOpenSettings}
-					onSelectLibrary={handleSelectLibrary}
-					onUserMenu={handleOpenAccountModal}
-					onMessages={handleOpenServerMessages}
-					onFriends={handleOpenFriends}
-					music={navMusic}
-					onOpenMusic={handleOpenMusic}
-					hideForTrailer={trailerHidesChrome}
-				/>
+				<Suspense fallback={null}>
+					<SideNav {...navProps} hideForTrailer={trailerHidesChrome} />
+				</Suspense>
 			) : showNavBar ? (
-				<NavBar
-					activeView={getActiveView()}
-					libraries={libraries}
-					hasLiveTv={hasLiveTv}
-					onHome={handleNavHome}
-					onSearch={handleOpenSearch}
-					onShuffle={handleShuffle}
-					onGenres={handleOpenGenres}
-					onFavorites={handleOpenFavorites}
-					onLiveTv={handleOpenLiveTv}
-					onDiscover={handleOpenSeerr}
-					onCalendar={handleOpenCalendar}
-					onSyncPlay={settings.syncplayEnabled !== false ? openWatchTogether : undefined}
-					onSettings={handleOpenSettings}
-					onSelectLibrary={handleSelectLibrary}
-					onUserMenu={handleOpenAccountModal}
-					onMessages={handleOpenServerMessages}
-					onFriends={handleOpenFriends}
-					music={navMusic}
-					onOpenMusic={handleOpenMusic}
-					hideForTrailer={trailerHidesChrome || detailsHidesNavbar}
-				/>
+				<Suspense fallback={null}>
+					<TopNav {...navProps} hideForTrailer={trailerHidesChrome || detailsHidesNavbar} />
+				</Suspense>
 			) : null}
 			<ItemMenuProvider onPlay={handlePlayFromMenu} onOpenItem={handleSelectItem} backRef={itemMenuBackRef}>
 				<Suspense fallback={<PanelLoader />}>

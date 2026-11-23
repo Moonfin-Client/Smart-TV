@@ -2,17 +2,11 @@ import {memo, useCallback, useMemo} from 'react';
 import $L from '@enact/i18n/$L';
 import SpotlightContainerDecorator, {spotlightDefaultClass} from '@enact/spotlight/SpotlightContainerDecorator';
 import {useSettings} from '../../context/SettingsContext';
-import {useSeerr} from '../../context/SeerrContext';
-import {useSyncPlay} from '../../context/SyncPlayContext';
-import useWatchParty from '../../hooks/useWatchParty';
-import {useServerMessages} from '../../context/ServerMessagesContext';
-import {useAchievements} from '../../context/AchievementsContext';
+import {useNavVisibility} from '../NavStyles/navDestinations';
 import SeerrIcon from '../icons/SeerrIcon';
 import SyncPlayIcon from '../icons/SyncPlayIcon';
 import {CalendarIcon, FavoritesIcon, FriendsIcon, GenresIcon, HomeIcon, LiveTvIcon, MessagesIcon, SearchIcon, SettingsIcon, ShuffleIcon, libraryNavIcon} from '../icons/navIcons';
 import useClock from '../../hooks/useClock';
-import {librariesForNav} from '../../utils/liveTvLibrary';
-import {isKidsMode} from '../../utils/kidsMode';
 import {shadowToCss, toCssColor, toCssColorWithAlpha} from '../../theme/themeSpec';
 import {resolveOverlayColor} from '../../theme/overlayColors';
 import {focusContentFromSidebar, rememberSidebarReturn} from '../../utils/navFocusTargets';
@@ -77,32 +71,17 @@ const Sidebar = ({
 	hideForTrailer
 }) => {
 	const {settings, activeTheme} = useSettings();
-	const {isEnabled: seerrEnabled, displayName, pluginInfo} = useSeerr();
-	const {isInGroup} = useSyncPlay();
-	const {room: watchPartyRoom} = useWatchParty();
-	const {messages, unreadCount} = useServerMessages();
-	const {socialAvailable, badgeCount: friendsBadge} = useAchievements();
 	// The nav bar has always honoured this; the sidebar rendered the clock
 	// whatever the setting said, and kept it ticking too.
 	const showClock = settings.showClock !== false;
 	const clock = useClock(showClock);
 	const {expanded, librariesExpanded, toggleLibraries, handlers} = useSidebarExpansion();
 
-	const showShuffle = settings.showShuffleButton !== false;
-	const showGenres = settings.showGenresButton !== false;
-	const showFavorites = settings.showFavoritesButton !== false;
-	const kidsMode = isKidsMode(settings);
-	const showLiveTv = !kidsMode && settings.showLiveTvButton !== false && hasLiveTv;
-	const showSeerr = !kidsMode && seerrEnabled && settings.showSeerrButton !== false;
-	const showCalendar = !kidsMode && settings.showCalendarButton !== false && pluginInfo?.calendarAvailable === true;
-	const showSyncPlay = !kidsMode && settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false;
-	const navLibraries = librariesForNav(libraries, showLiveTv, {hideLiveTv: kidsMode});
-	const showLibraries = !kidsMode && settings.showLibrariesInToolbar !== false && navLibraries.length > 0;
-	// Only with something to show, so the rail never has a row that does nothing.
-	const showMessages = settings.showServerMessagesButton === true && messages.length > 0;
-	// Only where the Achievement Badges plugin has friends switched on, so it never takes a
-	// colour slot for a button that cant open.
-	const showFriends = !kidsMode && socialAvailable && settings.showFriendsButton === true;
+	const {
+		showShuffle, showGenres, showFavorites, showLiveTv, showSeerr, showCalendar, showSyncPlay,
+		navLibraries, showLibraries, showMessages, showFriends, seerrLabel: displayName, watchPartyActive,
+		unreadCount, friendsBadge
+	} = useNavVisibility(libraries, hasLiveTv);
 
 	const navStyle = useMemo(() => {
 		// The rail paints the overlay color on every theme. Only the top bar clears
@@ -193,7 +172,7 @@ const Sidebar = ({
 					)}
 
 					{showSyncPlay && (
-						<SidebarItem Icon={SyncPlayIcon} slot={nextSlot()} label={$L('Watch Parties')} onClick={onSyncPlay} active={Boolean(watchPartyRoom) || isInGroup} />
+						<SidebarItem Icon={SyncPlayIcon} slot={nextSlot()} label={$L('Watch Parties')} onClick={onSyncPlay} active={watchPartyActive} />
 					)}
 
 					{showLibraries && (settings.showLibrariesIndividually === true ? (

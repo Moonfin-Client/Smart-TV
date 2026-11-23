@@ -1,0 +1,355 @@
+@import '../../styles/mixins.less';
+
+// The panel's inner width is 756, its 840 less 84 of padding.
+.mosaic {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 0;
+	height: 0;
+	z-index: 1000;
+	transition: opacity 0.25s ease;
+}
+
+.trailerHidden {
+	opacity: 0;
+}
+
+.menuButton {
+	position: fixed;
+	top: 33px;
+	left: 30px;
+	width: 66px;
+	height: 66px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: 2px solid rgba(255, 255, 255, 0.14);
+	outline: none;
+	border-radius: 50%;
+	background: rgba(20, 22, 26, 0.72);
+	color: #ffffff;
+	cursor: pointer;
+
+	&:focus {
+		background: #ffffff;
+		color: #101010;
+	}
+}
+
+.menuIcon {
+	width: 33px;
+	height: 33px;
+	fill: currentColor;
+}
+
+.dim {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.55);
+}
+
+.panel {
+	position: fixed;
+	top: 0;
+	left: 0;
+	bottom: 0;
+	width: 840px;
+	padding: 33px 42px;
+	box-sizing: border-box;
+	overflow-x: hidden;
+	overflow-y: auto;
+	scrollbar-width: none;
+	box-shadow: 45px 0 90px rgba(0, 0, 0, 0.55);
+	color: #ffffff;
+	text-align: left;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.header {
+	height: 60px;
+	display: flex;
+	align-items: center;
+	margin-bottom: 6px;
+}
+
+.avatarButton {
+	width: 57px;
+	height: 57px;
+	flex-shrink: 0;
+	padding: 0;
+	border: none;
+	outline: none;
+	border-radius: 50%;
+	background: #2b3440;
+	overflow: hidden;
+	cursor: pointer;
+
+	&:focus {
+		box-shadow: 0 0 0 4px #ffffff;
+	}
+}
+
+.avatarImage {
+	width: 57px;
+	height: 57px;
+	object-fit: cover;
+}
+
+.avatarInitial {
+	font-size: 27px;
+	font-weight: 600;
+	color: rgba(255, 255, 255, 0.85);
+}
+
+.name {
+	flex: 1 1 auto;
+	margin-left: 18px;
+	font-size: 22px;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.clock {
+	margin-left: 18px;
+	font-size: 21px;
+	color: rgba(255, 255, 255, 0.55);
+	white-space: nowrap;
+}
+
+.tile {
+	position: relative;
+	display: block;
+	padding: 0;
+	border: none;
+	outline: none;
+	overflow: hidden;
+	color: #ffffff;
+	text-align: left;
+	cursor: pointer;
+
+	&:focus {
+		box-shadow: 0 0 0 4px #ffffff !important;
+		transform: scale(1.04);
+	}
+
+	:global(.perf-high) & {
+		transition: transform 0.15s ease;
+	}
+
+	:global(.perf-high) &:focus {
+		box-shadow: 0 0 0 4px #ffffff, 0 18px 42px rgba(0, 0, 0, 0.6) !important;
+	}
+}
+
+.art {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-size: cover;
+	background-position: center;
+}
+
+.homeTile {
+	width: 756px;
+	height: 144px;
+	margin-top: 18px;
+	border-radius: 21px;
+	background: #1a1a1a;
+}
+
+.homeShade {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: linear-gradient(90deg, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.2) 70%);
+}
+
+.homeText {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 27px;
+	display: flex;
+	align-items: center;
+}
+
+.homeIcon {
+	width: 45px;
+	height: 45px;
+	flex-shrink: 0;
+	fill: currentColor;
+}
+
+.homeLabels {
+	display: flex;
+	flex-direction: column;
+	margin-left: 18px;
+}
+
+.homeTitle {
+	font-size: 30px;
+	font-weight: 700;
+}
+
+.homeSub {
+	margin-top: 3px;
+	font-size: 20px;
+	color: rgba(255, 255, 255, 0.75);
+}
+
+.dot {
+	width: 14px;
+	height: 14px;
+	margin-left: 18px;
+	flex-shrink: 0;
+	border-radius: 50%;
+}
+
+// The wrap gap mixin owns the margins, so the space above each grid is padding.
+.grid {
+	display: flex;
+	flex-wrap: wrap;
+	padding-top: 18px;
+}
+
+.bigTile {
+	width: 369px;
+	height: 144px;
+	border-radius: 21px;
+	background: #1a1a1a;
+}
+
+.plainTile {
+	position: absolute;
+	top: 0;
+	left: 24px;
+	right: 24px;
+	bottom: 0;
+	display: flex;
+	align-items: center;
+}
+
+.bigIcon {
+	width: 39px;
+	height: 39px;
+	flex-shrink: 0;
+	fill: currentColor;
+}
+
+.bigLabel {
+	margin-left: 15px;
+	font-size: 27px;
+	font-weight: 700;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.tileFoot {
+	position: absolute;
+	left: 24px;
+	right: 24px;
+	bottom: 21px;
+	display: flex;
+	align-items: center;
+}
+
+.liveTile {
+	background: linear-gradient(135deg, #22314f 0%, #121a2b 100%);
+}
+
+.liveChip {
+	position: absolute;
+	top: 21px;
+	left: 24px;
+	display: flex;
+	align-items: center;
+	font-size: 16px;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	color: #ffb4b4;
+}
+
+.liveDot {
+	width: 10px;
+	height: 10px;
+	margin-right: 9px;
+	border-radius: 50%;
+	background: #ff5a5a;
+}
+
+.discoverTile {
+	background: linear-gradient(135deg, #4b4fd1 0%, #23245e 100%);
+}
+
+.discoverMark {
+	position: absolute;
+	top: -27px;
+	right: -27px;
+	width: 165px;
+	height: 165px;
+	opacity: 0.35;
+}
+
+.smallGrid {
+	display: flex;
+	flex-wrap: wrap;
+	padding-top: 18px;
+}
+
+.smallTile {
+	width: 113px;
+	height: 90px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	border-radius: 18px;
+	background: rgba(255, 255, 255, 0.07);
+	color: rgba(255, 255, 255, 0.8);
+	text-align: center;
+
+	&:focus {
+		background: #ffffff;
+		color: #101010;
+	}
+}
+
+.smallIcon {
+	width: 33px;
+	height: 33px;
+	fill: currentColor;
+}
+
+.smallLabel {
+	max-width: 105px;
+	margin-top: 7px;
+	font-size: 16px;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+// Kept last so the spacing wins over the margins the rules above set.
+.grid {
+	.flex-wrap-gap(18px);
+}
+
+.smallGrid {
+	.flex-wrap-gap(15px);
+}

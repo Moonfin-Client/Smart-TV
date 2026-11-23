@@ -19,6 +19,9 @@ const PATHS = {
 	libraries: 'M20.84 2.18L16.91 2.96L19.65 6.5L21.62 6.1L20.84 2.18M13.97 3.54L12 3.93L14.75 7.46L16.71 7.07L13.97 3.54M9.07 4.5L7.1 4.91L9.85 8.44L11.81 8.05L9.07 4.5M4.16 5.5L3.18 5.69A2 2 0 0 0 1.61 8.04L2 10L6.9 9.03L4.16 5.5M2 10V20C2 21.11 2.9 22 4 22H20C21.11 22 22 21.11 22 20V10H2Z',
 	settings: 'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z',
 	chevronDown: 'M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z',
+	chevronUp: 'M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z',
+	chevronRight: 'M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z',
+	apps: 'M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z',
 	messages: 'M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z',
 	friends: 'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z',
 	liveTv: 'M10.5 17.16 14.48 14.86C15.14 14.48 15.14 13.5 14.48 13.12L10.5 10.83C9.84 10.45 9 10.97 9 11.72V16.27C9 17.06 9.84 17.53 10.5 17.16ZM21 6H13.41L16.36 3.05C16.55 2.86 16.55 2.53 16.36 2.34C16.17 2.16 15.84 2.16 15.66 2.34L12 6L8.34 2.34C8.16 2.16 7.83 2.16 7.64 2.34C7.45 2.53 7.45 2.86 7.64 3.05L10.59 6H3C1.92 6 0.98 6.89 0.98 8.02V20.02C0.98 21.09 1.92 21.98 3 21.98H21C22.08 21.98 23.02 21.09 23.02 20.02V8.02C23.02 6.89 22.08 6 21 6ZM20.02 20.02H3.98C3.47 20.02 3 19.55 3 18.98V9C3 8.44 3.47 8.02 3.98 8.02H20.02C20.53 8.02 21 8.44 21 9V18.98C21 19.55 20.53 20.02 20.02 20.02Z'
@@ -32,6 +35,10 @@ export const FavoritesIcon = (props) => <NavIcon {...props} path={PATHS.favorite
 export const LibrariesIcon = (props) => <NavIcon {...props} path={PATHS.libraries} />;
 export const SettingsIcon = (props) => <NavIcon {...props} path={PATHS.settings} />;
 export const ChevronDownIcon = (props) => <NavIcon {...props} path={PATHS.chevronDown} />;
+export const ChevronUpIcon = (props) => <NavIcon {...props} path={PATHS.chevronUp} />;
+export const ChevronRightIcon = (props) => <NavIcon {...props} path={PATHS.chevronRight} />;
+export const AppsIcon = (props) => <NavIcon {...props} path={PATHS.apps} />;
+export const MusicIcon = (props) => <NavIcon {...props} path={HOME_CORE_ICON_PATHS.music_note_rounded} />;
 export const MessagesIcon = (props) => <NavIcon {...props} path={PATHS.messages} />;
 export const FriendsIcon = (props) => <NavIcon {...props} path={PATHS.friends} />;
 export const LiveTvIcon = (props) => <NavIcon {...props} path={PATHS.liveTv} />;

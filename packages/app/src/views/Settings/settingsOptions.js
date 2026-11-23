@@ -259,6 +259,30 @@ export const getNavPositionOptions = () => [
 	{ value: 'left', label: $L('Left Sidebar') }
 ];
 
+export const getTopNavbarStyleOptions = () => [
+	{ value: 'classic', label: $L('Classic') },
+	{ value: 'tabline', label: $L('Tabline') },
+	{ value: 'atlas', label: $L('Atlas') }
+];
+
+export const topNavbarStyleHint = (style) => ({
+	classic: $L('The standard bar'),
+	tabline: $L('Text tabs with an underline, no pill'),
+	atlas: $L('Tabs open a panel with shortcuts and artwork')
+})[style];
+
+export const getSidebarStyleOptions = () => [
+	{ value: 'classic', label: $L('Classic') },
+	{ value: 'reel', label: $L('Reel') },
+	{ value: 'mosaic', label: $L('Mosaic') }
+];
+
+export const sidebarStyleHint = (style) => ({
+	classic: $L('The standard sidebar'),
+	reel: $L('A wheel that turns through the destinations'),
+	mosaic: $L('A panel of tiles with library artwork')
+})[style];
+
 export const getWatchedIndicatorOptions = () => [
 	{ value: 'always', label: $L('Always') },
 	{ value: 'hideCount', label: $L('Hide Unwatched Count') },

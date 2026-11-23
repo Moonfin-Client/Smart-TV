@@ -266,6 +266,9 @@ export const defaultSettings = {
 	exitConfirmation: true,
 	updateNotificationsEnabled: true,
 	navbarPosition: 'top',
+	// A value this app doesn't know draws classic.
+	topNavbarStyle: 'classic',
+	sidebarStyle: 'classic',
 	navbarAlwaysExpanded: false,
 	oledMode: 'off',
 	screensaverEnabled: true,

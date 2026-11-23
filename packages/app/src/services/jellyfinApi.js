@@ -633,8 +633,8 @@ export const api = {
 		{limit, sortBy, sortOrder}
 	),
 
-	getResumeItems: (limit = 12) =>
-		request(`${userRoutes.resume()}Limit=${limit}&MediaTypes=Video&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}`),
+	getResumeItems: (limit = 12, parentId = null) =>
+		request(`${userRoutes.resume()}Limit=${limit}${parentId ? `&ParentId=${parentId}` : ''}&MediaTypes=Video&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}`),
 
 	getResumeAudioItems: (limit = 20) =>
 		request(`${userRoutes.resume()}Limit=${limit}&MediaTypes=Audio&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}`),
@@ -1289,8 +1289,8 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 			return serverRequest(`/Genres?${buildQueryString(merged)}`);
 		},
 
-		getResumeItems: () =>
-			serverRequest(`${serverUserRoutes.resume()}Limit=12&Recursive=true&Fields=PrimaryImageAspectRatio,Overview,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ProviderIds&MediaTypes=Video&EnableTotalRecordCount=false&ExcludeItemTypes=Book`),
+		getResumeItems: (limit = 12, parentId = null) =>
+			serverRequest(`${serverUserRoutes.resume()}Limit=${limit}${parentId ? `&ParentId=${parentId}` : ''}&Recursive=true&Fields=PrimaryImageAspectRatio,Overview,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ProviderIds&MediaTypes=Video&EnableTotalRecordCount=false&ExcludeItemTypes=Book`),
 
 		getNextUp: (limit = 12, seriesId = null, maxDays = 0) => {
 			const fields = 'PrimaryImageAspectRatio,Overview,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ParentLogoItemId,ParentLogoImageTag,ProviderIds';
