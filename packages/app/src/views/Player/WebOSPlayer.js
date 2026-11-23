@@ -1545,7 +1545,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// Silo replans the session at the position and the new stream opens there.
 	// Has Silo replan the session at a title position and opens the stream it gives. Rejects when it couldn't.
 	const reopenSiloAt = useCallback(async (ticks) => {
+		const itemId = latestItemIdRef.current;
 		const result = await playback.reanchorAt(ticks);
+		// The player moved to another item while Silo answered; its runtime and stream aren't this one's.
+		if (latestItemIdRef.current !== itemId) return;
 		if (!result?.url) throw new Error('Silo gave no stream to reopen');
 		pendingResumeTicksRef.current = ticks;
 		takeRunTime(result);
