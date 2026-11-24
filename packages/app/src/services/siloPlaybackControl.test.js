@@ -117,9 +117,9 @@ describe('the lane', () => {
 	});
 
 	test('a session the player has moved on from is rejected', async () => {
-		handlers.plays.mockReturnValue(false);
 		followSiloPlaybackControl(laneFor());
 		const socket = await opened();
+		handlers.plays.mockReturnValue(false);
 		command(socket, {command_id: 'c1', name: 'stop'});
 		await flush();
 		expect(handlers.run).not.toHaveBeenCalled();
@@ -306,6 +306,52 @@ describe('the lane', () => {
 		expect(sockets).toHaveLength(2);
 	});
 
+	test('a reconnect timer that fires before the renewal is up opens no third connection', async () => {
+		const lane = laneFor({ticket: jest.fn(async () => ({ticket: `t${lane.ticket.mock.calls.length}`, protocol: 'silo.playback-control.v2', max_connection_seconds: 120}))});
+		followSiloPlaybackControl(lane);
+		const old = await opened();
+		jest.advanceTimersByTime(60000);
+		await flush();
+		old.onclose();
+		// The reconnect starts and waits on its ticket while the renewal's connection comes up.
+		let answerTicket;
+		lane.ticket.mockImplementationOnce(() => new Promise((resolve) => {
+			answerTicket = resolve;
+		}));
+		jest.advanceTimersByTime(2000);
+		await flush();
+		expect(lane.ticket).toHaveBeenCalledTimes(3);
+		await opened(1);
+		answerTicket({ticket: 't9', protocol: 'silo.playback-control.v2', max_connection_seconds: 120});
+		await flush();
+		expect(sockets).toHaveLength(2);
+	});
+
+	test('a lane that was up asks again when a restarting server says it is unavailable', async () => {
+		const lane = laneFor();
+		followSiloPlaybackControl(lane);
+		const socket = await opened();
+		lane.capabilities.mockResolvedValueOnce({available: false});
+		// The cached answer has expired by the time the server restarts.
+		jest.advanceTimersByTime(11 * 60 * 1000);
+		socket.onclose();
+		jest.advanceTimersByTime(2600);
+		await flush();
+		expect(sockets).toHaveLength(1);
+		jest.advanceTimersByTime(5000);
+		await opened();
+		expect(sockets).toHaveLength(2);
+	});
+
+	test('a session the player does not play takes no lane', async () => {
+		handlers.plays.mockReturnValue(false);
+		const lane = laneFor();
+		followSiloPlaybackControl(lane);
+		await flush();
+		expect(lane.capabilities).not.toHaveBeenCalled();
+		expect(currentSiloPlaybackControlLane()).toBeNull();
+	});
+
 	test('a session that already stopped does not take the lane from the one playing', async () => {
 		followSiloPlaybackControl(laneFor());
 		const socket = await opened();
@@ -315,7 +361,7 @@ describe('the lane', () => {
 		expect(currentSiloPlaybackControlLane().matches('http://silo:8090', 's1')).toBe(true);
 	});
 
-	test('a lane not allowed for one login is asked about again for the next', async () => {
+	test('a lane not allowed is asked about again for the next session', async () => {
 		const capabilities = jest.fn()
 			.mockResolvedValueOnce({available: true, allowed: false, protocol: 'silo.playback-control.v2'})
 			.mockResolvedValue({available: true, allowed: true, protocol: 'silo.playback-control.v2'});

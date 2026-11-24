@@ -117,8 +117,11 @@ const send = (socket, frame) => {
 };
 
 const createLane = (lane) => {
+	const key = siloServerKey(lane.baseUrl);
 	const state = {
 		socket: null,
+		// Once a connection was up, a server that says unavailable is one restarting, so it's asked again.
+		everOpened: false,
 		// Commands still running, so a lane let go of can wait for their answers.
 		running: 0,
 		attempts: 0,
@@ -330,6 +333,8 @@ const createLane = (lane) => {
 				// reconnect it asked for is called off, so no third connection follows.
 				clearTimeout(state.reconnectTimer);
 				state.reconnectTimer = null;
+				state.gaveUp = false;
+				state.everOpened = true;
 				socket.onclose = () => onDropped(socket);
 				socket.onerror = null;
 				onOpened(socket, ticket);
@@ -354,11 +359,13 @@ const createLane = (lane) => {
 		try {
 			if (!(await laneAvailable(lane))) {
 				console.info('[Silo] Playback control lane is off on this server');
+				if (state.everOpened) scheduleReconnect();
 				return;
 			}
-			if (state.closed) return;
+			// A renewal may have taken the lane meanwhile.
+			if (state.closed || state.socket) return;
 			const ticket = await ticketFor(false);
-			if (!ticket || state.closed) return;
+			if (!ticket || state.closed || state.socket) return;
 			if (!(await open(ticket))) scheduleReconnect();
 		} catch {
 			scheduleReconnect();
@@ -396,8 +403,8 @@ const createLane = (lane) => {
 	};
 
 	return {
-		matches: (baseUrl, sessionId) => siloServerKey(baseUrl) === siloServerKey(lane.baseUrl) && sessionId === lane.sessionId,
-		onServer: (baseUrl) => siloServerKey(baseUrl) === siloServerKey(lane.baseUrl),
+		matches: (baseUrl, sessionId) => siloServerKey(baseUrl) === key && sessionId === lane.sessionId,
+		onServer: (baseUrl) => siloServerKey(baseUrl) === key,
 		// The same session again (a replan): a lane given up on gets another try, one Silo refused stays refused.
 		refresh: (next) => {
 			Object.assign(lane, next);
@@ -433,8 +440,10 @@ const createLane = (lane) => {
  * ticket(), accessExpiresAt()}, all for the server the session plays on. Lets go of a lane for another session.
  */
 export const followSiloPlaybackControl = (lane) => {
-	// A session that already stopped (a slow replan answering late) never takes the lane from the one playing.
-	if (!lane?.sessionId || !lane.baseUrl || !lane.live()) return;
+	// A session that already stopped, or that the player no longer plays (a slow replan answering late), never takes
+	// the lane from the one playing.
+	if (!lane?.sessionId || !lane.baseUrl || typeof lane.live !== 'function' || !lane.live()) return;
+	if (handlers && !handlers.plays(lane.baseUrl, lane.sessionId)) return;
 	if (current?.matches(lane.baseUrl, lane.sessionId)) {
 		current.refresh(lane);
 		return;
