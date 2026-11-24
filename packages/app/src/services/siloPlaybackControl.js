@@ -75,7 +75,7 @@ const tokenRefused = (err) => err?.status === 401 || err?.status === 403;
 
 /**
  * The app's side: `run(message)` is remoteControl.handleMessage; `plays(baseUrl, sessionId)` whether the player still
- * plays that session; `terminate(sessionId, reason)` ends it the way a 410 progress refusal does; `transportHeld()`
+ * plays that session; `terminate(sessionId, reason, retire)` ends it the way a 410 progress refusal does; `transportHeld()`
  * whether a watch party room would take a pause or resume and do nothing with it.
  */
 let handlers = null;
@@ -166,7 +166,7 @@ const createLane = (lane) => {
 			state.running += 1;
 			answer(from, id, 'ack', 'accepted');
 			try {
-				await handlers.terminate(lane.sessionId, reason);
+				await handlers.terminate(lane.sessionId, reason, lane.retire);
 				answer(from, id, 'result', 'completed');
 			} catch {
 				answer(from, id, 'result', 'rejected', 'failed');

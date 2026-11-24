@@ -242,7 +242,7 @@ describe('sessions', () => {
 	test('the control lane follows a session from its start through a replan to its stop, and a preview gets none', async () => {
 		const onSessionPlaying = jest.fn();
 		const onSessionEnded = jest.fn();
-		const {playback} = setup({
+		const {playback, calls} = setup({
 			'GET /api/v2/playback/capabilities': capabilities,
 			'POST /api/v2/playback/start': plan('original_http', 'k1'),
 			'POST /api/v2/playback/s1/replan': plan('server_remux_hls', 'k2'),
@@ -260,9 +260,14 @@ describe('sessions', () => {
 		await playback.getPlaybackInfo('movie-1', {EnableDirectPlay: false});
 		expect(onSessionPlaying).toHaveBeenCalledTimes(2);
 		onSessionEnded.mockClear();
-		await playback.reportPlaybackStopped({PlaySessionId: 's1', PositionTicks: 1});
-		expect(onSessionEnded).toHaveBeenCalledWith('s1');
+		// An admin's terminate retires it: the player's stop sends Silo nothing more.
+		lane.retire();
 		expect(lane.live()).toBe(false);
+		const deletes = () => calls.filter((c) => c.method === 'DELETE').length;
+		const before = deletes();
+		await playback.reportPlaybackStopped({PlaySessionId: 's1', PositionTicks: 1});
+		expect(deletes()).toBe(before);
+		expect(onSessionEnded).toHaveBeenCalledWith('s1');
 	});
 
 	test('a preview ends its session at once, and Play afterwards starts a new one', async () => {

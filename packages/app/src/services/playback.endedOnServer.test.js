@@ -2,7 +2,7 @@ import * as playback from './playback';
 import * as jellyfinApi from './jellyfinApi';
 
 jest.mock('./jellyfinApi', () => {
-	const server = {getPlaybackInfo: jest.fn(), reportPlaybackProgress: jest.fn(), reportPlaybackStopped: jest.fn(), closeLiveStream: jest.fn()};
+	const server = {getPlaybackInfo: jest.fn(), reportPlaybackStart: jest.fn(), reportPlaybackProgress: jest.fn(), reportPlaybackStopped: jest.fn(), closeLiveStream: jest.fn()};
 	return {
 		api: server,
 		createApiForServer: () => server,
@@ -47,6 +47,7 @@ beforeEach(async () => {
 	api.getPlaybackInfo.mockResolvedValue(plays('s1'));
 	api.reportPlaybackProgress.mockResolvedValue(null);
 	api.reportPlaybackStopped.mockResolvedValue(null);
+	api.reportPlaybackStart.mockResolvedValue(null);
 	heard = [];
 	unsubscribe = playback.onEndedOnServer((itemId, reason) => heard.push(reason ? `${itemId}: ${reason}` : itemId));
 });
@@ -79,10 +80,28 @@ describe('an admin ending a Silo session', () => {
 		await playback.getPlaybackInfo('movie-1');
 		expect(playback.playsSiloSession('http://silo:8090/', 's1')).toBe(true);
 		expect(playback.playsSiloSession('http://other:8090', 's1')).toBe(false);
-		expect(playback.endSessionByServer('s2', 'Nope')).toBe(false);
-		expect(playback.endSessionByServer('s1', 'Maintenance')).toBe(true);
+		const retire = jest.fn();
+		expect(playback.endSessionByServer('s2', 'Nope', retire)).toBe(false);
+		expect(retire).not.toHaveBeenCalled();
+		expect(playback.endSessionByServer('s1', 'Maintenance', retire)).toBe(true);
+		expect(retire).toHaveBeenCalledTimes(1);
 		expect(heard).toEqual(['movie-1: Maintenance']);
 		await expect(playback.getPlaybackInfo('movie-1')).rejects.toMatchObject({reason: 'playback_session_ended'});
+	});
+
+	test('a new session Silo starts for the playing title reports its start, so its control lane opens', async () => {
+		await playback.getPlaybackInfo('movie-1');
+		// A replan of the same session reports nothing.
+		await playback.getPlaybackInfo('movie-1');
+		expect(api.reportPlaybackStart).not.toHaveBeenCalled();
+		// Silo retired s1 (an expiry, a reset) and the next seek started s2.
+		api.getPlaybackInfo.mockResolvedValue(plays('s2'));
+		await playback.getPlaybackInfo('movie-1');
+		expect(api.reportPlaybackStart).toHaveBeenCalledWith({ItemId: 'movie-1', PlaySessionId: 's2'});
+		// Another title is the player's own start to report.
+		api.getPlaybackInfo.mockResolvedValue(plays('s3'));
+		await playback.getPlaybackInfo('movie-2');
+		expect(api.reportPlaybackStart).toHaveBeenCalledTimes(1);
 	});
 
 	test('a refusal heard by a report the viewer already stopped closes and holds nothing', async () => {

@@ -553,7 +553,11 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 	const laneOf = (session) => ({
 		sessionId: session.sessionId,
 		installationId: session.installationId,
-		live: () => sessions[session.sessionId] === session && !session.ended && !session.stopping
+		live: () => sessions[session.sessionId] === session && !session.ended && !session.stopping,
+		// An admin's terminate already ended it on Silo, so the player's stop sends nothing more.
+		retire: () => {
+			session.ended = true;
+		}
 	});
 	let capabilities = null;
 

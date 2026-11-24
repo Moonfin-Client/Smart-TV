@@ -139,11 +139,12 @@ describe('the lane', () => {
 	});
 
 	test('a terminate ends the session with the admin\'s reason', async () => {
-		followSiloPlaybackControl(laneFor());
+		const retire = jest.fn();
+		followSiloPlaybackControl(laneFor({retire}));
 		const socket = await opened();
 		command(socket, {command_id: 'c1', name: 'terminate', reason: ' Maintenance ', payload: null});
 		await flush();
-		expect(handlers.terminate).toHaveBeenCalledWith('s1', 'Maintenance');
+		expect(handlers.terminate).toHaveBeenCalledWith('s1', 'Maintenance', retire);
 		expect(sent(socket).slice(1).map((f) => f.status)).toEqual(['accepted', 'completed']);
 	});
 

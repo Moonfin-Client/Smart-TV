@@ -272,11 +272,12 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		getItem: (itemId, fileId) => items.readItem(itemId, fileId),
 		onPlaying: extras.notePlayingFile,
 		// The lane is this server's: its tickets, URL and token, whichever server is signed in.
-		onSessionPlaying: ({sessionId, installationId, live}) => followSiloPlaybackControl({
+		onSessionPlaying: ({sessionId, installationId, live, retire}) => followSiloPlaybackControl({
 			baseUrl: base(),
 			sessionId,
 			appVersion: getDeviceInfo().appVersion,
 			live,
+			retire,
 			capabilities: () => call('/api/v2/playback/sessions/control/capabilities'),
 			ticket: () => call(`/api/v2/playback/sessions/${encodeURIComponent(sessionId)}/control/ws-ticket`, {
 				method: 'POST', body: {installation_id: installationId}

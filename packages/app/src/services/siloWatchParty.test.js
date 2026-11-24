@@ -203,6 +203,8 @@ describe('Silo Watch Party room', () => {
 		// Not attached yet: the player is owed nothing but held, and the session is attached.
 		const driver = sync.setRoomDriver.mock.calls[0][0];
 		expect(driver.readyOwed()).toBe(true);
+		// A pause or resume asked of it now would go nowhere, so the control lane turns one away.
+		expect(driver.blocksTransport).toBe(true);
 		jest.advanceTimersByTime(1500);
 		expect(frames('attach_session')).toEqual([{type: 'attach_session', session_id: 'session-1'}]);
 
@@ -217,6 +219,7 @@ describe('Silo Watch Party room', () => {
 		// Statuses are Moonbase's extension, Silo never gets one.
 		expect(frames('state_report').some((f) => 'status' in f)).toBe(false);
 
+		expect(driver.blocksTransport).toBe(false);
 		driver.request('pause');
 		expect(frames('transport_request')).toEqual([{type: 'transport_request', action: 'pause', position_seconds: 30, is_paused: true}]);
 		driver.request('seek', 600000000);
@@ -361,5 +364,6 @@ describe('Silo Watch Party room', () => {
 			attached_session_id: 'session-1', self_role: 'guest', self_can_control_transport: false, generation: 2})});
 		sync.setRoomDriver.mock.calls[0][0].request('pause');
 		expect(frames('transport_request')).toEqual([]);
+		expect(sync.setRoomDriver.mock.calls[0][0].blocksTransport).toBe(true);
 	});
 });

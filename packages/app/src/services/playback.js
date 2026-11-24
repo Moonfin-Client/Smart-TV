@@ -1116,6 +1116,7 @@ const siloPlaybackResult = async ({
 		storedSettings.enablePgsRendering === false);
 	const selectedAudio = options.audioStreamIndex ?? mediaSource.DefaultAudioStreamIndex;
 
+	const replaced = currentSession;
 	replaceSession({
 		itemId,
 		playSessionId: playbackInfo.PlaySessionId,
@@ -1133,6 +1134,11 @@ const siloPlaybackResult = async ({
 		allowDirectStream,
 		serverCredentials: creds
 	});
+	// Silo retired the playing session (it expired, or the server was reset) and this plan started a new one: the
+	// player doesn't report a start again, so the new session's control lane opens here.
+	if (replaced?.itemId === itemId && replaced.playSessionId !== playbackInfo.PlaySessionId) {
+		api.reportPlaybackStart({ItemId: itemId, PlaySessionId: playbackInfo.PlaySessionId}).catch(() => {});
+	}
 	console.log(`[playback] Silo plays ${itemId} as ${mediaSource.SiloDelivery} (${playMethod})`);
 
 	let mimeType;
@@ -1626,10 +1632,12 @@ export const playsSiloSession = (baseUrl, playSessionId) => Boolean(currentSessi
 
 // An admin terminated the playing session from Silo's dashboard: Silo has already ended it, so the player stops at
 // once, as it does on a progress report refused with 410, and says why. Any other session is left alone.
-export const endSessionByServer = (playSessionId, reason = null) => {
+export const endSessionByServer = (playSessionId, reason = null, retire = null) => {
 	if (!currentSession || currentSession.playSessionId !== playSessionId) return false;
 	const itemId = currentSession.itemId;
 	if (!holdEndedOnServer(itemId, endedHoldGeneration)) return false;
+	// The session is already over on Silo, so the player's stop doesn't ask Silo again and wait on the answer.
+	retire?.();
 	stopProgressReporting(); // eslint-disable-line no-use-before-define
 	tellEndedOnServer(itemId, reason);
 	return true;
