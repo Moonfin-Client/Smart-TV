@@ -9,25 +9,29 @@ const LOADERS = {
 		tizen: () => import('@moonfin/platform-tizen/storage'),
 		webos: () => import('@moonfin/platform-webos/storage'),
 		vega: () => import('@moonfin/platform-vega/storage'),
-		xbox: () => import('@moonfin/platform-xbox/storage')
+		xbox: () => import('@moonfin/platform-xbox/storage'),
+		vidaa: () => import('@moonfin/platform-vidaa/storage')
 	},
 	video: {
 		tizen: () => import('@moonfin/platform-tizen/video'),
 		webos: () => import('@moonfin/platform-webos/video'),
 		vega: () => import('@moonfin/platform-vega/video'),
-		xbox: () => import('@moonfin/platform-xbox/video')
+		xbox: () => import('@moonfin/platform-xbox/video'),
+		vidaa: () => import('@moonfin/platform-vidaa/video')
 	},
 	deviceProfile: {
 		tizen: () => import('@moonfin/platform-tizen/deviceProfile'),
 		webos: () => import('@moonfin/platform-webos/deviceProfile'),
 		vega: () => import('@moonfin/platform-vega/deviceProfile'),
-		xbox: () => import('@moonfin/platform-xbox/deviceProfile')
+		xbox: () => import('@moonfin/platform-xbox/deviceProfile'),
+		vidaa: () => import('@moonfin/platform-vidaa/deviceProfile')
 	},
 	deviceInfo: {
 		tizen: () => import('@moonfin/platform-tizen/deviceInfo'),
 		webos: () => import('@moonfin/platform-webos/deviceInfo'),
 		vega: () => import('@moonfin/platform-vega/deviceInfo'),
-		xbox: () => import('@moonfin/platform-xbox/deviceInfo')
+		xbox: () => import('@moonfin/platform-xbox/deviceInfo'),
+		vidaa: () => import('@moonfin/platform-vidaa/deviceInfo')
 	},
 	volume: {
 		tizen: () => import('@moonfin/platform-tizen/volume'),
