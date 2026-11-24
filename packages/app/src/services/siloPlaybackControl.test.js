@@ -52,6 +52,7 @@ beforeEach(() => {
 		run: jest.fn(async () => {}),
 		plays: jest.fn(() => true),
 		terminate: jest.fn(async () => true),
+		stopped: jest.fn(),
 		transportHeld: jest.fn(() => false)
 	};
 	unset = setSiloPlaybackControlHandlers(handlers);
@@ -146,6 +147,17 @@ describe('the lane', () => {
 		await flush();
 		expect(handlers.terminate).toHaveBeenCalledWith('s1', 'Maintenance', retire);
 		expect(sent(socket).slice(1).map((f) => f.status)).toEqual(['accepted', 'completed']);
+	});
+
+	test('a stop with an admin\'s reason stops, then shows the reason', async () => {
+		followSiloPlaybackControl(laneFor());
+		const socket = await opened();
+		command(socket, {command_id: 'c1', name: 'stop', reason: ' Maintenance '});
+		command(socket, {command_id: 'c2', name: 'stop'});
+		await flush();
+		expect(handlers.run.mock.calls.map(([m]) => m.Data.Command)).toEqual(['Stop', 'Stop']);
+		expect(handlers.stopped.mock.calls).toEqual([['Maintenance']]);
+		expect(handlers.run.mock.invocationCallOrder[0]).toBeLessThan(handlers.stopped.mock.invocationCallOrder[0]);
 	});
 
 	test('a stop that ends the session still sends its result before the lane closes', async () => {

@@ -75,8 +75,9 @@ const tokenRefused = (err) => err?.status === 401 || err?.status === 403;
 
 /**
  * The app's side: `run(message)` is remoteControl.handleMessage; `plays(baseUrl, sessionId)` whether the player still
- * plays that session; `terminate(sessionId, reason, retire)` ends it the way a 410 progress refusal does; `transportHeld()`
- * whether a watch party room would take a pause or resume and do nothing with it.
+ * plays that session; `terminate(sessionId, reason, retire)` ends it the way a 410 progress refusal does;
+ * `stopped(reason)` shows an admin's reason for a stop once the player has stopped; `transportHeld()` whether a watch
+ * party room would take a pause or resume and do nothing with it.
  */
 let handlers = null;
 export const setSiloPlaybackControlHandlers = (next) => {
@@ -188,6 +189,8 @@ const createLane = (lane) => {
 				throw new Error('Transport belongs to the watch party');
 			}
 			await handlers.run(message);
+			// A Jellyfin Stop can't carry text, so an admin's reason is shown once the stop has run.
+			if (name === 'stop' && reason) handlers.stopped?.(reason);
 			answer(from, id, 'result', 'completed');
 		} catch {
 			answer(from, id, 'result', 'rejected', 'failed');

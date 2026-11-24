@@ -242,6 +242,10 @@ const AppContent = (props) => {
 	const showEndedOnServer = useCallback((reason) => {
 		setRemoteMessage({key: Date.now(), title: $L('Playback was ended on the Silo server.'), ...(reason ? {body: reason} : null)});
 	}, []);
+	// An admin stopped playback from Silo's dashboard and said why.
+	const showStoppedOnServer = useCallback((reason) => {
+		setRemoteMessage({key: Date.now(), title: $L('Playback was stopped on the Silo server.'), body: reason});
+	}, []);
 	const unifiedMode = settings.unifiedLibraryMode && hasMultipleServers;
 	const mergeLibraries = mergesLibraries(settings, hasMultipleServers);
 
@@ -2133,8 +2137,9 @@ const AppContent = (props) => {
 		run: remoteControl.handleMessage,
 		plays: playsSiloSession,
 		terminate: endSessionByServer,
+		stopped: showStoppedOnServer,
 		transportHeld: roomBlocksTransport
-	}), []);
+	}), [showStoppedOnServer]);
 
 	const [seerrRequestsTab, setSeerrRequestsTab] = useState('requests');
 
