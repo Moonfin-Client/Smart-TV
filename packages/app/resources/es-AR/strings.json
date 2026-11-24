@@ -3186,5 +3186,21 @@
     "Show every server's movie libraries as one Movies library and their show libraries as one TV Shows library, with a title several servers hold listed once": "Muestra las bibliotecas de películas de todos los servidores como una sola biblioteca Películas y las de series como Series, unificando los títulos repetidos",
     "{percent}% watched": "{percent}% visto",
     "On {count} servers": "En {count} servidores",
-    "Not changed on {servers}": "Sin cambios en {servers}"
+    "Not changed on {servers}": "Sin cambios en {servers}",
+    "Glide between rows and cards instead of jumping.": "Desliza suavemente entre filas y tarjetas en lugar de saltar.",
+    "Top Bar Style": "Estilo de barra superior",
+    "Sidebar Style": "Estilo de barra lateral",
+    "Tabline": "Tabline",
+    "Atlas": "Atlas",
+    "Reel": "Reel",
+    "Mosaic": "Mosaic",
+    "The standard bar": "La barra estándar",
+    "Text tabs with an underline, no pill": "Pestañas de texto subrayadas, sin recuadro",
+    "Tabs open a panel with shortcuts and artwork": "Las pestañas abren un panel con accesos directos e imágenes",
+    "The standard sidebar": "La barra lateral estándar",
+    "A wheel that turns through the destinations": "Una rueda que gira entre las secciones",
+    "A panel of tiles with library artwork": "Un panel de mosaicos con el arte de cada biblioteca",
+    "Browse all": "Explorar todo",
+    "Continue in {section}": "Seguir viendo en {section}",
+    "Featured: {title}": "Destacado: {title}"
 }
