@@ -796,7 +796,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		session.plan = next;
 		session.planAttemptId = siloNewUuid();
 		// A lane given up on gets another try.
-		if (onSessionPlaying && sessions[session.sessionId] === session) onSessionPlaying(laneOf(session));
+		if (onSessionPlaying && laneOf(session).live()) onSessionPlaying(laneOf(session));
 		await freshenStreamAuth();
 		return playingTracks(session, asPlaybackInfo(session, body.SubtitleStreamIndex));
 	};

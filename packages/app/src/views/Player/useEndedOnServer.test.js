@@ -11,7 +11,7 @@ jest.mock('../../services/playback', () => {
 			return () => listeners.delete(listener);
 		},
 		releaseEndedOnServer: jest.fn(),
-		tell: (itemId) => listeners.forEach((listener) => listener(itemId))
+		tell: (itemId, reason) => listeners.forEach((listener) => listener(itemId, reason))
 	};
 });
 
@@ -32,6 +32,13 @@ const setup = (itemId = 'movie-1') => {
 beforeEach(() => jest.clearAllMocks());
 
 describe('the player when Silo ended its session', () => {
+	test('passes on the admin\'s reason', async () => {
+		const {props, finishStop} = setup();
+		act(() => playback.tell('movie-1', 'Maintenance'));
+		await finishStop();
+		expect(props.onEndedOnServer).toHaveBeenCalledWith('Maintenance');
+	});
+
 	test('stops at once, then says why and closes, once', async () => {
 		const {props, finishStop} = setup();
 		act(() => playback.tell('movie-1'));

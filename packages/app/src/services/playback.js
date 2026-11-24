@@ -2,6 +2,7 @@ import * as jellyfinApi from './jellyfinApi';
 import {getDeviceProfile, getDeviceCapabilities} from './deviceProfile';
 import {getPlayMethod, getMimeType, isAudioStreamPlayable, canRenderEmbeddedPgsInBand, rendersSubtitleInHost} from './video';
 import {getFromStorage} from './storage';
+import {siloServerKey} from './siloSession';
 import {selectCompatibleAlternateAudio} from '../utils/alternateAudio';
 import {serverLogger} from './serverLogger';
 import {TEXT_SUBTITLE_CODECS, isAssSubtitleCodec, isPgsSubtitleCodec, isBurnInSubtitleCodec, isInBandSubtitleTrack, isEmbedDeliveredText, isMatroskaContainer} from '../utils/subtitleCodecs';
@@ -1617,11 +1618,11 @@ export const reportProgress = async (positionTicks, options = {}) => {
 	}
 };
 
-const sessionServerUrl = (session) => String(session.serverCredentials?.serverUrl || jellyfinApi.getServerUrl() || '').replace(/\/+$/, '');
+const sessionServerKey = (session) => siloServerKey(session.serverCredentials?.serverUrl || jellyfinApi.getServerUrl());
 
 // Whether the player plays this Silo session on this server. A replan keeps the session id, so it holds through one.
 export const playsSiloSession = (baseUrl, playSessionId) => Boolean(currentSession && playSessionId &&
-	currentSession.playSessionId === playSessionId && sessionServerUrl(currentSession) === String(baseUrl || '').replace(/\/+$/, ''));
+	currentSession.playSessionId === playSessionId && sessionServerKey(currentSession) === siloServerKey(baseUrl));
 
 // An admin terminated the playing session from Silo's dashboard: Silo has already ended it, so the player stops at
 // once, as it does on a progress report refused with 410, and says why. Any other session is left alone.

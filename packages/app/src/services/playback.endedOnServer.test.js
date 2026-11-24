@@ -48,7 +48,7 @@ beforeEach(async () => {
 	api.reportPlaybackProgress.mockResolvedValue(null);
 	api.reportPlaybackStopped.mockResolvedValue(null);
 	heard = [];
-	unsubscribe = playback.onEndedOnServer((itemId) => heard.push(itemId));
+	unsubscribe = playback.onEndedOnServer((itemId, reason) => heard.push(reason ? `${itemId}: ${reason}` : itemId));
 });
 
 afterEach(() => unsubscribe());
@@ -73,6 +73,16 @@ describe('an admin ending a Silo session', () => {
 		playback.releaseEndedOnServer();
 		await playback.getPlaybackInfo('movie-1');
 		expect(api.getPlaybackInfo).toHaveBeenCalledTimes(2);
+	});
+
+	test('an admin terminate on the control lane ends the playing session with its reason, and no other', async () => {
+		await playback.getPlaybackInfo('movie-1');
+		expect(playback.playsSiloSession('http://silo:8090/', 's1')).toBe(true);
+		expect(playback.playsSiloSession('http://other:8090', 's1')).toBe(false);
+		expect(playback.endSessionByServer('s2', 'Nope')).toBe(false);
+		expect(playback.endSessionByServer('s1', 'Maintenance')).toBe(true);
+		expect(heard).toEqual(['movie-1: Maintenance']);
+		await expect(playback.getPlaybackInfo('movie-1')).rejects.toMatchObject({reason: 'playback_session_ended'});
 	});
 
 	test('a refusal heard by a report the viewer already stopped closes and holds nothing', async () => {

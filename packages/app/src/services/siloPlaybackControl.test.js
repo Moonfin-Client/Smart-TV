@@ -290,6 +290,43 @@ describe('the lane', () => {
 		expect(sent(next).pop()).toMatchObject({type: 'result', command_id: 'c1', status: 'completed'});
 	});
 
+	test('Silo closing the old connection before the renewal is up opens no third connection', async () => {
+		const lane = laneFor({ticket: jest.fn(async () => ({ticket: `t${lane.ticket.mock.calls.length}`, protocol: 'silo.playback-control.v2', max_connection_seconds: 120}))});
+		followSiloPlaybackControl(lane);
+		const old = await opened();
+		jest.advanceTimersByTime(60000);
+		await flush();
+		expect(sockets).toHaveLength(2);
+		old.onclose();
+		await opened(1);
+		// Past any reconnect backoff, short of the new connection's own renewal.
+		jest.advanceTimersByTime(40000);
+		await flush();
+		expect(lane.ticket).toHaveBeenCalledTimes(2);
+		expect(sockets).toHaveLength(2);
+	});
+
+	test('a session that already stopped does not take the lane from the one playing', async () => {
+		followSiloPlaybackControl(laneFor());
+		const socket = await opened();
+		followSiloPlaybackControl(laneFor({sessionId: 's0', live: () => false}));
+		await flush();
+		expect(socket.close).not.toHaveBeenCalled();
+		expect(currentSiloPlaybackControlLane().matches('http://silo:8090', 's1')).toBe(true);
+	});
+
+	test('a lane not allowed for one login is asked about again for the next', async () => {
+		const capabilities = jest.fn()
+			.mockResolvedValueOnce({available: true, allowed: false, protocol: 'silo.playback-control.v2'})
+			.mockResolvedValue({available: true, allowed: true, protocol: 'silo.playback-control.v2'});
+		followSiloPlaybackControl(laneFor({capabilities}));
+		await flush();
+		expect(sockets).toHaveLength(0);
+		followSiloPlaybackControl(laneFor({sessionId: 's2', capabilities}));
+		await flush();
+		expect(sockets).toHaveLength(1);
+	});
+
 	test('a renewal refused for its token reconnects when the old connection closes', async () => {
 		const lane = laneFor({ticket: jest.fn()
 			.mockResolvedValueOnce({ticket: 't1', protocol: 'silo.playback-control.v2', max_connection_seconds: 120})

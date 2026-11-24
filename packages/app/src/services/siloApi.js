@@ -281,7 +281,8 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 			ticket: () => call(`/api/v2/playback/sessions/${encodeURIComponent(sessionId)}/control/ws-ticket`, {
 				method: 'POST', body: {installation_id: installationId}
 			}),
-			accessExpiresAt: () => session()?.tokens?.expiresAt || null
+			// A token with no lifetime would renew every few seconds; Silo's four-hour limit is the only one then.
+			accessExpiresAt: () => (session()?.tokens?.lifetimeMs > 0 ? session().tokens.expiresAt : null)
 		}),
 		onSessionEnded: (sessionId) => endSiloPlaybackControl(base(), sessionId)
 	});

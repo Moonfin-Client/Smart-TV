@@ -9,7 +9,9 @@
 // result also calls off Silo's fallback, so the session isn't ended over it. Playback never waits on the lane: a
 // server without it, a refused ticket or a dropped connection only means these commands don't arrive.
 
+import {siloServerKey} from './siloSession';
 import {openSiloSocket} from './siloSocket';
+import {trimSlash} from '../utils/siloUrls';
 
 export const SILO_PLAYBACK_CONTROL_PROTOCOL = 'silo.playback-control.v2';
 // What the hello says this client runs. Silo sends terminate even when it isn't listed.
@@ -28,8 +30,6 @@ const STABLE_AFTER_MS = 30000;
 const MAX_ATTEMPTS = 10;
 // How long a lane let go of keeps its connection for a command still running (a stop ends its own session).
 const CLOSE_GRACE_MS = 5000;
-
-const trimSlash = (url) => String(url || '').replace(/\/+$/, '');
 
 export const siloPlaybackControlUrl = (baseUrl, sessionId) => `${trimSlash(baseUrl).replace(/^http/, 'ws')}` +
 	`/api/v2/playback/sessions/${encodeURIComponent(sessionId)}/control/ws`;
@@ -87,9 +87,10 @@ export const setSiloPlaybackControlHandlers = (next) => {
 };
 
 const capabilities = new Map();
-// Null when the server has no lane: an older Silo answers 404. A failed read isn't kept.
+// Null when the server has no lane: an older Silo answers 404. Only that and a usable answer are kept: `allowed` is per
+// login, and a server still starting says unavailable for a while, so those are read again next time.
 const laneAvailable = async (lane) => {
-	const key = trimSlash(lane.baseUrl);
+	const key = siloServerKey(lane.baseUrl);
 	const known = capabilities.get(key);
 	if (known && Date.now() - known.at < CAPABILITIES_TTL_MS) return known.usable;
 	let caps;
@@ -100,7 +101,7 @@ const laneAvailable = async (lane) => {
 		caps = null;
 	}
 	const usable = Boolean(caps && caps.available === true && caps.protocol === SILO_PLAYBACK_CONTROL_PROTOCOL && caps.allowed !== false);
-	capabilities.set(key, {at: Date.now(), usable});
+	if (usable || !caps) capabilities.set(key, {at: Date.now(), usable});
 	return usable;
 };
 
@@ -299,7 +300,7 @@ const createLane = (lane) => {
 	};
 
 	// Opens a connection with the ticket. A renewal keeps the old one holding the lane until the new one is up.
-	const open = async (ticket, renewing) => {
+	const open = async (ticket) => {
 		let socket;
 		try {
 			socket = await openSiloSocket(siloPlaybackControlUrl(lane.baseUrl, lane.sessionId),
@@ -325,11 +326,15 @@ const createLane = (lane) => {
 				}
 				const old = state.socket;
 				state.socket = socket;
+				// Silo closes the old connection as soon as this one is up, and that close can be heard first: whatever
+				// reconnect it asked for is called off, so no third connection follows.
+				clearTimeout(state.reconnectTimer);
+				state.reconnectTimer = null;
 				socket.onclose = () => onDropped(socket);
 				socket.onerror = null;
 				onOpened(socket, ticket);
 				// The old connection's running commands answer on this one.
-				if (renewing && old && old !== socket) release(old);
+				if (old && old !== socket) release(old);
 				resolve(true);
 			};
 			socket.onmessage = (event) => onFrame(socket, event.data);
@@ -343,7 +348,7 @@ const createLane = (lane) => {
 	};
 
 	connect = async () => {
-		if (state.closed || state.refused || state.connecting || !lane.live()) return;
+		if (state.closed || state.refused || state.connecting || state.socket || !lane.live()) return;
 		state.connecting = true;
 		state.gaveUp = false;
 		try {
@@ -354,7 +359,7 @@ const createLane = (lane) => {
 			if (state.closed) return;
 			const ticket = await ticketFor(false);
 			if (!ticket || state.closed) return;
-			if (!(await open(ticket, false))) scheduleReconnect();
+			if (!(await open(ticket))) scheduleReconnect();
 		} catch {
 			scheduleReconnect();
 		} finally {
@@ -370,7 +375,7 @@ const createLane = (lane) => {
 		try {
 			const ticket = await ticketFor(true);
 			if (!ticket || state.closed) return;
-			if (await open(ticket, true)) return;
+			if (await open(ticket)) return;
 		} catch {
 			// Tried again below.
 		}
@@ -391,8 +396,8 @@ const createLane = (lane) => {
 	};
 
 	return {
-		matches: (baseUrl, sessionId) => trimSlash(baseUrl) === trimSlash(lane.baseUrl) && sessionId === lane.sessionId,
-		onServer: (baseUrl) => trimSlash(baseUrl) === trimSlash(lane.baseUrl),
+		matches: (baseUrl, sessionId) => siloServerKey(baseUrl) === siloServerKey(lane.baseUrl) && sessionId === lane.sessionId,
+		onServer: (baseUrl) => siloServerKey(baseUrl) === siloServerKey(lane.baseUrl),
 		// The same session again (a replan): a lane given up on gets another try, one Silo refused stays refused.
 		refresh: (next) => {
 			Object.assign(lane, next);
@@ -428,7 +433,8 @@ const createLane = (lane) => {
  * ticket(), accessExpiresAt()}, all for the server the session plays on. Lets go of a lane for another session.
  */
 export const followSiloPlaybackControl = (lane) => {
-	if (!lane?.sessionId || !lane.baseUrl) return;
+	// A session that already stopped (a slow replan answering late) never takes the lane from the one playing.
+	if (!lane?.sessionId || !lane.baseUrl || !lane.live()) return;
 	if (current?.matches(lane.baseUrl, lane.sessionId)) {
 		current.refresh(lane);
 		return;
@@ -447,7 +453,7 @@ export const endSiloPlaybackControl = (baseUrl, sessionId) => {
 
 // Signing out of a server lets go of a lane on that server only.
 export const forgetSiloPlaybackControlServer = (baseUrl) => {
-	capabilities.delete(trimSlash(baseUrl));
+	capabilities.delete(siloServerKey(baseUrl));
 	if (!current?.onServer(baseUrl)) return;
 	current.close();
 	current = null;
