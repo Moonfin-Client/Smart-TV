@@ -1,5 +1,0 @@
-{
-	"//": "The declared app name must follow this pattern to be KRL-compatible",
-	"name": "org.moonfin.androidtv.main",
-	"displayName": "Moonfin"
-}

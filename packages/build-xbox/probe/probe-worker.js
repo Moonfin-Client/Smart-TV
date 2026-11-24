@@ -1,1 +1,0 @@
-postMessage('sibling worker ok');
