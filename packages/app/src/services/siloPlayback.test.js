@@ -260,14 +260,39 @@ describe('sessions', () => {
 		await playback.getPlaybackInfo('movie-1', {EnableDirectPlay: false});
 		expect(onSessionPlaying).toHaveBeenCalledTimes(2);
 		onSessionEnded.mockClear();
-		// An admin's terminate retires it: the player's stop sends Silo nothing more.
-		lane.retire();
-		expect(lane.live()).toBe(false);
+		// The preview stopped its own session already.
 		const deletes = () => calls.filter((c) => c.method === 'DELETE').length;
 		const before = deletes();
 		await playback.reportPlaybackStopped({PlaySessionId: 's1', PositionTicks: 1});
-		expect(deletes()).toBe(before);
+		expect(deletes()).toBe(before + 1);
 		expect(onSessionEnded).toHaveBeenCalledWith('s1');
+		expect(lane.live()).toBe(false);
+
+		// An admin's terminate retires the next session: the player's stop sends Silo nothing more.
+		await playback.getPlaybackInfo('movie-1', {});
+		await playback.reportPlaybackStart({PlaySessionId: 's1'});
+		const next = onSessionPlaying.mock.calls[onSessionPlaying.mock.calls.length - 1][0];
+		next.retire();
+		expect(next.live()).toBe(false);
+		await playback.reportPlaybackStopped({PlaySessionId: 's1', PositionTicks: 1});
+		expect(deletes()).toBe(before + 1);
+	});
+
+	test('a session Silo retired is let go of when the next plan for the title starts a new one', async () => {
+		const onSessionEnded = jest.fn();
+		let n = 0;
+		const {playback} = setup({
+			'GET /api/v2/playback/capabilities': capabilities,
+			'POST /api/v2/playback/start': () => ({...plan('original_http', 'k1'), session_id: `s${++n}`}),
+			'POST /api/v2/playback/s1/progress': () => { throw Object.assign(new Error('Not found'), {status: 404}); }
+		}, {onSessionEnded});
+		await playback.getPlaybackInfo('movie-1', {});
+		await playback.reportPlaybackProgress({PlaySessionId: 's1', PositionTicks: 1});
+		expect(onSessionEnded).not.toHaveBeenCalled();
+		await playback.getPlaybackInfo('movie-1', {});
+		expect(onSessionEnded).toHaveBeenCalledWith('s1');
+		expect(playback.sessionOf('s1')).toBeNull();
+		expect(playback.sessionOf('s2')).not.toBeNull();
 	});
 
 	test('a preview ends its session at once, and Play afterwards starts a new one', async () => {

@@ -708,6 +708,11 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 			stop(session, 0).catch(() => {}); // eslint-disable-line no-use-before-define
 			return asPlaybackInfo(session, body.SubtitleStreamIndex);
 		}
+		// A session Silo retired for this title is replaced, and the player never stops it under its old id.
+		Object.keys(sessions).filter((id) => id !== sessionId && sessions[id].itemId === itemId && sessions[id].ended).forEach((id) => {
+			delete sessions[id];
+			if (onSessionEnded) onSessionEnded(id);
+		});
 		sessions[sessionId] = session;
 		await freshenStreamAuth();
 		return playingTracks(session, asPlaybackInfo(session, body.SubtitleStreamIndex));

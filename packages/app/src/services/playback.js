@@ -1134,8 +1134,8 @@ const siloPlaybackResult = async ({
 		allowDirectStream,
 		serverCredentials: creds
 	});
-	// Silo retired the playing session (it expired, or the server was reset) and this plan started a new one: the
-	// player doesn't report a start again, so the new session's control lane opens here.
+	// Silo retired the playing session (it expired, or the server was reset) and this plan started a new one. A seek on
+	// webOS reports no start for it, so the new session's control lane opens here (a second start only refreshes it).
 	if (replaced?.itemId === itemId && replaced.playSessionId !== playbackInfo.PlaySessionId) {
 		api.reportPlaybackStart({ItemId: itemId, PlaySessionId: playbackInfo.PlaySessionId}).catch(() => {});
 	}

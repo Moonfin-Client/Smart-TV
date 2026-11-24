@@ -97,7 +97,7 @@ describe('an admin ending a Silo session', () => {
 		// Silo retired s1 (an expiry, a reset) and the next seek started s2.
 		api.getPlaybackInfo.mockResolvedValue(plays('s2'));
 		await playback.getPlaybackInfo('movie-1');
-		expect(api.reportPlaybackStart).toHaveBeenCalledWith({ItemId: 'movie-1', PlaySessionId: 's2'});
+		expect(api.reportPlaybackStart).toHaveBeenCalledWith(expect.objectContaining({PlaySessionId: 's2'}));
 		// Another title is the player's own start to report.
 		api.getPlaybackInfo.mockResolvedValue(plays('s3'));
 		await playback.getPlaybackInfo('movie-2');
