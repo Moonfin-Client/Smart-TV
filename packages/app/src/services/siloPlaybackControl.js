@@ -189,9 +189,16 @@ const createLane = (lane) => {
 				throw new Error('Transport belongs to the watch party');
 			}
 			await handlers.run(message);
-			// A Jellyfin Stop can't carry text, so an admin's reason is shown once the stop has run.
-			if (name === 'stop' && reason) handlers.stopped?.(reason);
 			answer(from, id, 'result', 'completed');
+			// A Jellyfin Stop can't carry text, so an admin's reason is shown once the stop has run. Showing it can't
+			// turn the stop's result into a failure.
+			if (name === 'stop' && reason) {
+				try {
+					handlers?.stopped?.(reason);
+				} catch {
+					// The stop still happened.
+				}
+			}
 		} catch {
 			answer(from, id, 'result', 'rejected', 'failed');
 		} finally {

@@ -158,6 +158,17 @@ describe('the lane', () => {
 		expect(handlers.run.mock.calls.map(([m]) => m.Data.Command)).toEqual(['Stop', 'Stop']);
 		expect(handlers.stopped.mock.calls).toEqual([['Maintenance']]);
 		expect(handlers.run.mock.invocationCallOrder[0]).toBeLessThan(handlers.stopped.mock.invocationCallOrder[0]);
+		expect(sent(socket).filter((f) => f.type === 'result').map((f) => f.status)).toEqual(['completed', 'completed']);
+	});
+
+	test('a stop that fails shows no reason', async () => {
+		handlers.run.mockRejectedValueOnce(new Error('no player'));
+		followSiloPlaybackControl(laneFor());
+		const socket = await opened();
+		command(socket, {command_id: 'c1', name: 'stop', reason: 'Maintenance'});
+		await flush();
+		expect(handlers.stopped).not.toHaveBeenCalled();
+		expect(sent(socket).pop()).toMatchObject({status: 'rejected', error: 'failed'});
 	});
 
 	test('a stop that ends the session still sends its result before the lane closes', async () => {
