@@ -9,10 +9,10 @@ export const FOCUS = { scale: 1.16, lift: 10, halo: 3 }
 export const ACTION = { y: 939, h: 61, gap: 12, w: (1620 - 2 * 12) / 3 }
 const PICKER = { w: 682, x: 619, titleH: 66, rowH: 56, cancelH: 57, bodyH: 69, listMax: 820 - 2 - 66 - 57 }
 
-// The cards' left edges, with the row centered in the dialog.
+// The cards' left edges, with the row centered in the dialog on whole pixels.
 export const cardXs = (count) => {
   const span = count * CARD.w + Math.max(0, count - 1) * CARD.gap
-  const x0 = BOX.x + (BOX.w - span) / 2
+  const x0 = Math.round(BOX.x + (BOX.w - span) / 2)
   const out = []
   for (let i = 0; i < count; i++) out.push(x0 + i * (CARD.w + CARD.gap))
   return out
@@ -47,11 +47,12 @@ export const panelLayout = (metaH, ratingsH) => {
 // leaves room for a focused card to grow into.
 const cardSize = () => {
   const grow = (FOCUS.scale - 1) / 2
-  const top = BADGE_BOTTOM + 12 + FOCUS.halo
-  const bottom = panelLayout(33, 113).y - 18 - FOCUS.halo
+  const halo = FOCUS.halo * FOCUS.scale
+  const top = BADGE_BOTTOM + 12 + halo
+  const bottom = panelLayout(33, 113).y - 18 - halo
   const h = Math.min(375, Math.floor((bottom - top) / FOCUS.scale))
   const w = Math.round((h * 2) / 3)
-  return { w, h, gap: 18 + Math.ceil(w * grow), y: top + FOCUS.lift + h * grow, top: ROW_TOP }
+  return { w, h, gap: 18 + Math.ceil(w * grow), y: Math.ceil(top + FOCUS.lift + h * grow), top: ROW_TOP }
 }
 export const CARD = cardSize()
 

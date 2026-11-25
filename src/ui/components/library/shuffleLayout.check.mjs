@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict'
-import { CARD, actionX, cardXs, nearest, panelLayout, pickerLayout, pickerScroll } from './shuffleLayout.js'
+import { CARD, FOCUS, actionX, cardXs, nearest, panelLayout, pickerLayout, pickerScroll } from './shuffleLayout.js'
 
 // The posters fill the row left by the tallest panel, and five of them with the three 532 wide actions.
-assert.deepEqual([CARD.w, CARD.h, CARD.gap], [244, 366, 38])
-assert.ok(CARD.y - 10 + 1.08 * CARD.h + 3 <= panelLayout(33, 113).y - 18)
-assert.deepEqual(cardXs(5), [274, 556, 838, 1120, 1402])
+// A focused card, its scaled halo included, stays 12 under the badge and inside the row.
+assert.deepEqual([CARD.w, CARD.h, CARD.gap, CARD.y], [243, 365, 38, 184])
+const grow = (FOCUS.scale - 1) / 2
+const halo = FOCUS.halo * FOCUS.scale
+assert.ok(CARD.y - FOCUS.lift - grow * CARD.h - halo >= 129 + 12)
+assert.ok(CARD.y - FOCUS.lift + (1 + grow) * CARD.h + halo <= panelLayout(33, 113).y - 18)
+assert.deepEqual(cardXs(5), [277, 558, 839, 1120, 1401])
 assert.deepEqual([0, 1, 2].map(actionX), [150, 694, 1238])
 // Up from each action lands on the first, middle and last card.
 assert.deepEqual([0, 1, 2].map((i) => nearest(actionX(i) + 266, cardXs(5), CARD.w)), [0, 2, 4])

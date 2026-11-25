@@ -422,7 +422,7 @@ export default function ShuffleOverlay(props) {
         </view>
         <view>
           <Show when={placeholder() && placeholder().retry}>
-            <view x={placeholder().retry.x} y={147} width={placeholder().retry.w} height={46}>
+            <view x={placeholder().retry.x} y={CARD.top} width={placeholder().retry.w} height={46}>
               <view width={placeholder().retry.w} height={46} borderRadius={12} color={look().primary} alpha={zone() === 'retry' ? 0 : 1} />
               <view
                 width={placeholder().retry.w}
