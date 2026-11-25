@@ -5,6 +5,7 @@ import { byKey } from '../../../ui/components/details/keyed.js'
 import { cssShift, fontFor, themeSpacing, uiFont } from '../../../ui/text.js'
 import { hex } from '../../../ui/color.js'
 import { factsWeight } from '../premiere/premiereRules.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // The people and studios behind a title, one cell each. A cell takes focus first, and OK opens it
 // so its names can be picked, holding focus there until Back closes it. The crew list merges a
@@ -207,7 +208,16 @@ export default function StageFacts(props) {
       onBack={() => close()}
     >
       <view width={box().w} height={box().h} borderRadius={20} color="#ffffff08" border={{ width: 1, color: PANEL_EDGE }} />
-      <view width={box().w} height={box().h}>
+      <view
+        width={box().w}
+        height={box().h}
+        // The Magic Remote's cursor focuses the fact under it, and OK then opens it (app/pointer.js).
+        onPointerChildOver={(i, child) => {
+          pointerFocus(child.parent.parent)
+          const c = cellList.at(cellList.keys()[i])
+          if (c && c.i !== cur()) setCur(c.i)
+        }}
+      >
         <For each={cellList.keys()}>
           {(k) => {
             const c = () => cellList.at(k)
