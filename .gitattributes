@@ -13,3 +13,9 @@
 *.ico binary
 *.webp binary
 *.nupkg binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.wav binary
+*.mp3 binary
