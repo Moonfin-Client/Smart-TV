@@ -150,6 +150,11 @@ const boot = async () => {
 
   render(() => <App />)
 
+  // Remote playback: another client can start music here and then drive it.
+  import('./services/remotePlayback.js')
+    .then((m) => m.installRemotePlayback())
+    .catch((e) => console.warn('[boot] remote playback', e))
+
   // The watch party engine loads once the first screens have drawn.
   setTimeout(() => {
     import('./state/watchParty.js').then((p) => p.start()).catch((e) => console.warn('[boot] watch party', e))
