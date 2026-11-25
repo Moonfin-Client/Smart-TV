@@ -20,7 +20,7 @@ export const ratingLabel = (style, ud, intervals) => {
     return likes ? $L('Like') : $L('Dislike')
   }
   if (rating === null) return $L('Rate')
-  if (style === 'stars') return starRatingLabel(rating, intervals) || $L('Rate')
+  if (style === 'stars') return starRatingLabel(rating, intervals) || $L('Rated')
   return $L('Rated')
 }
 
