@@ -205,14 +205,17 @@ export default function Grid(props) {
           {(key) => {
             let last = win().at[key]
             const at = () => (last = win().at[key] || last)
+            // A tile lays out its own art inside the cell, so it takes the pointer itself
+            // (onPointerClick) and rings its art; the cell's box would ring the wrong size.
             return (
-              <view x={at().x} y={at().y} width={size().w} height={size().h} pointerRing onPointerClick={() => pick(at().i)}>
+              <view x={at().x} y={at().y} width={size().w} height={size().h} pointerRing={!tile()} onPointerClick={tile() ? undefined : () => pick(at().i)}>
                 <Dynamic
                   component={props.tile || Card}
                   card={items()[at().i]}
                   w={size().w}
                   h={size().h}
                   opts={props.opts}
+                  onPointerClick={tile() ? () => pick(at().i) : undefined}
                   focused={(focused() && isCur(at().i)) || (!!props.held && at().i === 0)}
                 />
               </view>
