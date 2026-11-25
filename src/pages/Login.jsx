@@ -1006,7 +1006,7 @@ export default function Login(props) {
       stopQuickConnect()
       s.status = isAdding() ? $L('Adding user...') : $L('Signing in...')
       const srv = s.server || {}
-      const result = await auth.pollQuickConnect(jellyfinApi.getServerUrl(), secret, { serverName: srv.name, serverType: srv.serverType, serverVersion: srv.version })
+      const result = await auth.completeQuickConnect(jellyfinApi.getServerUrl(), secret, { serverName: srv.name, serverType: srv.serverType, serverVersion: srv.version })
       if (result) await finishLogin()
     } catch (err) {
       console.error('Quick Connect poll error:', err)
