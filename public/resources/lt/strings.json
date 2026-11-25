@@ -1206,5 +1206,12 @@
     "FPS counter": "FPS skaitiklis",
     "Grid direction": "Tinklelio kryptis",
     "File Details": "Failo išsamioji informacija",
-    "Video Player": "Vaizdo leistuvas"
+    "Video Player": "Vaizdo leistuvas",
+    "Show Technical Details": "Rodyti išsamią techninę informaciją",
+    "Vertical": "Vertikali",
+    "Details Screen Style": "Išsamios informacijos ekrano stilius",
+    "Or scan this with a phone that's signed in to your server": "Arba nuskaitykite tai telefonu, kuriame esate prisijungę prie savo serverio",
+    "No Books Found": "Knygų nerasta",
+    "Search using OpenSubtitles": "Ieškoti naudojant OpenSubtitles",
+    "How a movie or show looks when you open it.": "Kaip filmas ar serialas atrodo, kai jį atidarote."
 }
