@@ -11,6 +11,7 @@ import {createSiloPager, siloPage, siloPageSignature} from './siloPager';
 
 import {createSiloShuffles} from './siloShuffles';
 import {shuffled as shuffle} from '../utils/shuffled';
+import {siloSectionTitle} from '../utils/siloSectionTitle';
 
 const CATALOG = '/api/v2/catalog';
 // Silo sizes artwork when the item is read: lists take medium, detail pages large.
@@ -809,6 +810,8 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources, g
 				id: sec.id,
 				sectionType: sec.section_type,
 				title: typeof sec.title === 'string' ? sec.title : '',
+				titleKey: typeof sec.title_key === 'string' ? sec.title_key : '',
+				titleArgs: sec.title_args && typeof sec.title_args === 'object' ? sec.title_args : {},
 				itemLimit: typeof sec.item_limit === 'number' ? sec.item_limit : null
 			}));
 	});
@@ -987,11 +990,15 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources, g
 		forgetAll();
 	};
 
-	// The sections Silo curates for the home page, except the two the app builds itself.
+	// The sections Silo curates for the home page, except the two the app builds itself. title is
+	// Silo's, which settings keep; label is the same in the app's language.
 	const OWN_SECTIONS = ['continue_watching', 'next_up'];
 	const getServerHomeSections = async () => (await homeLayout())
 		.filter((sec) => !OWN_SECTIONS.includes(sec.sectionType))
-		.map((sec) => ({id: sec.id, title: sec.title || sec.sectionType, kind: sec.sectionType}));
+		.map((sec) => {
+			const title = sec.title || sec.sectionType;
+			return {id: sec.id, title, label: siloSectionTitle({...sec, title}), kind: sec.sectionType};
+		});
 
 	// A section by its id, or `type:<section type>` (how Moonbase names one, since ids differ between servers).
 	const getServerHomeSectionItems = async (sectionId, limit = null) => {
