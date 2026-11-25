@@ -32,6 +32,15 @@ export const getMediaBarSourceOptions = () => [
 	{ value: 'newReleases', label: $L('New Releases') }
 ];
 
+export const getMediaBarSortOrderOptions = () => [
+	{ value: 'default', label: $L('Source Default') },
+	{ value: 'random', label: $L('Random') },
+	{ value: 'dateAddedDesc', label: $L('Date Added (Newest First)') },
+	{ value: 'dateAddedAsc', label: $L('Date Added (Oldest First)') },
+	{ value: 'releaseDateDesc', label: $L('Release Date (Newest First)') },
+	{ value: 'releaseDateAsc', label: $L('Release Date (Oldest First)') }
+];
+
 export const getDateFormatOptions = () => [
 	{ value: 'system', label: $L('Locale Default') },
 	{ value: 'monthDay', label: $L('Month / Day (Nov 10)') },

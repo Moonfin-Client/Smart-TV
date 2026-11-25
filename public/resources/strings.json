@@ -3201,5 +3201,10 @@
     "A panel of tiles with library artwork": "A panel of tiles with library artwork",
     "Browse all": "Browse all",
     "Continue in {section}": "Continue in {section}",
-    "Featured: {title}": "Featured: {title}"
-}
+    "Featured: {title}": "Featured: {title}",
+    "Source Default": "Source Default",
+    "Order in which selected media bar slides are displayed": "Order in which selected media bar slides are displayed",
+    "Date Added (Newest First)": "Date Added (Newest First)",
+    "Date Added (Oldest First)": "Date Added (Oldest First)",
+    "Release Date (Newest First)": "Release Date (Newest First)",
+    "Release Date (Oldest First)": "Release Date (Oldest First)"}

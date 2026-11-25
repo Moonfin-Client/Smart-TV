@@ -10,6 +10,7 @@ import { withoutBlockedOrUnrated } from '../../../utils/parentalFilter.js'
 import { isKidsMode } from '../../../utils/kidsMode.js'
 import { DATED_SOURCES, newMovieOf, recentEpisodes } from '../../../utils/mediaBarNewRelease.js'
 import { isWatchedForRecentRow } from '../../../utils/latestMediaRowNormalizer.js'
+import { parseServerDate } from '../../../utils/serverDate.js'
 import mapBounded from '../../../utils/mapBounded.js'
 import { shuffled as shuffle } from '../../../utils/shuffled.js'
 import { activeSyncProfile } from '../../../state/settingsSync.js'
@@ -17,7 +18,7 @@ import * as settings from '../../../state/settings.js'
 import { resolveOverlayColor } from '../../../theme/overlayColors.js'
 
 const POOL_SIZE = 40
-const FIELDS = 'PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers,OfficialRating,ChildCount,Taglines'
+const FIELDS = 'PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers,OfficialRating,ChildCount,Taglines,DateCreated,DateLastMediaAdded,PremiereDate'
 const INCLUDE_TYPES = { movies: 'Movie', tv: 'Series' }
 
 // The info box takes the overlay color at three quarters of its opacity.
@@ -35,7 +36,8 @@ export const barEnabled = () => settings.get('featuredBarStyle') !== 'off'
 export const featuredKey = () => {
   const s = settings.all()
   return JSON.stringify([
-    s.featuredBarStyle, s.useMoonfinPlugin === true, s.mediaBarSourceType || 'random', s.featuredContentType, s.featuredItemCount,
+    s.featuredBarStyle, s.useMoonfinPlugin === true, s.mediaBarSourceType || 'random', s.mediaBarSortOrder || 'default',
+    s.featuredContentType, s.featuredItemCount,
     s.mediaBarNewReleaseDays, s.mediaBarNewMovieDays, s.recentlyReleasedSeriesType, s.hideWatchedInRecentRows === true,
     s.mediaBarLibraryIds || [], s.mediaBarCollectionIds || [], s.excludedGenres || [], s.mediaBarExternalLists || [],
     isKidsMode(s), s.syncProfile, s.hideHomeMediaDescription, s.mediaBarOverlayColor, s.mediaBarOverlayOpacity,
@@ -56,31 +58,156 @@ const withoutExcludedGenres = (items, excludedGenres) => {
   })
 }
 
-// Reads the picked libraries or collections six at a time in a shuffled order, and skips the ones
-// still waiting once there are twice as many usable titles as the bar shows.
-const readFeaturedSources = async (sourceIds, fetchSource, isUsable, count) => {
-  const items = []
-  const seen = {}
-  let usable = 0
-  await mapBounded(shuffle(sourceIds), 6, async (sourceId) => {
-    if (usable >= count * 2) return
-    const result = await fetchSource(sourceId).catch(() => null)
-    itemsOf(result).forEach((item) => {
-      if (seen[item.Id]) return
-      seen[item.Id] = true
-      items.push(item)
-      if (isUsable(item)) usable++
+const latestChildDates = (children, fields) => {
+  const latest = new Map()
+  children.forEach((child) => {
+    const id = child.Type === 'Series' ? child.Id : child.SeriesId
+    if (!id) return
+    fields.forEach((field) => {
+      const date = parseServerDate(child[field])
+      if (!date) return
+      const existing = latest.get(id)
+      if (!existing || date.getTime() > existing.getTime()) {
+        latest.set(id, date)
+      }
     })
   })
-  return items
+  return latest
 }
 
-// The plugin's media bar cards leave out the provider ids and season count, so one call fills them in.
+const dateAddedOf = (item) => {
+  const effective = parseServerDate(item?._effectiveDateCreated)
+  const lastMediaAdded = parseServerDate(item?.DateLastMediaAdded)
+  if (effective && (!lastMediaAdded || effective.getTime() > lastMediaAdded.getTime())) {
+    return effective
+  }
+  if (lastMediaAdded) return lastMediaAdded
+  return parseServerDate(item?.DateCreated)
+}
+
+const releaseDateOf = (item) => {
+  const effective = parseServerDate(item?._effectivePremiereDate)
+  if (effective) return effective
+  const premiere = parseServerDate(item?.PremiereDate)
+  if (premiere) return premiere
+  const year = Number(item?.ProductionYear)
+  if (Number.isFinite(year) && year > 0) return new Date(Date.UTC(year, 0, 1))
+  return null
+}
+
+const compareNullableDates = (a, b, descending) => {
+  if (!a && !b) return 0
+  if (!a) return 1
+  if (!b) return -1
+  return descending ? b.getTime() - a.getTime() : a.getTime() - b.getTime()
+}
+
+// Re-orders the already-selected media bar slides according to mediaBarSortOrder.
+// 'default' leaves the selected source's order untouched.
+export const sortFeaturedItems = (items, sortOrder = 'default') => {
+  if (!Array.isArray(items) || items.length < 2 || !sortOrder || sortOrder === 'default') {
+    return items
+  }
+  if (sortOrder === 'random') {
+    return shuffle(items)
+  }
+  const validDateSorts = ['dateAddedDesc', 'dateAddedAsc', 'releaseDateDesc', 'releaseDateAsc']
+  if (!validDateSorts.includes(sortOrder)) {
+    return items
+  }
+  const descending = sortOrder === 'dateAddedDesc' || sortOrder === 'releaseDateDesc'
+  const byDateAdded = sortOrder === 'dateAddedDesc' || sortOrder === 'dateAddedAsc'
+  return [...items].sort((a, b) => {
+    const primary = compareNullableDates(
+      byDateAdded ? dateAddedOf(a) : releaseDateOf(a),
+      byDateAdded ? dateAddedOf(b) : releaseDateOf(b),
+      descending
+    )
+    if (primary !== 0) return primary
+    const secondary = compareNullableDates(
+      byDateAdded ? releaseDateOf(a) : dateAddedOf(a),
+      byDateAdded ? releaseDateOf(b) : dateAddedOf(b),
+      descending
+    )
+    if (secondary !== 0) return secondary
+    return String(a?.Name || '').toLowerCase().localeCompare(String(b?.Name || '').toLowerCase())
+  })
+}
+
+// Reads the picked libraries or collections six at a time. Random sources shuffle and skip
+// remaining sources once twice as many usable titles are in hand; dated sources read every source
+// and interleave one usable title from each in turn.
+export const readFeaturedSources = async (sourceIds, fetchSource, isUsable, count, { dated = false } = {}) => {
+  const seen = new Set()
+  let usable = 0
+  const orderedIds = dated ? [...sourceIds] : shuffle(sourceIds)
+  const batches = orderedIds.map(() => null)
+  await mapBounded(orderedIds.map((id, index) => ({ id, index })), 6, async ({ id: sourceId, index }) => {
+    if (!dated && usable >= count * 2) return
+    const kept = []
+    const batchSeen = dated ? new Set() : seen
+    const result = await fetchSource(sourceId).catch(() => null)
+    itemsOf(result).forEach((item) => {
+      if (batchSeen.has(item.Id)) return
+      batchSeen.add(item.Id)
+      if (dated) {
+        if (!isUsable(item)) return
+        kept.push(item)
+        usable++
+      } else {
+        kept.push(item)
+        if (isUsable(item)) usable++
+      }
+    })
+    batches[index] = kept
+  })
+  if (!dated) {
+    return batches.flatMap((batch) => batch || [])
+  }
+  // Deduplicate deterministically in turn order so a faster source cannot steal a shared title
+  // from an earlier source.
+  const interleaved = []
+  const cursors = batches.map(() => 0)
+  let progressed = true
+  while (progressed) {
+    progressed = false
+    for (let sIdx = 0; sIdx < batches.length; sIdx++) {
+      const batch = batches[sIdx]
+      if (!batch) continue
+      while (cursors[sIdx] < batch.length && seen.has(batch[cursors[sIdx]].Id)) {
+        cursors[sIdx]++
+      }
+      if (cursors[sIdx] < batch.length) {
+        const item = batch[cursors[sIdx]++]
+        seen.add(item.Id)
+        interleaved.push(item)
+        progressed = true
+      }
+    }
+  }
+  return interleaved
+}
+
+// The plugin's media bar cards leave out the provider ids, season count, and dates, so one call fills them in.
 const withBarFields = async (items) => {
-  const res = await api.getItems({ Ids: items.map((item) => item.Id).join(','), Fields: 'ProviderIds,ChildCount', EnableImages: false }).catch(() => null)
+  const res = await api.getItems({
+    Ids: items.map((item) => item.Id).join(','),
+    Fields: 'ProviderIds,ChildCount,DateCreated,DateLastMediaAdded,PremiereDate',
+    EnableImages: false,
+  }).catch(() => null)
   const byId = {}
   itemsOf(res).forEach((item) => (byId[item.Id] = item))
-  return items.map((item) => ({ ProviderIds: byId[item.Id] && byId[item.Id].ProviderIds, ChildCount: byId[item.Id] && byId[item.Id].ChildCount, ...item }))
+  return items.map((item) => {
+    const full = byId[item.Id]
+    return {
+      ProviderIds: full && full.ProviderIds,
+      ChildCount: full && full.ChildCount,
+      ...(full && full.DateCreated ? { DateCreated: full.DateCreated } : {}),
+      ...(full && full.DateLastMediaAdded ? { DateLastMediaAdded: full.DateLastMediaAdded } : {}),
+      ...(full && full.PremiereDate ? { PremiereDate: full.PremiereDate } : {}),
+      ...item,
+    }
+  })
 }
 
 const seriesIdsOf = (children) => {
@@ -113,29 +240,50 @@ const readDatedSource = async (sourceType, parentId, { contentType, days, movieD
         EnableTotalRecordCount: false,
       })
     )
-  const seriesOf = async (ids) => (ids.length ? itemsOf(await api.getItems({ Ids: ids.join(','), Fields: FIELDS, EnableTotalRecordCount: false })) : [])
+  const seriesOf = async (ids, sourceChildren = []) => {
+    if (!ids.length) return []
+    const fetched = itemsOf(await api.getItems({ Ids: ids.join(','), Fields: FIELDS, EnableTotalRecordCount: false }))
+    const premiereDates = sourceChildren.length ? latestChildDates(sourceChildren, ['PremiereDate']) : null
+    const addedDates = sourceChildren.length ? latestChildDates(sourceChildren, ['DateLastMediaAdded', 'DateCreated']) : null
+    const rank = new Map(ids.map((id, index) => [id, index]))
+    return fetched
+      .map((item) => {
+        const aired = premiereDates && premiereDates.get(item.Id)
+        const added = addedDates && addedDates.get(item.Id)
+        if (!aired && !added) return item
+        return {
+          ...item,
+          ...(aired ? { _effectivePremiereDate: aired.toISOString() } : {}),
+          ...(added ? { _effectiveDateCreated: added.toISOString() } : {}),
+        }
+      })
+      .sort((a, b) => (rank.has(a.Id) ? rank.get(a.Id) : ids.length) - (rank.has(b.Id) ? rank.get(b.Id) : ids.length))
+  }
+  const mergeByReleaseDate = (series, movies) =>
+    series.concat(movies).sort((a, b) => compareNullableDates(releaseDateOf(a), releaseDateOf(b), true))
 
   if (sourceType === 'newReleases') {
     const [series, movies] = await Promise.all([
-      contentType === 'movies' ? [] : recentEpisodes(api, parentId, days, 300).then((episodes) => seriesOf(seriesIdsOf(episodes))),
+      contentType === 'movies' ? [] : recentEpisodes(api, parentId, days, 300).then((episodes) => seriesOf(seriesIdsOf(episodes), episodes)),
       contentType === 'tv' ? [] : released('Movie', POOL_SIZE, { sinceDays: movieDays, unplayed: hideWatched }),
     ])
-    return series.concat(movies.filter((movie) => newMovieOf(movie, now, movieDays)))
+    return mergeByReleaseDate(series, movies.filter((movie) => newMovieOf(movie, now, movieDays)))
   }
   if (sourceType === 'recentlyReleased') {
     const childType = contentType !== 'movies' && { season: 'Season', episode: 'Episode' }[seriesType]
     if (!childType) return unwatched(await released(INCLUDE_TYPES[contentType] || 'Movie,Series', POOL_SIZE))
     const latestSeries = async () => {
-      const children = await released(childType, POOL_SIZE * 4, { unplayed: hideWatched })
-      if (!children.length) return released('Series', POOL_SIZE, { unplayed: hideWatched })
-      let ids = seriesIdsOf(children)
-      if (ids.length < count && children.length >= POOL_SIZE * 4) {
-        ids = seriesIdsOf(await released(childType, 500, { unplayed: hideWatched }).catch(() => children))
+      let sourceChildren = await released(childType, POOL_SIZE * 4, { unplayed: hideWatched })
+      if (!sourceChildren.length) return released('Series', POOL_SIZE, { unplayed: hideWatched })
+      let ids = seriesIdsOf(sourceChildren)
+      if (ids.length < count && sourceChildren.length >= POOL_SIZE * 4) {
+        sourceChildren = await released(childType, 500, { unplayed: hideWatched }).catch(() => sourceChildren)
+        ids = seriesIdsOf(sourceChildren)
       }
-      return seriesOf(ids)
+      return seriesOf(ids, sourceChildren)
     }
     const [series, movies] = await Promise.all([latestSeries(), contentType === 'tv' ? [] : released('Movie', POOL_SIZE, { unplayed: hideWatched })])
-    return unwatched(series.concat(movies))
+    return unwatched(mergeByReleaseDate(series, movies))
   }
   const latest = await api.getLatestItems({ ParentId: parentId, IncludeItemTypes: INCLUDE_TYPES[contentType] || 'Movie,Series', Limit: POOL_SIZE, Fields: FIELDS })
   return Array.isArray(latest) ? unwatched(latest) : []
@@ -221,7 +369,10 @@ export const loadFeaturedItems = async () => {
     matchesContentType(item, s.featuredContentType) &&
     withoutExcludedGenres([item], s.excludedGenres).length > 0 &&
     withoutBlockedItems([item]).length > 0
-  const pickFrom = (pool) => shuffle(pool.filter(isUsable)).slice(0, count)
+  const pickFrom = (pool, { dated: isDated = false } = {}) => {
+    const usable = pool.filter(isUsable)
+    return (isDated ? usable : shuffle(usable)).slice(0, count)
+  }
 
   let items = []
   // Lists picked on their own fill the bar alone, and fall back to the default draw when empty.
@@ -244,7 +395,7 @@ export const loadFeaturedItems = async () => {
       hideWatched: s.hideWatchedInRecentRows === true,
     }
     const readSource = async (parentId) => ({ Items: await readDatedSource(sourceType, parentId, options) })
-    items = pickFrom(await readFeaturedSources(hasSourceFilter ? sourceIds : [null], readSource, isUsable, count))
+    items = pickFrom(await readFeaturedSources(hasSourceFilter ? sourceIds : [null], readSource, isUsable, count, { dated: true }), { dated: true })
   }
 
   // A dated source with nothing in its window shows random titles instead.
@@ -259,5 +410,6 @@ export const loadFeaturedItems = async () => {
 
   if (externalIds.length && hasSourceFilter) items = await withExternalSlides(items, externalIds, s)
 
-  return withoutExcludedGenres(items.filter((item) => item.Type !== 'BoxSet' && matchesContentType(item, s.featuredContentType)), s.excludedGenres)
+  const filtered = withoutExcludedGenres(items.filter((item) => item.Type !== 'BoxSet' && matchesContentType(item, s.featuredContentType)), s.excludedGenres)
+  return sortFeaturedItems(filtered, s.mediaBarSortOrder || 'default')
 }
