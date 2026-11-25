@@ -549,7 +549,7 @@ const buildDirectPlayProfiles = (caps) => {
 
 	profiles.push({
 		Container: 'm4a',
-		AudioCodec: 'aac',
+		AudioCodec: caps.eac3 ? 'aac,eac3' : 'aac',
 		Type: 'Audio'
 	});
 
