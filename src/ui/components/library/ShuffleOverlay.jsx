@@ -2,7 +2,8 @@ import $L from '../../../services/i18n.js'
 import { For, Show, createMemo, createSignal, onMount } from 'solid-js'
 import RatingsRow from '../home/RatingsRow.jsx'
 import { cssShift, fontFor, normalShift, uiFont } from '../../text.js'
-import { shadowColor } from '../../theme.js'
+import { shadowColor, theme } from '../../theme.js'
+import { rgba } from '../../themeColor.js'
 import { hex } from '../../color.js'
 import { fontsReady, textWidth } from './measure.js'
 import { buildItemImageUrl, getInfoBits } from './shuffleHelpers.js'
@@ -19,7 +20,7 @@ import { tx } from '../../fx.js'
 // The nav's Shuffle opens this over any page: five random titles, the focused one's details and
 // ratings, and the three ways to shuffle again, with a picker for the library and genre ones. App
 // mounts it while its overlay is 'shuffle' and closes it on onClose(opened), where opened means a
-// card took the viewer to a page that takes focus itself. It keeps its own colors whatever the theme.
+// card took the viewer to a page that takes focus itself. Its colors come from the theme.
 // shortcut: the picker dims the dialog without desaturating it, which the renderer has no cheap way
 // to draw.
 // shortcut: closing puts focus back wherever the nav enters (Home, or the page's own entry in Reel and
@@ -29,7 +30,6 @@ const ACTION_IDS = ['library', 'random', 'genres']
 const ACTION_LABELS = [() => $L('LIBRARY SHUFFLE'), () => $L('RANDOM SHUFFLE'), () => $L('GENRES SHUFFLE')]
 const CLEAR = '#00000000'
 const EASE = (duration) => ({ duration, easing: 'ease' })
-const BOX_EDGE = { width: 1, color: hex('#ffffff2e') }
 const DIALOG_SHADOW = { color: shadowColor('#00000073'), x: 0, y: 20, blur: 60, spread: 0 }
 
 export default function ShuffleOverlay(props) {
@@ -52,6 +52,49 @@ export default function ShuffleOverlay(props) {
   const [pickTop, setPickTop] = createSignal(0)
   const [ratingsH, setRatingsH] = createSignal(0)
   const bold = uiFont('bold')
+  // The theme's colors in the roles the dialog paints. Focused buttons take the theme's focused
+  // button fill and ink, with the focus color as their edge; Pixel squares the panels off and Glass
+  // keeps a white edge.
+  const look = createMemo(() => {
+    const th = theme()
+    // A theme color at a share of its own opacity (Glass's colors are see-through to begin with).
+    const fade = (c, a) => rgba(c, a * (String(c).length === 9 ? parseInt(String(c).slice(7, 9), 16) / 255 : 1))
+    const edge = (a) => ({ width: th.isPixel ? 3 : 1, color: hex(th.isPixel ? th.surfaceVariant : th.isGlass ? '#ffffff33' : th.os(a)) })
+    return {
+      isPixel: th.isPixel,
+      r: (v) => (th.isPixel ? 0 : v),
+      // The scrims keep the old dimming, in the theme's scrim color.
+      scrim: rgba(th.scrim, 0.7),
+      dim: rgba(th.scrim, 0.45),
+      tl: fade(th.background, 0.96),
+      tr: fade(th.surface, 0.95),
+      bl: fade(th.surface, 0.96),
+      // Glass's surfaceVariant is a faint white, which would leave the corner almost clear.
+      br: th.isGlass ? fade(th.surface, 0.93) : fade(th.surfaceVariant, 0.93),
+      boxEdge: edge(0.18),
+      pickerFill: fade(th.surface, 0.95),
+      pickerEdge: edge(0.2),
+      infoFill: rgba(th.scrim, 0.34),
+      infoEdge: { width: 1, color: hex(th.os(0.12)) },
+      badge: th.accentA(0.2),
+      primary: th.accentA(0.28),
+      button: th.os(0.12),
+      focusFill: th.buttonFocused,
+      focusInk: th.onButtonFocused,
+      halo: { width: 3, color: hex(fade(th.focus, 0.3)) },
+      actionHalo: { width: 2, color: hex(fade(th.focus, 0.3)) },
+      focusEdge: { width: 1, color: hex(th.focus) },
+      tile: th.os(0.08),
+      tileEdge: { width: 1, color: hex(th.os(0.15)) },
+      ink: th.onSurface,
+      soft: th.os(0.9),
+      meta: th.textSecondary,
+      faint: th.os(0.6),
+      empty: th.os(0.78),
+      rule: th.os(0.1),
+      rule2: th.os(0.12),
+    }
+  })
   const regular = uiFont()
   const my = { last: 'random', unified: null, gen: 0, pickGen: 0, libraryId: null }
 
@@ -120,7 +163,7 @@ export default function ShuffleOverlay(props) {
     const x = 150 + (1620 - labelW - 14 - retryW) / 2
     return { text, x, y, retry: { text: retry, x: x + labelW + 14, w: retryW } }
   })
-  const actions = ACTION_IDS.map((id, i) => ({ i, x: actionX(i), label: ACTION_LABELS[i](), base: i === 1 ? '#00a4dc47' : '#ffffff1f' }))
+  const actions = ACTION_IDS.map((id, i) => ({ i, x: actionX(i), label: ACTION_LABELS[i](), primary: i === 1 }))
   const pickerTitle = () => (pickerKind() === 'library' ? $L('Select Library') : $L('Select Genre'))
   const pickerMessage = () => {
     if (pickerLoading()) return $L('Loading...')
@@ -307,7 +350,7 @@ export default function ShuffleOverlay(props) {
         return true
       }}
     >
-      <view width={1920} height={1080} color="#000000b3" />
+      <view width={1920} height={1080} color={look().scrim} />
       <view
         width={1920}
         height={1080}
@@ -316,26 +359,26 @@ export default function ShuffleOverlay(props) {
         scale={pickerOpen() ? 0.985 : 1}
         transition={tx({ alpha: EASE(180), scale: EASE(180) })}
       >
-        <view x={131} y={61} width={1658} height={958} borderRadius={26} color={CLEAR} shadow={DIALOG_SHADOW} />
+        <view x={131} y={61} width={1658} height={958} borderRadius={look().r(26)} color={CLEAR} shadow={DIALOG_SHADOW} />
         {/* The dialog's 135 degree wash from top left to bottom right, as four corner colors. */}
         <view
           x={131}
           y={61}
           width={1658}
           height={958}
-          borderRadius={26}
-          colorTl="#0c101cf5"
-          colorTr="#1c2032f3"
-          colorBl="#151929f5"
-          colorBr="#22263ced"
-          border={BOX_EDGE}
+          borderRadius={look().r(26)}
+          colorTl={look().tl}
+          colorTr={look().tr}
+          colorBl={look().bl}
+          colorBr={look().br}
+          border={look().boxEdge}
         />
-        <view x={150} y={80} width={badge().w} height={49} borderRadius={24.5} color="#00a4dc33">
-          <text fontFamily={bold} fontSize={20} lineHeight={33} letterSpacing={0.8} x={14} y={8 + sh.c20} color="#ffffff">
+        <view x={150} y={80} width={badge().w} height={49} borderRadius={24.5} color={look().badge}>
+          <text fontFamily={bold} fontSize={20} lineHeight={33} letterSpacing={0.8} x={14} y={8 + sh.c20} color={look().ink}>
             {badge().text}
           </text>
         </view>
-        <text fontFamily={fontFor(summary())} fontSize={18} lineHeight={33} x={1770} y={88 + sh.c18} mountX={1} color="#ffffffbf">
+        <text fontFamily={fontFor(summary())} fontSize={18} lineHeight={33} x={1770} y={88 + sh.c18} mountX={1} color={look().meta}>
           {summary()}
         </text>
 
@@ -354,17 +397,17 @@ export default function ShuffleOverlay(props) {
                   alpha={on() ? 1 : 0.6}
                   transition={tx({ y: EASE(140), scale: EASE(140), alpha: EASE(140) })}
                 >
-                  <view x={-3} y={-3} width={180} height={266} borderRadius={17} color={CLEAR} border={{ width: 3, color: hex('#00a4dc4d') }} alpha={on() ? 1 : 0} />
-                  <view width={174} height={260} borderRadius={14} color="#ffffff14" border={{ width: 1, color: hex('#ffffff26') }} />
+                  <view x={-3} y={-3} width={180} height={266} borderRadius={17} color={CLEAR} border={look().halo} alpha={on() ? 1 : 0} />
+                  <view width={174} height={260} borderRadius={14} color={look().tile} border={look().tileEdge} />
                   <Show when={c.image}>
                     <view x={1} y={1} width={172} height={258} borderRadius={13} src={c.image} />
                   </Show>
                   <Show when={c.letter}>
-                    <text fontFamily={c.letterFont} fontSize={64} lineHeight={33} x={87} y={113.5 + sh.c64} mountX={0.5} color="#ffffff99">
+                    <text fontFamily={c.letterFont} fontSize={64} lineHeight={33} x={87} y={113.5 + sh.c64} mountX={0.5} color={look().faint}>
                       {c.letter}
                     </text>
                   </Show>
-                  <view width={174} height={260} borderRadius={14} color={CLEAR} border={{ width: 1, color: hex('#00a4dcff') }} alpha={on() ? 1 : 0} />
+                  <view width={174} height={260} borderRadius={14} color={CLEAR} border={look().focusEdge} alpha={on() ? 1 : 0} />
                 </view>
               )
             }}
@@ -372,7 +415,7 @@ export default function ShuffleOverlay(props) {
         </view>
         <view>
           <Show when={placeholder()}>
-            <text fontFamily={bold} fontSize={26} lineHeight={33} x={placeholder().x} y={placeholder().y} color="#ffffffd6">
+            <text fontFamily={bold} fontSize={26} lineHeight={33} x={placeholder().x} y={placeholder().y} color={look().soft}>
               {placeholder().text}
             </text>
           </Show>
@@ -380,23 +423,23 @@ export default function ShuffleOverlay(props) {
         <view>
           <Show when={placeholder() && placeholder().retry}>
             <view x={placeholder().retry.x} y={147} width={placeholder().retry.w} height={46}>
-              <view width={placeholder().retry.w} height={46} borderRadius={12} color="#00a4dc38" alpha={zone() === 'retry' ? 0 : 1} />
+              <view width={placeholder().retry.w} height={46} borderRadius={12} color={look().primary} alpha={zone() === 'retry' ? 0 : 1} />
               <view
                 width={placeholder().retry.w}
                 height={46}
                 borderRadius={12}
-                color="#00a4dc59"
-                border={{ width: 1, color: hex('#00a4dcff') }}
+                color={look().focusFill}
+                border={look().focusEdge}
                 alpha={zone() === 'retry' ? 1 : 0}
               />
-              <text fontFamily={bold} fontSize={20} lineHeight={1} x={17} y={11 + sh.n20} color="#ffffff">
+              <text fontFamily={bold} fontSize={20} lineHeight={1} x={17} y={11 + sh.n20} color={zone() === 'retry' ? look().focusInk : look().ink}>
                 {placeholder().retry.text}
               </text>
             </view>
           </Show>
         </view>
 
-        <view x={150} y={panel().y} width={1620} height={panel().h} borderRadius={16} color="#00000057" border={{ width: 1, color: hex('#ffffff1f') }} />
+        <view x={150} y={panel().y} width={1620} height={panel().h} borderRadius={look().r(16)} color={look().infoFill} border={look().infoEdge} />
         <text
           fontFamily={fontFor(title(), 'bold')}
           fontSize={44}
@@ -405,14 +448,14 @@ export default function ShuffleOverlay(props) {
           y={panel().titleY + sh.c44}
           maxWidth={1586}
           maxLines={1}
-          color="#ffffff"
+          color={look().ink}
         >
           {title()}
         </text>
         <view>
           <For each={meta().texts}>
             {(mt) => (
-              <text fontFamily={mt.font} fontSize={19} lineHeight={33} x={mt.x} y={panel().metaY + sh.c19} color="#ffffffd1">
+              <text fontFamily={mt.font} fontSize={19} lineHeight={33} x={mt.x} y={panel().metaY + sh.c19} color={look().meta}>
                 {mt.text}
               </text>
             )}
@@ -421,7 +464,7 @@ export default function ShuffleOverlay(props) {
         <view>
           <For each={meta().dots}>
             {(dt) => (
-              <text fontFamily={regular} fontSize={19} lineHeight={33} x={dt.x} y={panel().metaY + sh.c19} color="#ffffff99">
+              <text fontFamily={regular} fontSize={19} lineHeight={33} x={dt.x} y={panel().metaY + sh.c19} color={look().faint}>
                 •
               </text>
             )}
@@ -444,7 +487,7 @@ export default function ShuffleOverlay(props) {
           y={panel().overviewY + sh.c18}
           maxWidth={1586}
           maxLines={4}
-          color="#ffffffe6"
+          color={look().soft}
         >
           {overview()}
         </text>
@@ -453,18 +496,18 @@ export default function ShuffleOverlay(props) {
           <For each={actions}>
             {(a) => (
               <view x={a.x} y={939} width={532} height={61}>
-                <view width={532} height={61} borderRadius={14} color={a.base} alpha={lit(a.i) ? 0 : 1} transition={{ alpha: { duration: 120 } }} />
-                <view x={-2} y={-2} width={536} height={65} borderRadius={16} color={CLEAR} border={{ width: 2, color: hex('#00a4dc4d') }} alpha={lit(a.i) ? 1 : 0} />
+                <view width={532} height={61} borderRadius={14} color={a.primary ? look().primary : look().button} alpha={lit(a.i) ? 0 : 1} transition={{ alpha: { duration: 120 } }} />
+                <view x={-2} y={-2} width={536} height={65} borderRadius={16} color={CLEAR} border={look().actionHalo} alpha={lit(a.i) ? 1 : 0} />
                 <view
                   width={532}
                   height={61}
                   borderRadius={14}
-                  color="#00a4dc59"
-                  border={{ width: 1, color: hex('#00a4dcff') }}
+                  color={look().focusFill}
+                  border={look().focusEdge}
                   alpha={lit(a.i) ? 1 : 0}
                   transition={{ alpha: { duration: 120 } }}
                 />
-                <text fontFamily={bold} fontSize={23} lineHeight={1} x={266} y={17 + sh.n23} mountX={0.5} color="#ffffff">
+                <text fontFamily={bold} fontSize={23} lineHeight={1} x={266} y={17 + sh.n23} mountX={0.5} color={lit(a.i) ? look().focusInk : look().ink} transition={{ color: { duration: 120 } }}>
                   {a.label}
                 </text>
               </view>
@@ -474,7 +517,7 @@ export default function ShuffleOverlay(props) {
       </view>
 
       <view width={1920} height={1080} alpha={pickerOpen() ? 1 : 0} transition={tx({ alpha: EASE(180) })}>
-        <view width={1920} height={1080} color="#00000073" />
+        <view width={1920} height={1080} color={look().dim} />
         <view
           x={619}
           y={pickerBox().y + (pickerOpen() ? 0 : 10)}
@@ -484,25 +527,34 @@ export default function ShuffleOverlay(props) {
           scale={pickerOpen() ? 1 : 0.985}
           transition={tx({ y: EASE(180), scale: EASE(180) })}
         >
-          <view width={682} height={pickerBox().h} borderRadius={20} color="#1e2234f2" border={{ width: 1, color: hex('#ffffff33') }} />
-          <text fontFamily={bold} fontSize={32} lineHeight={33} x={19} y={17 + sh.c32} color="#ffffff">
+          <view width={682} height={pickerBox().h} borderRadius={look().r(20)} color={look().pickerFill} border={look().pickerEdge} />
+          <text fontFamily={bold} fontSize={32} lineHeight={33} x={19} y={17 + sh.c32} color={look().ink}>
             {pickerTitle()}
           </text>
-          <view x={1} y={66} width={680} height={1} color="#ffffff1a" />
+          <view x={1} y={66} width={680} height={1} color={look().rule} />
           <view x={1} y={67} width={680} height={pickerBox().listH} clipping>
             <view y={-pickTop()} width={680} height={pickerRows().length * 56}>
               <For each={pickerRows()}>
                 {(r) => (
                   <view y={r.y} width={680} height={56}>
-                    <view width={680} height={56} color="#00a4dc59" alpha={zone() === 'picker' && pick() === r.i ? 1 : 0} />
-                    <text fontFamily={r.font} fontSize={24} lineHeight={1} x={18} y={14 + sh.n24} maxWidth={644} maxLines={1} color="#ffffff">
+                    <view width={680} height={56} color={look().focusFill} alpha={zone() === 'picker' && pick() === r.i ? 1 : 0} />
+                    <text
+                      fontFamily={r.font}
+                      fontSize={24}
+                      lineHeight={1}
+                      x={18}
+                      y={14 + sh.n24}
+                      maxWidth={644}
+                      maxLines={1}
+                      color={zone() === 'picker' && pick() === r.i ? look().focusInk : look().ink}
+                    >
                       {r.label}
                     </text>
                   </view>
                 )}
               </For>
             </view>
-            <text fontFamily={regular} fontSize={22} lineHeight={1} x={18} y={22 + sh.n22} color="#ffffffc7">
+            <text fontFamily={regular} fontSize={22} lineHeight={1} x={18} y={22 + sh.n22} color={look().empty}>
               {pickerMessage()}
             </text>
           </view>
@@ -510,12 +562,19 @@ export default function ShuffleOverlay(props) {
             <view
               width={680}
               height={57}
-              borderRadius={[0, 0, 19, 19]}
-              color="#00a4dc59"
+              borderRadius={look().isPixel ? 0 : [0, 0, 19, 19]}
+              color={look().focusFill}
               alpha={zone() === 'picker' && pick() === pickerRows().length ? 1 : 0}
             />
-            <view width={680} height={1} color="#ffffff1f" />
-            <text fontFamily={bold} fontSize={24} lineHeight={1} x={18} y={15 + sh.n24} color="#ffffff">
+            <view width={680} height={1} color={look().rule2} />
+            <text
+              fontFamily={bold}
+              fontSize={24}
+              lineHeight={1}
+              x={18}
+              y={15 + sh.n24}
+              color={zone() === 'picker' && pick() === pickerRows().length ? look().focusInk : look().ink}
+            >
               {$L('Cancel')}
             </text>
           </view>
