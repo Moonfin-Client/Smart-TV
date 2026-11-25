@@ -150,6 +150,7 @@ export default function AccountMenu(props) {
       </text>
       <ProfileCarousel
         ref={(n) => (carousel = n)}
+        onPointerFace={() => carousel.setFocus()}
         y={carouselY()}
         items={items()}
         colors={colors}
@@ -158,7 +159,7 @@ export default function AccountMenu(props) {
         onCarouselIndex={setStart}
         onCarouselActivate={(item) => tell(item.badge === 'active' ? 'close' : 'switch', item.server)}
       />
-      <PillRow ref={(n) => (pills = n)} y={943.13} pills={pillList()} colors={colors} onPill={onPill} />
+      <PillRow ref={(n) => (pills = n)} y={943.13} pills={pillList()} colors={colors} onPill={onPill} onPointerPill={(id) => focusPills(id)} />
     </view>
   )
 }

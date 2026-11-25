@@ -81,6 +81,8 @@ export default function TimesUp(props) {
     <view
       ref={props.ref}
       width={1920}
+      // A click with the Magic Remote's cursor is its one action, as OK is (app/pointer.js).
+      onPointerClick={() => true}
       height={1080}
       alpha={props.show === false ? 0 : 1}
       onFocusChanged={setFocused}
