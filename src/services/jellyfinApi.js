@@ -763,7 +763,7 @@ export const api = {
 	getRandomItem: (includeTypes = 'Movie,Series') =>
 		request(`${userRoutes.items()}IncludeItemTypes=${includeTypes}&Recursive=true&SortBy=Random&Limit=1&Fields=PrimaryImageAspectRatio,Overview&ExcludeItemTypes=BoxSet`),
 
-	getRandomItems: (contentType = 'both', limit = 10, parentId = null, genreName = null, fields = 'PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers,OfficialRating,ChildCount') => {
+	getRandomItems: (contentType = 'both', limit = 10, parentId = null, genreName = null, fields = 'PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers,OfficialRating,ChildCount,DateCreated,DateLastMediaAdded,PremiereDate') => {
 		const includeTypes = randomItemTypes(contentType);
 		const parentParam = parentId ? `&ParentId=${parentId}` : '';
 		const genreParam = genreName ? `&Genres=${encodeURIComponent(genreName)}` : '';
@@ -777,7 +777,7 @@ export const api = {
 
 	// With no sort the server hands back the arrangement the collection keeps
 	getCollectionItems: (collectionId, limit = 50, sortBy = null, sortOrder = 'Ascending') =>
-		request(`${userRoutes.items()}ParentId=${collectionId}&Limit=${limit}&Recursive=true&Fields=PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers,OfficialRating,ChildCount&HasBackdrop=true${sortBy ? `&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}` : ''}`),
+		request(`${userRoutes.items()}ParentId=${collectionId}&Limit=${limit}&Recursive=true&Fields=PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers,OfficialRating,ChildCount,DateCreated,DateLastMediaAdded,PremiereDate&HasBackdrop=true${sortBy ? `&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}` : ''}`),
 
 	getCollectionMembers: (collectionId, limit = 500, startIndex = 0) =>
 		request(`${userRoutes.items()}ParentId=${collectionId}&Limit=${limit}${startIndex > 0 ? `&StartIndex=${startIndex}` : ''}`),
@@ -1274,7 +1274,7 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 		getCollectionMembers: (collectionId, limit = 500, startIndex = 0) =>
 			serverRequest(`${serverUserRoutes.items()}ParentId=${collectionId}&Limit=${limit}${startIndex > 0 ? `&StartIndex=${startIndex}` : ''}`),
 
-		getRandomItems: (contentType = 'both', limit = 10, parentId = null, genreName = null, fields = 'PrimaryImageAspectRatio,Overview,Genres,ProviderIds,OfficialRating,ChildCount') => {
+		getRandomItems: (contentType = 'both', limit = 10, parentId = null, genreName = null, fields = 'PrimaryImageAspectRatio,Overview,Genres,ProviderIds,OfficialRating,ChildCount,DateCreated,DateLastMediaAdded,PremiereDate') => {
 			const includeTypes = randomItemTypes(contentType);
 			const parentParam = parentId ? `&ParentId=${parentId}` : '';
 			const genreParam = genreName ? `&Genres=${encodeURIComponent(genreName)}` : '';

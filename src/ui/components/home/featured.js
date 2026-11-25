@@ -401,10 +401,10 @@ export const loadFeaturedItems = async () => {
   // A dated source with nothing in its window shows random titles instead.
   if (!items.length) {
     if (hasSourceFilter) {
-      const readSource = (id) => (collectionIds.indexOf(id) >= 0 ? api.getCollectionItems(id, 50) : api.getRandomItems(s.featuredContentType, count * 2, id))
+      const readSource = (id) => (collectionIds.indexOf(id) >= 0 ? api.getCollectionItems(id, 50) : api.getRandomItems(s.featuredContentType, count * 2, id, null, FIELDS))
       items = pickFrom(await readFeaturedSources(sourceIds, readSource, isUsable, count))
     } else {
-      items = itemsOf(await api.getRandomItems(s.featuredContentType, count))
+      items = itemsOf(await api.getRandomItems(s.featuredContentType, count, null, null, FIELDS))
     }
   }
 
