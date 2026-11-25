@@ -162,6 +162,8 @@ export const defaultSettings = {
 	showHomeBackdrop: true,
 	homeBackdropStyle: 'fullScreen',
 	detailsBackdropEnabled: true,
+	detailsBackdropShuffle: true,
+	detailsBackdropIntervalMs: 15000,
 	backdropBlurHome: 20,
 	backdropBlurDetail: 20,
 	serverLogging: false,

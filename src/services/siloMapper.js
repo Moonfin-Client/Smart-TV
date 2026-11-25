@@ -1,5 +1,7 @@
 // Silo's native answers in the Jellyfin shapes the app reads.
 
+import {siloImageTag} from '../utils/siloUrls';
+
 const SILO_PRODUCT = 'Silo';
 
 const text = (value) => (typeof value === 'string' && value.trim() ? value.trim() : null);
@@ -562,14 +564,21 @@ const imageFields = (id, type, item, images) => {
 	} else {
 		primaryUrl = text(item.poster_url);
 	}
-	let backdrops = strings(item.backdrop_urls);
-	if (!backdrops.length && text(item.backdrop_url)) backdrops = [text(item.backdrop_url)];
+	const backdropList = strings(item.backdrop_urls);
+	const hasAuthoritativeBackdropList = backdropList.length > 0;
+	let backdrops = hasAuthoritativeBackdropList ? backdropList : (text(item.backdrop_url) ? [text(item.backdrop_url)] : []);
 	if (isEpisode && item.backdrop_is_episode_still !== true) {
-		if (seriesId && backdrops.length) registerIfMissing(seriesId, 'Backdrop', backdrops[0]);
+		if (seriesId && backdrops.length && !images.hasCompleteBackdrops?.(seriesId)) {
+			backdrops.forEach((url, i) => {
+				if (!images.tagFor(seriesId, 'Backdrop', i)) images.register(seriesId, 'Backdrop', url, i);
+			});
+		}
 		backdrops = [];
 	}
 	// An episode card names its series' backdrop on its own, which is never the episode still.
-	if (isEpisode && seriesId && text(item.series_backdrop_url)) registerIfMissing(seriesId, 'Backdrop', text(item.series_backdrop_url));
+	if (isEpisode && seriesId && text(item.series_backdrop_url) && !images.hasCompleteBackdrops?.(seriesId)) {
+		registerIfMissing(seriesId, 'Backdrop', text(item.series_backdrop_url));
+	}
 	// Episodes have no logo of their own, so an episode's logo_url is its series'. Recorded there too, the player and
 	// the episode's detail, which comes without one, find it as the series logo.
 	if (isEpisode && seriesId && text(item.logo_url)) registerIfMissing(seriesId, 'Logo', text(item.logo_url));
@@ -585,7 +594,25 @@ const imageFields = (id, type, item, images) => {
 		const banner = images.register(id, 'Banner', item.banner_url);
 		if (banner) tags.Banner = banner;
 	}
-	const backdropTags = backdrops.map((url, i) => images.register(id, 'Backdrop', url, i)).filter(Boolean);
+	let backdropTags;
+	if (hasAuthoritativeBackdropList && images.replaceBackdrops) {
+		backdropTags = images.replaceBackdrops(id, backdrops);
+	} else if (!hasAuthoritativeBackdropList && images.hasCompleteBackdrops?.(id)) {
+		// Preserve an already-complete authoritative list when a compact card arrives,
+		// refreshing any matching slot in-place so rotated Silo signatures stay fresh.
+		const compactTag = backdrops[0] ? siloImageTag(backdrops[0]) : null;
+		backdropTags = [];
+		for (let i = 0; ; i++) {
+			const existing = images.tagFor(id, 'Backdrop', i);
+			if (!existing) break;
+			if (compactTag && existing === compactTag) {
+				images.register(id, 'Backdrop', backdrops[0], i);
+			}
+			backdropTags.push(existing);
+		}
+	} else {
+		backdropTags = backdrops.map((url, i) => images.register(id, 'Backdrop', url, i)).filter(Boolean);
+	}
 	return {
 		ImageTags: tags,
 		BackdropImageTags: backdropTags,

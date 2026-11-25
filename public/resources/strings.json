@@ -3199,5 +3199,7 @@
     "A panel of tiles with library artwork": "A panel of tiles with library artwork",
     "Browse all": "Browse all",
     "Continue in {section}": "Continue in {section}",
-    "Featured: {title}": "Featured: {title}"
-}
+    "Featured: {title}": "Featured: {title}",
+    "Backdrop Duration": "Backdrop Duration",
+    "Display backdrops in server or randomized order": "Display backdrops in server or randomized order",
+    "Shuffle Backdrops": "Shuffle Backdrops"}

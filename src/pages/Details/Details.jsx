@@ -42,6 +42,7 @@ import { router } from '../../app/router.js'
 import { focusNav } from '../../app/focus.js'
 import { usePage } from '../../app/PageStack.jsx'
 import { COLLECTION_ITEM_TYPES, IDENTIFIABLE_TYPES, getMediaBadges, hidesMediaDescription, splitCastAndCrew } from './detailsMedia.js'
+import { createBackdropCycler, getDetailBackdropUrls } from './detailsBackdropCycle.js'
 import { shuffled } from '../../utils/shuffled.js'
 import { orderItemsByIds } from './collectionPlaylist.js'
 import { collectionTitles, mergeCollectionWithMissing } from './seerrMissingCollectionItems.js'
@@ -422,14 +423,24 @@ export default function Details(props) {
     return out
   }
 
+  const backdropCycler = createBackdropCycler(() => paintSoon())
+
   // The backdrop and its scrim. Modern's blur setting only sets how dark the scrim is.
   const backLayers = (it, s) => {
     const isPerson = it.Type === 'Person'
     const blur = Number(s.backdropBlurDetail != null ? s.backdropBlurDetail : 20)
     const opacity = Math.min(1, blur / 25)
     const scale = 0.3 + 0.7 * opacity
+    const enabled = s.detailsBackdropEnabled !== false && !isPerson
+    const urls = enabled ? getDetailBackdropUrls(m.srv, it) : []
+    const shouldCycle = enabled && !props.quickLook && s.detailScreenStyle !== 'v9' && s.detailScreenStyle !== 'v8'
+    const cycled = backdropCycler.sync(urls, {
+      enabled: shouldCycle,
+      shuffle: s.detailsBackdropShuffle !== false,
+      intervalMs: s.detailsBackdropIntervalMs,
+    })
     const backId = getBackdropId(it)
-    let back = s.detailsBackdropEnabled !== false && !isPerson && backId ? getImageUrl(m.srv, backId, 'Backdrop', { maxWidth: 1920, quality: 90, tag: backdropTag(it) }) : ''
+    let back = cycled || (enabled && backId ? getImageUrl(m.srv, backId, 'Backdrop', { maxWidth: 1920, quality: 90, tag: backdropTag(it) }) : '')
     if (it._externalBackdropUrl && s.detailsBackdropEnabled !== false) back = it._externalBackdropUrl
     const shade = `#000000${alphaHex(opacity * (isPerson ? 0.4 : 0.8))}`
     const scrimUrl = scrimSrc(isPerson ? PERSON_SCRIM : SCRIM, scale)
@@ -1297,6 +1308,7 @@ export default function Details(props) {
     clearTimeout(settleTimer)
     clearTimeout(seerrPoll)
     clearTimeout(paintTimer)
+    backdropCycler.stop()
   })
 
   const v2 = () => style() === 'v2'

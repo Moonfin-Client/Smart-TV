@@ -774,6 +774,21 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.OPTION, key: 'detailScreenStyle', label: () => $L('Details Screen Style'), desc: () => $L('How a movie or show looks when you open it.'), options: getDetailScreenStyleOptions, fallback: () => $L('Modern'), icon: 'movie_outlined'},
 					{kind: KIND.OPTION, key: 'personalRatingStyle', label: () => $L('Personal Rating Style'), options: getPersonalRatingStyleOptions, fallback: () => $L('Like / dislike'), icon: 'rate_review'},
 					{kind: KIND.TOGGLE, key: 'detailsBackdropEnabled', label: () => $L('Details Screen Backdrop'), icon: 'photo'},
+					{kind: KIND.TOGGLE, key: 'detailsBackdropShuffle', label: () => $L('Shuffle Backdrops'), desc: () => $L('Display backdrops in server or randomized order'), icon: 'shuffle', when: (ctx) => ctx.settings.detailsBackdropEnabled !== false && ctx.serverType !== 'plex'},
+					{
+						kind: KIND.OPTION,
+						key: 'detailsBackdropIntervalMs',
+						label: () => $L('Backdrop Duration'),
+						options: () => [
+							{value: 5000, label: $L('5 seconds')},
+							{value: 10000, label: $L('10 seconds')},
+							{value: 15000, label: $L('15 seconds')},
+							{value: 30000, label: $L('30 seconds')}
+						],
+						fallback: () => $L('15 seconds'),
+						icon: 'timer',
+						when: (ctx) => ctx.settings.detailsBackdropEnabled !== false && ctx.serverType !== 'plex'
+					},
 					{
 						kind: KIND.OPTION,
 						key: 'backdropBlurDetail',
