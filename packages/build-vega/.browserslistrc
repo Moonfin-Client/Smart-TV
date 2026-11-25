@@ -1,3 +1,0 @@
-# Vega OS WebView targets
-# WebView 4.x is Chromium 144. Chrome 120 leaves headroom for an older WebView module.
-chrome >= 120

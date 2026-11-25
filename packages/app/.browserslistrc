@@ -1,4 +1,0 @@
-# Smart TV browser targets
-# Covers Tizen 2.4 (WebKit 538.1 ~Safari 7), webOS 3.x (Chromium 38), and all newer models
-chrome >= 38
-safari >= 7

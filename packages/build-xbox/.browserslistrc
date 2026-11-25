@@ -1,4 +1,0 @@
-# Xbox WebView2 targets
-# The WebView2 runtime on a console is updated with the system and tracks current Edge.
-# Chrome 120 leaves headroom for a console that hasnt taken an update in a while.
-chrome >= 120
