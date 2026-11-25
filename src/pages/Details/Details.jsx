@@ -20,6 +20,7 @@ import { withoutBlockedItems } from '../../services/parentalControls.js'
 import { startServerShuffle } from '../../services/serverShuffle.js'
 import { buildDisplayRatings, fetchEpisodeRatings, fetchRatings, getContentType, getTmdbId, isMdblistEnabled, isRatingSourceEnabled } from '../../services/mdblistApi.js'
 import { searchesForTrailer } from '../../services/youtubeTrailer.js'
+import { formatDetailReleaseDate } from '../../utils/dateFormat.js'
 import { formatDuration, getBackdropId, getImageUrl, getLogoUrl } from '../../utils/helpers.js'
 import { formatPlaybackEndsAt } from '../../utils/playbackTimeLabels.js'
 import { formatFileSize } from '../../utils/formatFileSize.js'
@@ -557,7 +558,7 @@ export default function Details(props) {
       : metaPieces({
           item: it,
           settings: s,
-          year: it.ProductionYear || '',
+          year: formatDetailReleaseDate(it, { showFullDate: Boolean(s.detailShowFullDate), dateFormat: s.dateFormat }),
           officialRating: it.OfficialRating || '',
           runtime,
           endsAt,

@@ -19,6 +19,7 @@ import { focusNav } from '../../../app/focus.js'
 import { focusScroll } from '../../../ui/components/nav/focusScroll.js'
 import { serverBlurredUrl } from '../../../utils/serverBlur.js'
 import { scrimSrc } from '../../../utils/scrimImage.js'
+import { formatDetailReleaseDate } from '../../../utils/dateFormat.js'
 import { formatDuration } from '../../../utils/helpers.js'
 import { actionRow } from '../modern/actions.js'
 import { groupEpisodesBySeason, seasonLabel } from '../nouveau/nouveauSeasons.js'
@@ -542,7 +543,8 @@ export default function Frost(props) {
   // The whole overview under the title and its facts, in a dialog that OK or Back closes.
   const openReadMore = () => {
     const it = v.item
-    const meta = [it.Genres && it.Genres[0], it.ProductionYear, it.RunTimeTicks > 0 ? formatDuration(it.RunTimeTicks) : null].filter(Boolean).join(' · ')
+    const releaseDate = formatDetailReleaseDate(it, { showFullDate: Boolean(v.settings?.detailShowFullDate), dateFormat: v.settings?.dateFormat })
+    const meta = [it.Genres && it.Genres[0], releaseDate || null, it.RunTimeTicks > 0 ? formatDuration(it.RunTimeTicks) : null].filter(Boolean).join(' · ')
     const lines = wrapLines(m.overview, 30, 'regular', 1164)
     const textY = 66 + 63 + (meta ? 9 + 28 : 0) + 33
     const textH = lines.length * 48

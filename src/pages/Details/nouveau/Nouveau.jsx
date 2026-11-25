@@ -18,6 +18,7 @@ import { SMOOTH_SCROLL } from '../../../ui/components/details/env.js'
 import { api } from '../../../services/jellyfinApi.js'
 import { all } from '../../../state/settings.js'
 import { checkSeerr } from '../../../state/seerr.js'
+import { formatDetailReleaseDate } from '../../../utils/dateFormat.js'
 import { getBackdropId, getImageUrl } from '../../../utils/helpers.js'
 import { scrimSrc } from '../../../utils/scrimImage.js'
 import { splitFilmography } from '../../../utils/personCredits.js'
@@ -382,7 +383,7 @@ export default function Nouveau(props) {
         seerrPills: d.seerr && d.seerr.statusPills,
         meta: nouveauMetaPieces({
           item: it,
-          year: it.ProductionYear || '',
+          year: formatDetailReleaseDate(it, { showFullDate: Boolean(s.detailShowFullDate), dateFormat: s.dateFormat }),
           officialRating: it.OfficialRating || '',
           runtime: d.runtime,
           seasonCount: it.ChildCount || L.seasons.length || 0,

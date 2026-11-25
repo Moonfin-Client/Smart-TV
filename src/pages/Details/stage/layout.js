@@ -2,6 +2,7 @@
 // laid out as display lists. `center` lines each wrapped line up in the middle, for Premiere.
 import { cssShift, fontFor, themeSpacing } from '../../../ui/text.js'
 import { textWidth } from '../../../ui/components/details/measure.js'
+import { formatDetailReleaseDate } from '../../../utils/dateFormat.js'
 import { metaPieces, ratingValues } from '../modern/meta.js'
 import { ratingEntries, ratingsRow } from '../modern/hero.js'
 
@@ -48,7 +49,7 @@ export const stagePieces = (v) => {
   const it = v.item
   const L = v.lists
   const pieces = metaPieces({
-    item: it.Type === 'Episode' ? { ...it, ParentIndexNumber: null } : it, settings: v.settings, year: it.ProductionYear || '',
+    item: it.Type === 'Episode' ? { ...it, ParentIndexNumber: null } : it, settings: v.settings, year: formatDetailReleaseDate(it, { showFullDate: Boolean(v.settings?.detailShowFullDate), dateFormat: v.settings?.dateFormat }),
     officialRating: it.OfficialRating || '', runtime: v.runtime, endsAt: v.endsAt, seasonCount: it.ChildCount || L.seasons.length || 0,
     genres: it.Genres || [], episodes: L.episodes, episodeRatings: L.episodeRatings, playlistTracks: v.playlistTracks || [],
     upcomingText: v.upcoming, seerr: v.seerr,

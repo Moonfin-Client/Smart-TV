@@ -1,4 +1,6 @@
-import {uiLocale} from './uiLocale';
+import $L from '../services/i18n.js';
+import {parseServerDate} from './serverDate.js';
+import {uiLocale} from './uiLocale.js';
 
 export const DATE_FORMATS = ['system', 'monthDay', 'dayMonth'];
 
@@ -37,6 +39,74 @@ export const formatShortDayName = (date, dateFormat) => {
 	if (dateFormat === 'monthDay') return `${localeDate(date, {weekday: 'short'})}, ${formatShortDate(date, dateFormat)}`;
 	if (dateFormat === 'dayMonth') return `${localeDate(date, {weekday: 'short'})} ${formatShortDate(date, dateFormat)}`;
 	return localeDate(date, {weekday: 'short', month: 'short', day: 'numeric'});
+};
+
+const shortMonthLabel = (monthIndex) => [
+	$L('Jan'), $L('Feb'), $L('Mar'), $L('Apr'), $L('May'), $L('Jun'),
+	$L('Jul'), $L('Aug'), $L('Sep'), $L('Oct'), $L('Nov'), $L('Dec')
+][monthIndex];
+
+const isYearFirstLocale = (locale) => /^(ja|zh|ko|hu|lt|eu|mn|yue)(?:[-_]|$)/i.test(String(locale || ''));
+
+const isMonthFirstLocale = (locale) => {
+	const tag = String(locale || '').toLowerCase();
+	return tag === 'en' || tag === 'en-us' || tag === 'en-ca' || tag === 'en-ph';
+};
+
+const hasIntlDateTimeFormat = () => typeof Intl !== 'undefined' && typeof Intl.DateTimeFormat === 'function';
+
+const formatMediumFallback = (date, dateFormat, utc) => {
+	const month = shortMonthLabel(utc ? date.getUTCMonth() : date.getMonth());
+	const day = utc ? date.getUTCDate() : date.getDate();
+	const year = utc ? date.getUTCFullYear() : date.getFullYear();
+	if (dateFormat === 'monthDay') return `${month} ${day}, ${year}`;
+	if (dateFormat === 'dayMonth') return `${day} ${month} ${year}`;
+	const locale = uiLocale();
+	if (isYearFirstLocale(locale)) return `${year} ${month} ${day}`;
+	return isMonthFirstLocale(locale) ? `${month} ${day}, ${year}` : `${day} ${month} ${year}`;
+};
+
+/** Like "Nov 19, 2026" or "19 Nov 2026", in the order the Date Format setting picks. */
+export const formatMediumDate = (date, dateFormat, {utc = false} = {}) => {
+	if (!hasIntlDateTimeFormat()) {
+		return formatMediumFallback(date, dateFormat, utc);
+	}
+	const tz = utc ? {timeZone: 'UTC'} : {};
+	const options = {month: 'short', day: 'numeric', year: 'numeric', ...tz};
+	if (dateFormat === 'monthDay' || dateFormat === 'dayMonth') {
+		const parts = {};
+		const dtf = formatterFor('DateTimeFormat', uiLocale(), options);
+		if (typeof dtf.formatToParts === 'function') {
+			for (const part of dtf.formatToParts(date)) {
+				if (part.type === 'month' || part.type === 'day' || part.type === 'year') {
+					parts[part.type] = part.value;
+				}
+			}
+		}
+		const monthLabel = localeDate(date, {month: 'short', ...tz}) || parts.month;
+		const dayLabel = parts.day || localeDate(date, {day: 'numeric', ...tz});
+		const yearLabel = parts.year || localeDate(date, {year: 'numeric', ...tz});
+		if (monthLabel && dayLabel && yearLabel) {
+			return dateFormat === 'monthDay'
+				? `${monthLabel} ${dayLabel}, ${yearLabel}`
+				: `${dayLabel} ${monthLabel} ${yearLabel}`;
+		}
+	}
+	return localeDate(date, options);
+};
+
+/**
+ * Formats an item's release or air date for the details metadata row.
+ * When showFullDate is true and PremiereDate parses cleanly, returns the full
+ * localized date in UTC (premiere dates are midnight UTC); otherwise falls back
+ * to ProductionYear.
+ */
+export const formatDetailReleaseDate = (item, {showFullDate = false, dateFormat} = {}) => {
+	if (showFullDate && item?.PremiereDate) {
+		const parsed = parseServerDate(item.PremiereDate);
+		if (parsed) return formatMediumDate(parsed, dateFormat, {utc: true});
+	}
+	return item?.ProductionYear ? String(item.ProductionYear) : '';
 };
 
 /** Like "Thursday, November 19, 2026" or "Thursday, 19 November 2026". */

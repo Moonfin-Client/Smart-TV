@@ -122,6 +122,7 @@ export const SCENE_BY_KEY = {
 	detailMetadata: 'details',
 	detailExpandedTabs: 'details',
 	detailShowTechnicalDetails: 'details',
+	detailShowFullDate: 'details',
 	hideDetailsMediaDescription: 'details',
 	...sceneFor(ratingRows(''), 'details'),
 	playerZoomMode: 'player',
