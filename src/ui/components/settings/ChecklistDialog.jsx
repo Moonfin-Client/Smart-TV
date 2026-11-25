@@ -165,7 +165,7 @@ export default function ChecklistDialog(props) {
         </text>
         <For each={buttons()}>
           {(b) => (
-            <view x={b.x} y={40.07 + 38.25 + 26.71 + 6.68} width={b.w} height={66.78}>
+            <view x={b.x} y={40.07 + 38.25 + 26.71 + 6.68} width={b.w} height={66.78} onPointerOver={() => (setZone('buttons'), setBtn(b.i))}>
               <view width={b.w} height={66.78} borderRadius={sq(b.filled ? 13.36 : 33.39)} color={b.filled ? p().buttonNormal : '#00000000'} />
               <view
                 width={b.w}
@@ -187,7 +187,14 @@ export default function ChecklistDialog(props) {
                 const lit = () => focusRow(r.i)
                 const on = () => ticked(r.value)
                 return (
-                  <view y={r.i * ROW_H + dp(1)} width={innerW} height={66.78} borderRadius={sq(20.03)} color={lit() ? p().tileFocusFill : '#00000000'}>
+                  <view
+                    y={r.i * ROW_H + dp(1)}
+                    width={innerW}
+                    height={66.78}
+                    borderRadius={sq(20.03)}
+                    color={lit() ? p().tileFocusFill : '#00000000'}
+                    onPointerOver={() => (setZone('list'), setCur(r.i))}
+                  >
                     <view
                       x={31.73}
                       y={18.37}
@@ -219,7 +226,13 @@ export default function ChecklistDialog(props) {
             </For>
           </view>
         </view>
-        <view x={(COLUMN_W - 2 * PAD_X) - 40.07 - cancelW} y={LIST_TOP + viewH() + 40.07 + 6.68} width={cancelW} height={66.78}>
+        <view
+          x={(COLUMN_W - 2 * PAD_X) - 40.07 - cancelW}
+          y={LIST_TOP + viewH() + 40.07 + 6.68}
+          width={cancelW}
+          height={66.78}
+          onPointerOver={() => setZone('cancel')}
+        >
           <view width={cancelW} height={66.78} borderRadius={33.39} color={p().accentTen} alpha={zone() === 'cancel' ? 1 : 0} />
           <text fontFamily={btnFont()} fontSize={23.37} lineHeight={27.39} x={cancelW / 2} mountX={0.5} y={21.69} color={p().accent}>
             {cancelLabel}

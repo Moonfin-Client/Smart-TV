@@ -101,6 +101,7 @@ export default function ClearDataDialog(props) {
             y={box().btnY}
             width={box().buttons.cancelW}
             height={box().btnH}
+            onPointerOver={() => setCur(0)}
             borderRadius={16}
             color={cur() === 0 ? lit() : '#ffffff1a'}
             border={{ width: 2, color: hex(cur() === 0 ? '#ffffffff' : '#00000000') }}
@@ -114,6 +115,7 @@ export default function ClearDataDialog(props) {
             y={box().btnY}
             width={box().buttons.confirmW}
             height={box().btnH}
+            onPointerOver={() => setCur(1)}
             borderRadius={16}
             color={cur() === 1 ? danger() : '#ffffff1a'}
             border={{ width: 2, color: hex(cur() === 1 ? danger() : '#00000000') }}

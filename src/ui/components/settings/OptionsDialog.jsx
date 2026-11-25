@@ -144,7 +144,14 @@ export default function OptionsDialog(props) {
               {(o) => {
                 const lit = () => isCur(o.i)
                 return (
-                  <view y={o.y} width={innerW()} height={o.h} borderRadius={sq(20.03)} color={lit() ? p().tileFocusFill : '#00000000'}>
+                  <view
+                    y={o.y}
+                    width={innerW()}
+                    height={o.h}
+                    borderRadius={sq(20.03)}
+                    color={lit() ? p().tileFocusFill : '#00000000'}
+                    onPointerOver={() => cur() !== o.i && setCur(o.i)}
+                  >
                     <view
                       x={23.37}
                       y={(o.h - 30.05) / 2}
