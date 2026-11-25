@@ -72,6 +72,7 @@ export default function LoginField(props) {
       }}
       x={props.x || 0}
       y={props.y || 0}
+      onPointerOver={props.onPointerOver}
       width={w()}
       height={h()}
       alpha={props.alpha == null ? 1 : props.alpha}

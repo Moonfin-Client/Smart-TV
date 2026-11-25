@@ -15,7 +15,7 @@ export default function ServerTile(props) {
   }
   const dur = motion ? 120 : 0
   return (
-    <view x={props.x || 0} y={props.y || 0} width={w()} height={112.12}>
+    <view x={props.x || 0} y={props.y || 0} onPointerOver={props.onPointerOver} width={w()} height={112.12}>
       <view width={w()} height={112.12} borderRadius={20.03} color={props.focused ? '#00a4dc2e' : '#ffffff0d'} />
       <view
         width={w()}

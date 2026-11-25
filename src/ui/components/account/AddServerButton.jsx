@@ -12,7 +12,7 @@ const MARKS = ['jellyfin', 'emby', 'plex', 'silo']
 export default function AddServerButton(props) {
   const dur = motion ? 160 : 0
   return (
-    <view x={props.x || 0} y={props.y || 0} width={1059.9} height={105.5} alpha={props.disabled ? 0.5 : 1}>
+    <view x={props.x || 0} y={props.y || 0} onPointerOver={props.onPointerOver} width={1059.9} height={105.5} alpha={props.disabled ? 0.5 : 1}>
       <view width={1059.9} height={105.5} borderRadius={26.71} color={props.focused ? '#00a4dc2e' : '#00a4dc1a'} />
       <view
         width={1059.9}
