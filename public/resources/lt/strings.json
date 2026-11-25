@@ -987,7 +987,7 @@
     "Unread": "Neskaityta",
     "v{version} Available": "Galima v{version}",
     "What's wrong?": "Kas negerai?",
-    "{count} sections": "Skyrių: {count}",
+    "{count} sections": "Skiltys: {count}",
     "{remaining} of {limit} movie requests remaining": "Liko {remaining} iš {limit} filmų užklausų",
     "{remaining} of {limit} season requests remaining": "Liko {remaining} iš {limit} sezonų užklausų",
     "Download subtitles...": "Parsisiųsti subtitrus...",
