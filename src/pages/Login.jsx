@@ -994,8 +994,11 @@ export default function Login(props) {
     // A slow answer would otherwise overlap the next tick, and both could sign in.
     if (qcPolling === secret) return
     qcPolling = secret
+    const request = qcRequest
     try {
       const state = await jellyfinApi.api.getQuickConnectState(secret)
+      // Cancelled (Password, Back, page left) while the poll was out: an approval must not sign in.
+      if (request !== qcRequest) return
       // A Silo code that ran out (or was declined) is done, so a fresh one is asked for.
       if (state.Expired) {
         stopQuickConnect()
