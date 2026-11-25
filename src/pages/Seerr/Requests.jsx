@@ -31,6 +31,7 @@ const REQUEST_FILTERS = ['all', 'pending', 'approved', 'processing', 'available'
 const ISSUE_FILTERS = ['open', 'resolved', 'all']
 const LIST_X = 114
 const POLL_MS = 30000
+const CHECK_GRACE = 300
 const WHITE_EDGE = { width: 1, color: hex('#ffffffff') }
 const RETRY_SHADOW = { color: shadowColor('#0000004d'), x: 0, y: 18, blur: 18, spread: 0 }
 
@@ -64,8 +65,10 @@ export default function Requests(props) {
   const [answers, setAnswers] = createSignal({})
   const [loading, setLoading] = createSignal(true)
   const [error, setError] = createSignal('')
-  // null until checkSeerr answers, so neither the spinner nor the configure message shows early.
+  // null until checkSeerr answers, so the configure message doesn't show early. The spinner waits
+  // CHECK_GRACE for that answer, so an unconfigured setup doesn't flash it, and then shows anyway.
   const [authed, setAuthed] = createSignal(null)
+  const [checkSlow, setCheckSlow] = createSignal(false)
   const [counts, setCounts] = createSignal({ pending: 0, open: 0 })
   const [perms, setPerms] = createSignal(null)
   const [me, setMe] = createSignal(null)
@@ -77,11 +80,12 @@ export default function Requests(props) {
   const [scroll, setScroll] = createSignal(0)
   const [thread, setThread] = createSignal(null)
   const [fontsIn, setFontsIn] = createSignal(0)
-  const my = { gen: 0, more: false, loadingMore: false, queues: false, asked: {}, poll: null, alive: true }
+  const my = { gen: 0, more: false, loadingMore: false, queues: false, asked: {}, poll: null, checkTimer: null, alive: true }
   let root
   onCleanup(() => {
     my.alive = false
     my.gen++
+    clearTimeout(my.checkTimer)
     stopPoll()
   })
 
@@ -154,7 +158,8 @@ export default function Requests(props) {
       }
     })
   })
-  const listTop = () => 180 + tabsH() + 91
+  const listTopAt = (tabs) => 180 + tabs + 91
+  const listTop = () => listTopAt(tabsH())
   const listH = () => 1080 - listTop()
   const split = createMemo(() => splitRequester(requests()))
   const viewer = createMemo(() => ({ canManage: seerrApi.canManageRequests(perms()), me: me() }))
@@ -218,13 +223,13 @@ export default function Requests(props) {
   const midY = () => listTop() + listH() / 2
   // The spinner keeps the middle it has before any count badge makes the tabs taller: the counts
   // land while it spins, and a moving midY made it jump onto a half pixel.
-  const spinMidY = 180 + 59 + 91 + (1080 - 180 - 59 - 91) / 2
+  const spinMidY = (listTopAt(59) + 1080) / 2
   const message = () => {
     if (authed() === false) return $L('Please configure Seerr in Settings')
     if (loading() || error() || items().length) return ''
     return view() === 'requests' ? $L('No requests found') : $L('No issues found')
   }
-  const spinning = () => loading() && authed()
+  const spinning = () => loading() && (authed() === true || (authed() === null && checkSlow()))
   const showError = () => !!error() && !loading()
   const retryW = () => {
     void fontsIn()
@@ -398,7 +403,9 @@ export default function Requests(props) {
   }
 
   const start = async () => {
+    my.checkTimer = setTimeout(() => setCheckSlow(true), CHECK_GRACE)
     const seerr = await checkSeerr(!seerrState().available)
+    clearTimeout(my.checkTimer)
     if (!my.alive) return
     my.queues = !!(seerr.pluginInfo && seerr.pluginInfo.arrQueueAvailable === true)
     if (!seerr.authenticated) {
