@@ -2,7 +2,7 @@ import $L from '../../../../services/i18n.js'
 import { For, Show, createMemo, createSelector, onCleanup } from 'solid-js'
 import MusicTrackList, { trackRows, trackLayout } from '../MusicTrackList.jsx'
 import HeroButtons, { heroButtons } from '../HeroButtons.jsx'
-import { ScreenHeader, clampText, keepInView, contentWidth } from '../screenParts.jsx'
+import { ScreenHeader, pointerIn, wholeInView, clampText, keepInView, contentWidth } from '../screenParts.jsx'
 import { lineY } from '../../books/bookGrid.js'
 import { wrapLines } from '../../details/measure.js'
 import { uiFont, fontFor } from '../../../text.js'
@@ -51,6 +51,7 @@ function Row(props) {
       <text fontFamily={uiFont()} fontSize={19} x={105} y={lineY((ROW_H - 72) / 2 + 33 + 6, 33, 19)} maxWidth={447} maxLines={1} color={look().os(0.65)}>
         {r().meta}
       </text>
+      <view width={570} height={ROW_H} onPointerOver={props.onPointerOver} onPointerClick={props.onPointerClick} />
     </view>
   )
 }
@@ -211,6 +212,23 @@ export default function PlaylistsScreen(props) {
     st.detailY = keepInView(st.detailY, top, top + lay.hs[i], 999, detail().tracksY + lay.total + 60 - 999)
   }
 
+  // The Magic Remote's cursor (app/pointer.js): the buttons take focus on hover; a playlist and a song
+  // too while in full view, and on a click when their list would scroll to them.
+  const point = pointerIn(st, my, props)
+  const pointRow = (i, click) => {
+    if (!st.items[i]) return false
+    if (!click && (!wholeInView(st.listY, LIST_H - 48, i * ROW_H, (i + 1) * ROW_H) || (st.active && st.zone === 'list' && st.cur === i))) return false
+    point(() => focusRow(i))
+    return click
+  }
+  const pointButton = (i) => !(st.active && st.zone === 'buttons' && st.bcur === i) && point(() => focusButtons(i))
+  const pointSong = (i, box, click) => {
+    const top = detail() ? detail().tracksY + box.y : 0
+    if (!click && (!wholeInView(st.detailY, 999, top, top + box.h) || (st.active && st.zone === 'songs' && st.scur === i))) return false
+    point(() => focusSong(i))
+    return click
+  }
+
   loadPage(0)
 
   return (
@@ -279,7 +297,14 @@ export default function PlaylistsScreen(props) {
         <Show when={!empty()}>
           <view x={60} y={LIST_TOP} width={570} height={LIST_H} clipping>
             <view y={18 - st.listY} width={570} height={Math.max(LIST_H, st.items.length * ROW_H + 48)}>
-              <For each={visibleRows()}>{(rw) => <Row row={rw} look={look()} focused={listSel(rw.i)} shown={shownSel(rw.i)} />}</For>
+              <For each={visibleRows()}>{(rw) => <Row
+                    row={rw}
+                    look={look()}
+                    focused={listSel(rw.i)}
+                    shown={shownSel(rw.i)}
+                    onPointerOver={() => pointRow(rw.i, false)}
+                    onPointerClick={() => pointRow(rw.i, true)}
+                  />}</For>
             </view>
           </view>
           <ScreenHeader title={$L('Playlists')} count={countText()} look={look()} left={60} />
@@ -319,12 +344,21 @@ export default function PlaylistsScreen(props) {
               <text fontFamily={uiFont()} fontSize={21} x={342} y={detail().metaY} maxWidth={detail().infoW} maxLines={1} color={look().os(0.75)}>
                 {detail().meta}
               </text>
-              <HeroButtons x={342} y={detail().buttonsY} buttons={buttons} focus={bFocus()} look={look()} />
+              <HeroButtons x={342} y={detail().buttonsY} buttons={buttons} focus={bFocus()} look={look()} onPointerButton={pointButton} />
             </Show>
           </view>
           <view width={detailW} height={(detail() ? detail().tracksY : 0) + songLay().total + 999}>
             <Show when={st.songs}>
-              <MusicTrackList y={detail() ? detail().tracksY : 0} rows={songRows()} focus={sFocus()} w={detailW} look={look()} view={songView()} />
+              <MusicTrackList
+                y={detail() ? detail().tracksY : 0}
+                rows={songRows()}
+                focus={sFocus()}
+                w={detailW}
+                look={look()}
+                view={songView()}
+                onPointerTrack={(i, box) => pointSong(i, box, false)}
+                onPointerTrackClick={(i, box) => pointSong(i, box, true)}
+              />
             </Show>
           </view>
           <view width={detailW} height={(detail() ? detail().tracksY : 0) + songLay().total + 999}>

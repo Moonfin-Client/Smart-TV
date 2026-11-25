@@ -32,7 +32,7 @@ function Pill(props) {
     return b().primary ? look().onAccent : '#ffffffff'
   }
   return (
-    <view x={b().x} width={b().w} height={H}>
+    <view x={b().x} width={b().w} height={H} onPointerOver={props.onPointerOver} onPointerClick={props.onPointerClick}>
       <view width={b().w} height={H} borderRadius={26} color={fill()} />
       <view width={b().w} height={H} borderRadius={26} color={NONE} border={{ width: 3, color: hex(look().focus) }} alpha={props.focused ? 1 : 0} />
       <view x={b().round ? 15 : 24} y={15} width={22} height={22} src={'icons/' + b().icon + '.webp'} color={ink()} />
@@ -47,12 +47,24 @@ function Pill(props) {
   )
 }
 
-// The screen owns focus and passes `focus`, the focused button's index or -1.
+// The screen owns focus and passes `focus`, the focused button's index or -1. onPointerButton(i)
+// hears the Magic Remote's cursor on a button and onPointerButtonClick(i), when given, a click on
+// one (app/pointer.js).
 export default function HeroButtons(props) {
   const isFocused = createSelector(() => props.focus)
   return (
     <view x={props.x || 0} y={props.y || 0} width={heroButtonsWidth(props.buttons || [])} height={H}>
-      <For each={props.buttons}>{(btn) => <Pill btn={btn} look={props.look} focused={isFocused(btn.i)} />}</For>
+      <For each={props.buttons}>
+        {(btn) => (
+          <Pill
+            btn={btn}
+            look={props.look}
+            focused={isFocused(btn.i)}
+            onPointerOver={props.onPointerButton ? () => props.onPointerButton(btn.i) : undefined}
+            onPointerClick={props.onPointerButtonClick ? () => props.onPointerButtonClick(btn.i) : undefined}
+          />
+        )}
+      </For>
     </view>
   )
 }

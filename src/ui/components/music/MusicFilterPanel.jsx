@@ -62,7 +62,7 @@ function Row(props) {
   const r = () => props.row
   const ink = () => (props.focused || r().on ? look().onSurface : look().os(0.8))
   return (
-    <view x={PAD_X} y={r().y} width={414} height={OPTION_H}>
+    <view x={PAD_X} y={r().y} width={414} height={OPTION_H} onPointerOver={props.onPointerOver} onPointerClick={props.onPointerClick}>
       <view width={414} height={OPTION_H} borderRadius={8} color={look().os(0.1)} />
       <view width={414} height={OPTION_H} borderRadius={8} color={NONE} border={{ width: 1, color: hex(look().focus) }} alpha={props.focused ? 1 : 0} />
       <view
@@ -114,6 +114,19 @@ export default function MusicFilterPanel(props) {
     const next = cur() + d
     if (next < 0 || next >= lay().rows.length) return true
     setCur(next)
+    keepInView()
+    return true
+  }
+  // The Magic Remote's cursor (app/pointer.js): an option in full view takes focus on hover, one the
+  // panel would scroll to on a click, so it doesn't move under the cursor.
+  const pointRow = (i) => {
+    const row = lay().rows[i]
+    const top = row ? row.y - scroll() : 0
+    if (row && cur() !== i && top >= 0 && top + OPTION_H <= 1080) setCur(i)
+  }
+  const clickRow = (i) => {
+    if (!lay().rows[i]) return false
+    setCur(i)
     keepInView()
     return true
   }
@@ -181,7 +194,9 @@ export default function MusicFilterPanel(props) {
             <For each={lay().rules}>{(ru) => <view x={PAD_X} y={ru.y} width={380} height={1} color={look().os(0.1)} />}</For>
           </view>
           <view width={PANEL_W} height={Math.max(1080, lay().height)}>
-            <For each={lay().rows}>{(rw) => <Row row={rw} look={look()} focused={has() && cur() === rw.i} />}</For>
+            <For each={lay().rows}>
+              {(rw) => <Row row={rw} look={look()} focused={has() && cur() === rw.i} onPointerOver={() => pointRow(rw.i)} onPointerClick={() => clickRow(rw.i)} />}
+            </For>
           </view>
         </view>
       </view>

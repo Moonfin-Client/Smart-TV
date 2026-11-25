@@ -44,6 +44,7 @@ function RailItem(props) {
   return (
     <view x={12} y={it().y} width={224} height={it().h}>
       <view width={224} height={it().h} borderRadius={10} color={it().selected ? look().accent16 : NONE} />
+      <view width={224} height={it().h} onPointerOver={props.onPointerOver} onPointerClick={props.onPointerClick} />
       <view x={-3} y={-3} width={230} height={it().h + 6} borderRadius={13} color={NONE} border={{ width: 3, color: hex(look().focus) }} alpha={props.focused ? 1 : 0} />
       <view>
         <Show when={it().kind === 'item' && it().icon}>
@@ -247,6 +248,40 @@ export default function QuickAccessMusic(props) {
     xs[i] = keepInView(st.shelfX[i] || 0, x, x + SHELF_CARD, CONTENT_W, contentW - CONTENT_W)
     st.shelfX = xs
   }
+  // The Magic Remote's cursor (app/pointer.js). Focus scrolls the page to the focused section, so the
+  // filter button and the quick tiles take focus on hover only with the page at the top, and the
+  // Last Played tracks, the shelves' cards and See All ring and take it on a click. A rail item takes
+  // it on hover in full view, on a click when the rail would scroll to it.
+  const point = (fn) => {
+    my.landed = true
+    fn()
+    if (!st.active && root) root.setFocus()
+  }
+  const pointTop = (fn, click) => {
+    if (st.filterOn || (!click && st.scrollY !== 0)) return false
+    point(fn)
+    return click
+  }
+  const pointRail = (it, click) => {
+    const at = railStops().findIndex((r) => r.i === it.i)
+    if (st.filterOn || at < 0) return false
+    const top = it.y - st.railScroll
+    if (!click && (top < 0 || top + it.h > 1080 || (live() && st.zone === 'rail' && st.rcur === at))) return false
+    point(() => {
+      st.zone = 'rail'
+      st.rcur = at
+      keepRail()
+    })
+    return click
+  }
+  const pointSection = (node, set) => {
+    if (st.filterOn) return false
+    point(() => {
+      focusNode(node)
+      set()
+    })
+    return true
+  }
   const openFilter = () => {
     st.filterOn = true
     if (filterRef) filterRef.setFocus()
@@ -350,7 +385,14 @@ export default function QuickAccessMusic(props) {
     >
       <view width={RAIL_W} height={1080} color={look().os(0.03)} clipping>
         <view y={-st.railScroll} width={RAIL_W} height={Math.max(1080, railTotal())}>
-          <view x={24} y={16} width={60} height={60}>
+          <view
+            x={24}
+            y={16}
+            width={60}
+            height={60}
+            onPointerOver={() => pointRail(railStops()[0], false)}
+            onPointerClick={() => pointRail(railStops()[0], true)}
+          >
             <view x={-3} y={-3} width={66} height={66} borderRadius={33} color={NONE} border={{ width: 3, color: hex(look().focus) }} alpha={railSel(0) ? 1 : 0} />
             <view width={60} height={60} borderRadius={30} color="#00000059" />
             <view x={15} y={15} width={30} height={30} src="icons/nav_home.webp" />
@@ -358,7 +400,13 @@ export default function QuickAccessMusic(props) {
           <text fontFamily={fontFor(name(), 'bold')} fontSize={24} x={96} y={16 + lineY((60 - 33) / 2, 33, 24)} maxWidth={140} maxLines={1} color="#ffffffff">
             {name()}
           </text>
-          <For each={railRows()}>{(it) => <RailItem item={it} look={look()} focused={it.kind === 'item' && railSel(it.i)} />}</For>
+          <For each={railRows()}>{(it) => <RailItem
+                item={it}
+                look={look()}
+                focused={it.kind === 'item' && railSel(it.i)}
+                onPointerOver={() => it.kind === 'item' && pointRail(it, false)}
+                onPointerClick={() => it.kind === 'item' && pointRail(it, true)}
+              />}</For>
         </view>
       </view>
       <view x={RAIL_W} width={CONTENT_W} height={1080} clipping>
@@ -366,7 +414,14 @@ export default function QuickAccessMusic(props) {
           <text fontFamily={uiFont('bold')} fontSize={26} x={32} y={16 + lineY((40 - 33) / 2, 33, 26)} maxWidth={CONTENT_W - 64 - pillW() - 16} maxLines={1} color="#ffffffff">
             {title()}
           </text>
-          <view x={CONTENT_W - 32 - pillW()} y={16} width={pillW()} height={40}>
+          <view
+            x={CONTENT_W - 32 - pillW()}
+            y={16}
+            width={pillW()}
+            height={40}
+            onPointerOver={() => !(live() && st.zone === 'header') && pointTop(() => focusNode('header'), false)}
+            onPointerClick={() => pointTop(() => focusNode('header'), true)}
+          >
             <view x={-3} y={-3} width={pillW() + 6} height={46} borderRadius={23} color={NONE} border={{ width: 3, color: hex(look().focus) }} alpha={live() && st.zone === 'header' ? 1 : 0} />
             <view width={pillW()} height={40} borderRadius={20} color={look().os(0.08)} />
             <view x={16} y={11} width={18} height={18} src="icons/mus_filter.webp" />
@@ -377,7 +432,14 @@ export default function QuickAccessMusic(props) {
           <view y={layout().quickY} width={CONTENT_W} height={300}>
             <For each={tiles()}>
               {(tl) => (
-                <view x={tl.x} y={tl.y} width={QUICK_W} height={64}>
+                <view
+                  x={tl.x}
+                  y={tl.y}
+                  width={QUICK_W}
+                  height={64}
+                  onPointerOver={() => !quickSel(tl.i) && pointTop(() => (focusNode('quick'), (st.qcur = tl.i)), false)}
+                  onPointerClick={() => pointTop(() => (focusNode('quick'), (st.qcur = tl.i)), true)}
+                >
                   <view x={-3} y={-3} width={QUICK_W + 6} height={70} borderRadius={13} color={NONE} border={{ width: 3, color: hex(look().focus) }} alpha={quickSel(tl.i) ? 1 : 0} />
                   <view width={QUICK_W} height={64} borderRadius={10} color={look().os(0.08)} />
                   <view width={64} height={64} borderRadius={10} color={look().os(0.06)} />
@@ -411,7 +473,16 @@ export default function QuickAccessMusic(props) {
                 <text fontFamily={uiFont('bold')} fontSize={28} x={32} y={28 + 11.5 + 2.5} color={look().onSurface}>
                   {$L('Last Played')}
                 </text>
-                <MusicTrackList x={32} y={92} rows={lastRows()} focus={live() && st.zone === 'last' ? st.pcur : -1} w={1608} look={look()} />
+                <MusicTrackList
+                  x={32}
+                  y={92}
+                  rows={lastRows()}
+                  focus={live() && st.zone === 'last' ? st.pcur : -1}
+                  w={1608}
+                  look={look()}
+                  pointerTrackRing
+                  onPointerTrackClick={(i) => pointSection('last', () => (st.pcur = i))}
+                />
               </view>
             </Show>
           </view>
@@ -422,7 +493,13 @@ export default function QuickAccessMusic(props) {
                   <text fontFamily={sc.titleFont} fontSize={28} x={32} y={28 + 11.5 + 2.5} color={look().onSurface}>
                     {sc.title}
                   </text>
-                  <view x={1660 - seeAllW()} y={28 + 3.5} width={seeAllW()} height={49} alpha={sc.seeAll ? 1 : 0}>
+                  <view
+                    x={1660 - seeAllW()}
+                    y={28 + 3.5}
+                    width={seeAllW()}
+                    height={49}
+                    alpha={sc.seeAll ? 1 : 0}
+                  >
                     <view
                       x={-3}
                       y={-3}
@@ -436,6 +513,17 @@ export default function QuickAccessMusic(props) {
                     <text fontFamily={uiFont()} fontSize={18} x={12} y={14} color={look().os(0.7)}>
                       {$L('See All')}
                     </text>
+                    <view
+                      width={seeAllW()}
+                      height={49}
+                      pointerRing={16}
+                      onPointerClick={() =>
+                        sc.seeAll &&
+                        pointSection('row:' + sc.i, () => {
+                          st.zone = 'shelfAll'
+                        })
+                      }
+                    />
                   </view>
                   <MusicShelf
                     y={90}
@@ -445,6 +533,7 @@ export default function QuickAccessMusic(props) {
                     look={look()}
                     sx={st.shelfX[sc.i] || 0}
                     focus={live() && st.zone === 'shelf' && st.shelf === sc.i ? st.shelfCur[sc.i] || 0 : -1}
+                    onPointerCard={(idx) => pointSection('row:' + sc.i, () => setShelfCur(sc.i, idx))}
                   />
                 </view>
               )}

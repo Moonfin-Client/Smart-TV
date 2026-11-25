@@ -2,7 +2,7 @@ import $L from '../../../../services/i18n.js'
 import { For, Show, createMemo, createSelector, onCleanup } from 'solid-js'
 import MusicCard from '../MusicCard.jsx'
 import MusicTrackList, { trackRows, trackRowHeight } from '../MusicTrackList.jsx'
-import { ScreenHeader, headerHeight, layoutControls, cardSide, contentWidth, gridRows, rowIndexOf, gridMove, keepInView } from '../screenParts.jsx'
+import { ScreenHeader, pointerIn, wholeInView, headerHeight, layoutControls, cardSide, contentWidth, gridRows, rowIndexOf, gridMove, keepInView } from '../screenParts.jsx'
 import { uiFont } from '../../../text.js'
 import { reactive } from '../../../../state/reactive.js'
 import { api } from '../../../../services/jellyfinApi.js'
@@ -158,6 +158,16 @@ export default function FavoritesScreen(props) {
     st.scrollY = keepInView(st.scrollY, top, top + rowStep() - (st.tab === 'songs' ? 0 : 18), viewH, contentH() - viewH)
     if (r >= rows().length - 3) loadMore()
   }
+  // The Magic Remote's cursor (app/pointer.js): the header's stops take focus on hover, and an item
+  // too while in full view; one the grid would scroll to takes it on a click.
+  const point = pointerIn(st, my, props)
+  const pointItem = (i, click) => {
+    const top = 24 + rowIndexOf(rows(), i) * rowStep()
+    const bottom = top + rowStep() - (st.tab === 'songs' ? 0 : 18)
+    if (!click && (!wholeInView(st.scrollY, VIEW_H - headerH(), top, bottom) || (st.active && st.zone === 'grid' && st.cur === i))) return false
+    point(() => focusIndex(i))
+    return click
+  }
   const move = (direction) => {
     const next = gridMove(rows(), rowIndexOf(rows(), st.cur), st.cur, direction)
     if (next != null) focusIndex(next)
@@ -264,6 +274,8 @@ export default function FavoritesScreen(props) {
                   size={side()}
                   look={look()}
                   focused={gridSel(c.idx)}
+                  onPointerOver={() => pointItem(c.idx, false)}
+                  onPointerClick={() => pointItem(c.idx, true)}
                 />
               )}
             </For>
@@ -279,6 +291,8 @@ export default function FavoritesScreen(props) {
                 columns={2}
                 look={look()}
                 view={[st.scrollY - 24 - MARGIN, st.scrollY - 24 + VIEW_H + MARGIN]}
+                onPointerTrack={(i) => pointItem(i, false)}
+                onPointerTrackClick={(i) => pointItem(i, true)}
               />
             </Show>
           </view>
@@ -291,7 +305,19 @@ export default function FavoritesScreen(props) {
           </Show>
         </view>
       </view>
-      <ScreenHeader title={$L('Favorites')} controls={controls()} extra={extra()} focus={st.active && st.zone === 'header' ? st.hcur : -1} look={look()} />
+      <ScreenHeader
+        title={$L('Favorites')}
+        controls={controls()}
+        extra={extra()}
+        focus={st.active && st.zone === 'header' ? st.hcur : -1}
+        look={look()}
+        onPointerStop={(i) =>
+          point(() => {
+            st.zone = 'header'
+            st.hcur = i
+          })
+        }
+      />
     </view>
   )
 }
