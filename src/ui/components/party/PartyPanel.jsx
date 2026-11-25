@@ -4,13 +4,14 @@ import Keyboard from '../Keyboard.jsx'
 import PartyPaint from './PartyPaint.jsx'
 import { openNativeInput, usesNativeKeyboard } from '../account/nativeInput.js'
 import { watchParty, formatRoomCode } from '../../../services/siloWatchParty.js'
-import { createSheet } from '../../../pages/WatchParty/sheet.js'
+import { createSheet, partyLook } from '../../../pages/WatchParty/sheet.js'
 import { partyPeople } from '../../../pages/WatchParty/views.js'
 import { spotlightMove } from './spotlight.js'
 import { scrollFor } from './sheetMath.js'
 import { fontsReady } from './measure.js'
 import { fontsReady as textFontsReady } from '../library/measure.js'
 import { getStore } from '../../../state/store.js'
+import { theme } from '../../theme.js'
 
 // The player's "Your watch party" panel: the screen dimmed, and down the right a 660px column padded
 // 48 by 40 with the title, the room code, and the same people, host settings, Leave and End as the
@@ -35,9 +36,9 @@ export default function PartyPanel(props) {
 
   // In the panel's own coordinates, padding included, since the whole column scrolls.
   const layout = (room, busy) => {
-    const s = createSheet(my.focus)
+    const s = createSheet(my.focus, partyLook(theme()))
     s.text('title', PAD_X, PAD_Y, $L('Your watch party'), { size: 32, weight: 500, lh: 33 })
-    s.text('sub', PAD_X, PAD_Y + 33 + 6, $L('Room code {code}').replace('{code}', formatRoomCode(room.code)), { size: 21, color: '#a8a8a8', lh: 33 })
+    s.text('sub', PAD_X, PAD_Y + 33 + 6, $L('Room code {code}').replace('{code}', formatRoomCode(room.code)), { size: 21, color: s.look.os(0.66), lh: 33 })
     const h = partyPeople(s, PAD_X, PEOPLE_Y, 660, {
       room,
       busy,
@@ -193,7 +194,7 @@ export default function PartyPanel(props) {
       }}
     >
       <view width={1920} height={1080} color="#00000066" />
-      <view x={PANEL_X} width={740} height={1080} color="#1a1a1a" clipping>
+      <view x={PANEL_X} width={740} height={1080} color={theme().surface.slice(0, 7) + 'ff'} clipping>
         <view y={-scrollY()} width={740} height={contentH()}>
           <PartyPaint paint={paint()} />
         </view>
