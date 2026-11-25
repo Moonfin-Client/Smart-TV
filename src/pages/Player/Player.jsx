@@ -792,8 +792,11 @@ export default function Player(props) {
   // Silo replans the session at a title position and the stream opens there. Rejects when it couldn't.
   // A paused stream stays paused in its new place.
   async function reopenSiloAt(sec) {
+    const mine = my.startGen
     const wasPaused = engine.isPaused()
     const info = await playback.reanchorAt(Math.floor(sec * TICKS))
+    // The player moved to another item while Silo answered, and this stream isn't that item's.
+    if (mine !== my.startGen || gone) return
     if (!info || !info.url) throw new Error('Silo gave no stream to reopen')
     my.pos = sec
     await restart(info, sec, wasPaused ? { ...keptTracks(info), hold: true } : undefined)
