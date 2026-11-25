@@ -3414,5 +3414,21 @@
     "Merge Libraries by Type": "Fusiona les biblioteques per tipus",
     "Show every server's movie libraries as one Movies library and their show libraries as one TV Shows library, with a title several servers hold listed once": "Mostra les biblioteques de pel·lícules de tots els servidors com una sola biblioteca de pel·lícules i les de sèries com una sola biblioteca de sèries. Un títol que tinguin diversos servidors només apareix una vegada",
     "{percent}% watched": "{percent}% vist",
-    "On {count} servers": "A {count} servidors"
+    "On {count} servers": "A {count} servidors",
+    "Glide between rows and cards instead of jumping.": "Llisca entre files i targetes en lloc de saltar.",
+    "Top Bar Style": "Estil de la barra superior",
+    "Sidebar Style": "Estil de la barra lateral",
+    "Tabline": "Tabline",
+    "Atlas": "Atlas",
+    "Reel": "Bobina",
+    "Mosaic": "Mosaic",
+    "The standard bar": "La barra estàndard",
+    "Text tabs with an underline, no pill": "Pestanyes de text amb un subratllat, sense píndola",
+    "Tabs open a panel with shortcuts and artwork": "Les pestanyes obren un panell amb dreceres i il·lustracions",
+    "The standard sidebar": "La barra lateral estàndard",
+    "A wheel that turns through the destinations": "Una roda que gira entre les destinacions",
+    "A panel of tiles with library artwork": "Un panell de requadres amb il·lustracions de les biblioteques",
+    "Browse all": "Explora-ho tot",
+    "Continue in {section}": "Continua a {section}",
+    "Featured: {title}": "Destacat: {title}"
 }
