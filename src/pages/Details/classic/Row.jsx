@@ -8,6 +8,7 @@ import { glowShadow } from '../../../ui/theme.js'
 import { holdPress } from '../../../utils/longPress.js'
 import { rowScroll } from './scroll.js'
 import { tx } from '../../../ui/fx.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // One of Classic's sections from sections.js: its heading and its cards in a lane that scrolls
 // sideways. Only cards near the lane's view are built.
@@ -137,6 +138,7 @@ export default function ClassicRow(props) {
     const c = current()
     if (c) setScroll(rowScroll.toShow(props.row, scroll(), c))
   }
+  let self
   const move = (d) => {
     const next = cur() + d
     if (next < 0 || next >= cells().length) return false
@@ -524,6 +526,7 @@ export default function ClassicRow(props) {
   return (
     <view
       ref={(n) => {
+        self = n
         n.current = current
         n.focusEntry = () => {
           const row = props.row
@@ -587,7 +590,20 @@ export default function ClassicRow(props) {
       </text>
       <view x={r().clipX} y={r().cardsY - (r().clipPad || 0)} width={r().clipW || 1920} height={clipH()} clipping={r().mode !== 'none'}>
         <view transition={tx(r().mode === 'glide' ? GLIDE : STILL)} x={-r().clipX - scroll()} y={r().clipPad || 0} width={laneW()} height={clipH()}>
-          <view width={laneW()} height={clipH()}>
+          <view
+            width={laneW()}
+            height={clipH()}
+            // The row slides to its focused card, so the Magic Remote's cursor rings a card and a click
+            // focuses it and opens it (app/pointer.js).
+            pointerChildRing
+            onPointerChildClick={(i) => {
+              const c = at(shownKeys()[i])
+              if (!c) return false
+              pointerFocus(self)
+              if (c.idx !== cur()) move(c.idx - cur())
+              return true
+            }}
+          >
             <Switch>
               <Match when={kind() === 'cast'}>{cellsOf(CastCell)}</Match>
               <Match when={kind() === 'season'}>{cellsOf(SeasonCell)}</Match>

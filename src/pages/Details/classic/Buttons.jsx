@@ -7,6 +7,7 @@ import { byKey } from '../../../ui/components/details/keyed.js'
 import { holdPress } from '../../../utils/longPress.js'
 import { clip } from './layout.js'
 import { plumbIndex } from './scroll.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // Classic's action tiles: a rounded square with an icon, the label under it and a detail line for
 // the pickers. Focus fills the square, scales it to 1.1 and rings it.
@@ -74,6 +75,7 @@ export default function ClassicButtons(props) {
     else if (b.x + 157 - s > lane.x + lane.w) s += b.x + 157 - s - (lane.x + lane.w) + 50
     setShift(Math.max(0, Math.min(max, s)))
   }
+  let self
   const move = (d) => {
     const b = current()
     const next = placed()[cur() + d]
@@ -88,6 +90,7 @@ export default function ClassicButtons(props) {
   return (
     <view
       ref={(n) => {
+        self = n
         n.current = current
         n.selectFirst = () => {
           setCur(0)
@@ -144,7 +147,20 @@ export default function ClassicButtons(props) {
       }}
     >
       <view x={-box().x - shift()} y={-box().y} width={spanW()} height={box().y + box().h}>
-        <view width={spanW()} height={box().y + box().h}>
+        <view
+          width={spanW()}
+          height={box().y + box().h}
+          // The Magic Remote's cursor focuses the button under it, and OK then presses it (app/pointer.js).
+          onPointerChildOver={(i) => {
+            const b = tiles.at(tiles.keys()[i])
+            if (!b) return
+            pointerFocus(self)
+            if (b.i !== cur()) {
+              setCur(b.i)
+              reveal()
+            }
+          }}
+        >
           <For each={tiles.keys()}>
             {(k) => {
               const b = () => tiles.at(k)

@@ -533,6 +533,27 @@ export default function Classic(props) {
   return (
     <view
       ref={(n) => (root = n)}
+      // The zone the Magic Remote's cursor focuses becomes the current one (app/pointer.js).
+      onPointerFocus={(n) => {
+        const nodeOf = (z) => {
+          if (z.kind === 'overview') return refs.overview
+          if (z.kind === 'actions') return refs.buttons
+          if (z.kind === 'pills') return refs[z.ref]
+          if (z.kind === 'row') {
+            const r = untrack(rows)[z.i]
+            return r ? rowRefs[r.k] : null
+          }
+          return null
+        }
+        const zones = m.zones || []
+        for (let p = n; p; p = p.parent) {
+          const at = zones.findIndex((z) => nodeOf(z) === p)
+          if (at < 0) continue
+          if (m.z !== at || activeElement() === root) focusAt(at)
+          return true
+        }
+        return false
+      }}
       width={1920}
       height={1080}
       onFocusChanged={(has) => !has && setPersonOvFocus(false)}

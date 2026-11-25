@@ -755,6 +755,17 @@ export default function Nouveau(props) {
   return (
     <view
       ref={(n) => (root = n)}
+      // The part the Magic Remote's cursor focuses becomes the focused node (app/pointer.js).
+      onPointerFocus={(n) => {
+        for (let p = n; p; p = p.parent) {
+          let to = p === actionsRef ? HERO : p === seasonsRef ? SEASONS : ''
+          if (!to) to = Object.keys(railRefs).find((k) => railRefs[k] === p) || ''
+          if (!to) continue
+          if (untrack(zone) !== to || activeElement() === root) focusNode(to)
+          return true
+        }
+        return false
+      }}
       width={1920}
       height={1080}
       onFocusChanged={setHas}
