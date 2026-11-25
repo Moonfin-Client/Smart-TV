@@ -779,7 +779,7 @@
     "Show Movies, Series, or both in Genres rows.": "Rodyti filmus, serialus arba abu žanrų eilutėse.",
     "Show title and metadata when browsing home rows": "Rodyti pavadinimą ir metaduomenis naršant pagrindines eilutes",
     "Sort Audio rows by date added, release date, alphabetically, and more.": "Rikiuokite garso eilutes pagal pridėjimo datą, išleidimo datą, abėcėlę ir kitus kriterijus.",
-    "Sort Collections rows by date added, release date, alphabetically, and more.": "Rūšiuoti kolekcijų eilutes pagal pridėjimo datą, išleidimo datą, abėcėlės tvarka ir kt.",
+    "Sort Collections rows by date added, release date, alphabetically, and more.": "Rūšiuoti kolekcijų eilutes pagal pridėjimo datą, išleidimo datą, abėcėlės tvarką ir kt.",
     "Sort Favorites rows by date added, release date, alphabetically, and more.": "Rūšiuoti parankinių eilutes pagal pridėjimo datą, išleidimo datą, abėcėlės tvarka ir kt.",
     "Sort Genres rows by date added, release date, alphabetically, and more.": "Rūšiuoti žanrų eilutes pagal pridėjimo datą, išleidimo datą, abėcėlės tvarka ir kt.",
     "Sort Playlist rows by date added, release date, alphabetically, and more.": "Rikiuokite grojaraščių eilutes pagal pridėjimo datą, išleidimo datą, abėcėlę ir kitus kriterijus.",
@@ -1214,5 +1214,8 @@
     "No Books Found": "Knygų nerasta",
     "Search using OpenSubtitles": "Ieškoti naudojant OpenSubtitles",
     "How a movie or show looks when you open it.": "Kaip filmas ar serialas atrodo, kai jį atidarote.",
-    "Peek Home Rows": "Pradinio ekrano eilučių užuomina"
+    "Peek Home Rows": "Pradinio ekrano eilučių užuomina",
+    "Row Options": "Eilučių parinktys",
+    "Row Padding": "Eilučių paraštės",
+    "Rows": "Eilutės"
 }
