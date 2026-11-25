@@ -630,6 +630,11 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		const subtitle = siloSubtitleCombinedIndex(file.source, body.SubtitleStreamIndex);
 		const startBody = ({installationId, features}) => {
 			const caps = siloCapabilitiesFromDeviceProfile(body.DeviceProfile || {}, siloTraitsFor(platform), features, file.source?.Container);
+			// The player's fallback starts a new session with direct play off, after the original file failed to play
+			// here. Without this Silo plans the same original file again.
+			if (body.EnableDirectPlay === false && caps.deliveries?.original_http) {
+				caps.deliveries.original_http = {...caps.deliveries.original_http, enabled: false};
+			}
 			const context = siloPlaybackContext({platform, appVersion: getDeviceInfo().appVersion, capabilities: caps});
 			return {
 				protocol_version: 3,
