@@ -112,6 +112,12 @@ const clientSideSort = (arr, key) => {
   })
 }
 
+// The grid's columns span 1832px from x=44, so a card's box starts at 48 and ends at 1872, in line
+// with the tabs and the focused item's info. The clipping view around them reaches 24px further each
+// side, room for the focus zoom of the first and last columns.
+const GRID_X = 24
+const GRID_W = 1832
+
 // Favorites' sort sheet is roomier than Genres', and the options it isn't on are dimmer.
 const FAV_SHEET = { titleGap: 32, labelGap: 16, radioH: 54, restInk: '#ffffffcc' }
 
@@ -362,7 +368,7 @@ export default function Favorites(props) {
     batch(() => {
       const type = cardType()
       const m = cardMetrics(type, my.size)
-      const g = virtualGridLayout(1880, m.itemSize.minWidth, m.itemSize.minHeight, 20)
+      const g = virtualGridLayout(GRID_W, m.itemSize.minWidth, m.itemSize.minHeight, 20)
       const s = untrack(() => settings.all())
       const showText = s.libraryCardTitles !== false
       const detailed = s.useDetailedSubHeadings !== false
@@ -716,29 +722,31 @@ export default function Favorites(props) {
         <Show when={gridKey()} keyed>
           {() => (
             <Kept gone={() => (grid = null)}>
-              <Grid
-                ref={(n) => (grid = n)}
-                items={st.cards}
-                tile={FavoriteTile}
-                cols={st.cols}
-                tileW={st.tileW}
-                tileH={st.tileH}
-                gap={20}
-                viewH={st.viewH}
-                viewW={1880}
-                opts={st.opts}
-                horizontal={st.horizontal}
-                slideMs={st.opts.slide}
-                onGridFocus={(card) => {
-                  my.focusedCard = card.raw
-                  showFocused(card.raw)
-                }}
-                onGridEnd={() => {
-                  if (st.home) loadMoreTab()
-                  else if (my.listFetched < my.total) loadList(my.listFetched)
-                }}
-                onGridSelect={onGridSelect}
-              />
+              <view x={GRID_X} width={GRID_W} height={st.viewH}>
+                <Grid
+                  ref={(n) => (grid = n)}
+                  items={st.cards}
+                  tile={FavoriteTile}
+                  cols={st.cols}
+                  tileW={st.tileW}
+                  tileH={st.tileH}
+                  gap={20}
+                  viewH={st.viewH}
+                  viewW={GRID_W}
+                  opts={st.opts}
+                  horizontal={st.horizontal}
+                  slideMs={st.opts.slide}
+                  onGridFocus={(card) => {
+                    my.focusedCard = card.raw
+                    showFocused(card.raw)
+                  }}
+                  onGridEnd={() => {
+                    if (st.home) loadMoreTab()
+                    else if (my.listFetched < my.total) loadList(my.listFetched)
+                  }}
+                  onGridSelect={onGridSelect}
+                />
+              </view>
             </Kept>
           )}
         </Show>
