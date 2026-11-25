@@ -64,7 +64,8 @@ export default function Requests(props) {
   const [answers, setAnswers] = createSignal({})
   const [loading, setLoading] = createSignal(true)
   const [error, setError] = createSignal('')
-  const [authed, setAuthed] = createSignal(true)
+  // null until checkSeerr answers, so neither the spinner nor the configure message shows early.
+  const [authed, setAuthed] = createSignal(null)
   const [counts, setCounts] = createSignal({ pending: 0, open: 0 })
   const [perms, setPerms] = createSignal(null)
   const [me, setMe] = createSignal(null)
@@ -215,8 +216,11 @@ export default function Requests(props) {
   const contentH = () => Math.max(listH(), Math.ceil(items().length / (view() === 'requests' ? GRID.cols : 1)) * stepY() + 24)
   // Where the list's message, spinner or error sits: the middle of what's under the chips.
   const midY = () => listTop() + listH() / 2
+  // The spinner keeps the middle it has before any count badge makes the tabs taller: the counts
+  // land while it spins, and a moving midY made it jump onto a half pixel.
+  const spinMidY = 180 + 59 + 91 + (1080 - 180 - 59 - 91) / 2
   const message = () => {
-    if (!authed()) return $L('Please configure Seerr in Settings')
+    if (authed() === false) return $L('Please configure Seerr in Settings')
     if (loading() || error() || items().length) return ''
     return view() === 'requests' ? $L('No requests found') : $L('No issues found')
   }
@@ -405,6 +409,7 @@ export default function Requests(props) {
       })
       return
     }
+    setAuthed(true)
     if (seerr.user && seerr.user.seerrUserId != null) setMe(seerr.user.seerrUserId)
     // The status call claims every permission when it leaves them out, so admin actions gate on
     // the real /auth/me answer.
@@ -687,8 +692,8 @@ export default function Requests(props) {
 
       <view>
         <Show when={spinning()}>
-          <Spinner x={924} y={midY() - 139} size={72} />
-          <text x={960} y={midY() - 42.5 + shifts.loading} mountX={0.5} fontFamily={loadingFont} fontSize={30} lineHeight={33} color="#e6e6e6ff">
+          <Spinner x={924} y={spinMidY - 139} size={72} />
+          <text x={960} y={spinMidY - 42.5 + shifts.loading} mountX={0.5} fontFamily={loadingFont} fontSize={30} lineHeight={33} color="#e6e6e6ff">
             {loadingLabel}
           </text>
         </Show>
