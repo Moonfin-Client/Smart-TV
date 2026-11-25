@@ -2240,6 +2240,7 @@ export default function Login(props) {
         </text>
         <ProfileCarousel
           ref={(n) => (carousel = n)}
+          onPointerFace={() => s.focusId !== 'carousel' && focusOn('carousel')}
           y={uLay().carouselY}
           items={carouselItems()}
           colors={COLORS}
@@ -2288,7 +2289,7 @@ export default function Login(props) {
         >
           {s.error || ' '}
         </text>
-        <PillRow ref={(n) => (pills = n)} y={943.13} pills={USER_PILLS} colors={COLORS} onPill={onPill} />
+        <PillRow ref={(n) => (pills = n)} y={943.13} pills={USER_PILLS} colors={COLORS} onPill={onPill} onPointerPill={(id) => over(id)()} />
       </view>
 
       <view alpha={dlg().indexOf('add:') === 0 ? 1 : 0} width={1920} height={1080} color="#05071099">

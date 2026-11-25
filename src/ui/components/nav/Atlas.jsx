@@ -2,6 +2,7 @@ import { For, Show, createMemo, createSignal } from 'solid-js'
 import { uiFont, fontFor, textWidth, faceDy, themeSpacing } from '../../text.js'
 import { theme, rgba } from '../../theme.js'
 import { focusActivePage } from '../../../state/pages.js'
+import { focusNav } from '../../../app/focus.js'
 import * as settings from '../../../state/settings.js'
 import { getStore } from '../../../state/store.js'
 import { router } from '../../../app/router.js'
@@ -214,10 +215,26 @@ export default function Atlas(props) {
     }
     return true
   }
+  // The Magic Remote's cursor focuses the bar and the tab under it, and OK then opens it
+  // (app/pointer.js).
+  let pointIn = -1
+  const point = (i) => {
+    if (!open()) {
+      pointIn = i
+      if (!focusNav()) pointIn = -1
+      return
+    }
+    if (zone() !== 'bar') setZone('bar')
+    if (cur() !== i) {
+      setCur(i)
+      followFocus()
+    }
+  }
   const onFocusChanged = (has) => {
     if (has) {
-      // The bar always enters on Home.
-      setCur(1)
+      // The bar always enters on Home (or on the tab under the Magic Remote's cursor).
+      setCur(pointIn >= 0 ? pointIn : 1)
+      pointIn = -1
       setZone('bar')
       setOpen(true)
       keepInView()
@@ -325,13 +342,13 @@ export default function Atlas(props) {
       </view>
       <view width={1920} height={96} color={barFill()} />
       <view y={95} width={1920} height={1} color={barLine()} />
-      <NavAvatar ref={(n) => (nodes.user = n)} x={74} y={12} focused={barFocus() && cur() === 0} opacity={userOpacity(tried())} />
+      <NavAvatar ref={(n) => ((nodes.user = n), (n.onPointerOver = () => point(0)))} x={74} y={12} focused={barFocus() && cur() === 0} opacity={userOpacity(tried())} />
       <view x={190} width={tabsW()} height={96} clipping>
         <view x={-scroll()} width={tabsTotal()} height={96}>
           <For each={tabKeys()}>
             {(k) => (
               <AtlasTab
-                ref={(n) => (nodes[k] = n)}
+                ref={(n) => ((nodes[k] = n), (n.onPointerOver = () => point(tab(k).i)))}
                 x={tab(k).x}
                 tab={tab(k)}
                 w={tab(k).w}
@@ -353,7 +370,7 @@ export default function Atlas(props) {
       >
         {clock()}
       </text>
-      <view ref={(n) => (nodes.settings = n)} x={1806} y={21} width={54} height={54}>
+      <view ref={(n) => ((nodes.settings = n), (n.onPointerOver = () => point(settingsIndex())))} x={1806} y={21} width={54} height={54}>
         <view width={54} height={54} borderRadius={27} color="#ffffffff" alpha={settingsOn() ? 1 : 0} />
         <view x={9} y={9} width={36} height={36} src="icons/nav_settings.webp" color={settingsOn() ? '#101010ff' : '#ffffffcc'} />
       </view>
