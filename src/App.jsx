@@ -204,6 +204,8 @@ const Shell = (props) => {
         // logout moves to the next saved account when there is one.
         await auth.logout()
         if (store.authenticated) return resumeAs()
+      } else if (action === 'signOutAll') {
+        await auth.signOutAll()
       }
       router.to('/login', {}, { inHistory: false })
     },

@@ -408,12 +408,13 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 			return openLogin(pair);
 		},
 
-		// Ends the login on Silo too, so its refresh token dies with it. Signed out here whatever Silo answers.
+		// Ends the login on Silo too, so its refresh token dies with it. Signed out here whatever Silo answers. No refresh
+		// first: a 401 there would end the session mid sign-out and send the app to sign-in.
 		logout: async () => {
 			const current = session();
 			if (!current) return;
 			try {
-				await call('/api/v2/auth/logout', {method: 'POST', profile: false});
+				await call('/api/v2/auth/logout', {method: 'POST', profile: false, refresh: false});
 			} catch (err) {
 				if (err.status !== 401) console.warn('[Silo] Sign-out failed on the server:', err);
 			} finally {
