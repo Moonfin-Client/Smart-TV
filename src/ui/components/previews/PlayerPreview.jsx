@@ -34,8 +34,6 @@ const SAMPLE_OSD = {
   isLive: false, nextEpisode: true, audioCount: 2, subtitleCount: 1, chapterCount: SAMPLE_CHAPTERS.length, canDownload: true,
   hasCast: true, selectedQuality: null, sleepOn: false, canBrowseEpisodes: true, isFavorite: false, canFavorite: true, inParty: false,
 }
-// The active scrub tile's box-shadow: 0 0 16px of the accent at 0.5.
-const TILE_GLOW = { color: shadowColor('#00a4dc80'), blur: 16 }
 const NO_GLOW = { x: 0, y: 0, w: 0, h: 0, r: 0, shadow: undefined }
 const DESC_SHADE = () => gradientUrl({ w: 960, h: 540, angle: 90, stops: [['#000000d9', 0], ['#0000004d', 1]] })
 
@@ -92,7 +90,8 @@ export default function PlayerPreview(props) {
   const osdFocus = () => (controlsOn() ? m().focus || '' : '')
   // The bar keeps the player's own colors under every theme, and its thumb turns white without the
   // focus scale while the bar holds the remote.
-  const barColors = createMemo(() => ({ track: '#404040ff', fill: '#00a4dcff', thumb: osdFocus() === 'progress' ? '#ffffffff' : '#00a4dcff' }))
+  // The seek bar in the previewed theme's range colors, as the player draws it.
+  const barColors = createMemo(() => ({ track: props.t.rangeTrack, fill: props.t.rangeProgress, thumb: osdFocus() === 'progress' ? '#ffffffff' : props.t.rangeThumb }))
   const head = createMemo(
     () => {
       const it = item()
@@ -184,7 +183,8 @@ export default function PlayerPreview(props) {
     const tiles = plan.slots.map((slot, i) => {
       if (i > 0) x += 4
       const active = slot.slotIndex === 0
-      const glow = active ? cssShadow(plan.tileWidth, plan.tileHeight, 8, { ...TILE_GLOW, x: 0, y: 0, spread: 0 }) : NO_GLOW
+      // The active scrub tile's box-shadow: 0 0 16px of the accent at 0.5, as in the player.
+      const glow = active ? cssShadow(plan.tileWidth, plan.tileHeight, 8, { color: shadowColor(props.t.accentA(0.5)), blur: 16, x: 0, y: 0, spread: 0 }) : NO_GLOW
       const out = { k: 't' + slot.slotIndex, x, y, w: plan.tileWidth, h: plan.tileHeight, active, glow, empty: slot.targetMs === null, ...fakeTile(slot.targetMs === null ? 0 : step(slot.targetMs), plan.tileWidth, plan.tileHeight, false) }
       x += plan.tileWidth
       return out
@@ -286,7 +286,7 @@ export default function PlayerPreview(props) {
               <text fontFamily={bold} fontSize={12} lineHeight={14} x={tl.w - 3} mountX={1} y={tl.h - 15} color="#ffffffb3">
                 {tl.index}
               </text>
-              <view width={tl.w} height={tl.h} borderRadius={8} color="#00000000" border={{ width: tl.active ? 2 : 1, color: hex(tl.active ? '#00a4dcff' : props.t.onSurfaceA(0.2)) }} />
+              <view width={tl.w} height={tl.h} borderRadius={8} color="#00000000" border={{ width: tl.active ? 2 : 1, color: hex(tl.active ? props.t.focusBorderColor : props.t.onSurfaceA(0.2)) }} />
             </view>
           )}
         </For>
