@@ -195,8 +195,14 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 	const resolution = maxResolution(codecProfiles);
 	const byCodecSupported = Array.isArray(serverFeatures) && serverFeatures.includes('codec_channel_ceilings_v1');
 
-	const delivery = ({supported, containers: kinds, scope = kinds, video, audio, subtitles, claims = [], features = [], failureReason}) => {
+	// The HLS transcoding profile's MaxAudioChannels caps what the server may copy or encode into the stream (Tizen 6,
+	// webOS without native HLS 2). Silo reads no max_channels as no cap, so it would copy 7.1 into HLS.
+	const hlsChannelCaps = hlsProfiles.map((p) => parseInt(p.MaxAudioChannels, 10)).filter((n) => n > 0 && n <= 64);
+	const hlsMaxChannels = hlsChannelCaps.length ? Math.min(...hlsChannelCaps) : null;
+
+	const delivery = ({supported, containers: kinds, scope = kinds, video, audio, subtitles, claims = [], features = [], failureReason, maxChannels = null}) => {
 		const channels = channelLimits(codecProfiles, scope, byCodecSupported);
+		const ceiling = Math.min(channels.limits.max_channels ?? Infinity, maxChannels ?? Infinity);
 		// An empty list would read as every codec.
 		const playable = audio.filter((codec) => !channels.unplayable.includes(codec));
 		return {
@@ -208,6 +214,7 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 			audio_decode_codecs: playable.length ? playable : audio,
 			audio_passthrough_codecs: [],
 			...channels.limits,
+			...(Number.isFinite(ceiling) ? {max_channels: ceiling} : null),
 			subtitles,
 			features,
 			auth_header_refresh: false,
@@ -268,7 +275,8 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 				video: hlsVideo,
 				audio: hlsAudio.length ? hlsAudio : ['aac'],
 				subtitles: sidecarSubtitles,
-				features: traits.playsHlsNatively ? ['native_hls_playback_v1'] : []
+				features: traits.playsHlsNatively ? ['native_hls_playback_v1'] : [],
+				maxChannels: hlsMaxChannels
 			})
 		},
 		clientFeatures: ['playback_plan_v3', ...(traits.rendersEmbeddedSubtitles ? ['embedded_subtitles_v1'] : [])]
