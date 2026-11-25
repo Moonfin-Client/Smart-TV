@@ -62,13 +62,13 @@ jobs:
                 return [];
               }
             };
-            // A cancelled run has no results to show, so it counts as not
+            // A canceled run has no results to show, so it counts as not
             // finished yet.
             const finished = (r) => r.conclusion === 'success' || r.conclusion === 'failure';
             const checksRun = run.name === 'Checks' ? run : (await latestRuns('checks.yml', 'completed')).find(finished);
             const buildRun = run.name === 'Build' ? run : (await latestRuns('build.yml', 'completed')).find(finished);
             const coverageRun = (await latestRuns('coverage.yml'))[0] || (run.name === 'Coverage' ? run : undefined);
-            // A cancelled run left nothing, and a newer push replaces it.
+            // A canceled run left nothing, and a newer push replaces it.
             core.setOutput('coverage_state', !coverageRun ? ''
               : coverageRun.status !== 'completed' ? 'running'
               : finished(coverageRun) ? 'done' : 'unfinished');
@@ -205,7 +205,7 @@ jobs:
 
             const rows = [
               { platform: 'webOS', job: 'webos', artifact: 'webos', files: 'Moonfin_webOS_*.ipk' },
-              { platform: 'Tizen', job: 'tizen', artifact: 'tizen', files: 'Moonfin_Tizen_*.wgt (Regular, Oblong, Legacy)' },
+              { platform: 'Tizen', job: 'tizen', artifact: 'tizen', files: 'Moonfin_Tizen_*.wgt (Regular, Oblong)' },
               { platform: 'Vega',  job: 'vega',  artifact: 'vega',  files: 'Moonfin_Vega_*.vpkg' },
               { platform: 'Xbox',  job: 'xbox',  artifact: 'xbox',  files: 'Moonfin_Xbox_*.zip' },
             ];
@@ -229,7 +229,7 @@ jobs:
             const statuses = rows.map(statusOf);
             const buildsPassed = Boolean(buildRunId) && statuses.every(s => s === 'success');
             const buildResultsMissing = Boolean(buildRunId) && !outcomes;
-            const lintClean = lint?.eslint === 'success' && lint?.css === 'success';
+            const lintClean = lint?.es5 === 'success';
             const checksPassed = checks === 'success' && Boolean(tests) && lintClean;
             const passed = buildsPassed && checksPassed;
 
@@ -261,18 +261,15 @@ jobs:
               } else if (lintClean) {
                 testLines.push('**Lint** ✅ clean');
               } else {
-                // Skipped means the install failed before lint could run.
-                const what = [
-                  lint.eslint === 'failure' && 'enact lint found problems, marked in Files changed',
-                  lint.eslint !== 'success' && lint.eslint !== 'failure' && 'enact lint did not run, see the Checks run',
-                  lint.css !== 'success' && 'the CSS check found rules the oldest TVs drop, see the Checks run',
-                ].filter(Boolean);
-                testLines.push(`**Lint** ❌ ${what.join(', and ')}`);
+                // Skipped means the install or the legacy build failed first.
+                testLines.push(lint.es5 === 'failure'
+                  ? "**Lint** ❌ the legacy bundles have code the oldest TVs can't parse, see the Checks run"
+                  : '**Lint** ❌ the legacy bundle check did not run, see the Checks run');
               }
             }
 
-            // How many of the lines the pull request changed under
-            // packages/app/src some test runs, from the Coverage workflow.
+            // How many of the lines the pull request changed in src's plain
+            // modules some check runs, from the Coverage workflow.
             // Nothing shows on a branch from before it existed, or when no app
             // source changed. It never changes the headline.
             const coverageState = process.env.COVERAGE_STATE;
@@ -282,7 +279,7 @@ jobs:
             if (coverageState === 'running') {
               coverageLines.push('**Coverage** ⏳ running, this comment updates when it finishes');
             } else if (coverageState === 'unfinished') {
-              coverageLines.push('**Coverage** ⚠️ the run was cancelled before it finished');
+              coverageLines.push('**Coverage** ⚠️ the run was canceled before it finished');
             } else if (coverageState === 'done' && (!coverage || coverageStatus === 'error')) {
               coverageLines.push('**Coverage** ⚠️ did not run, see the Coverage run log');
             } else if (coverageStatus === 'ok') {
@@ -295,7 +292,7 @@ jobs:
               // coverage.
               const partial = coverage.partial === 'stopped' || coverage.partial === 'lost';
               const failing = clamp(coverage.tests_failed) > 0;
-              // 🟢 from 75% of the measurable changed lines, 🔴 under 25%.
+              // Green from 75% of the measurable changed lines, red under 25%.
               // The headline only grades 5 lines or more, since 1 of 2 says
               // little, and not a partial result. Measurable, because a line
               // counts only where a statement starts: a closing bracket or the

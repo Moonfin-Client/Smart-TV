@@ -1,7 +1,7 @@
 name: Coverage
 
-# Advisory: how many of the lines a pull request changes under
-# packages/app/src some test runs, and how many its own tests run. The PR
+# Advisory: how many of the lines a pull request changes in src's plain
+# modules some check runs, and how many its own checks run. The PR
 # comment shows it. It never fails on what it finds, and no required check
 # waits for it.
 #
@@ -40,8 +40,8 @@ jobs:
           BASE: origin/${{ github.base_ref }}
         run: |
           # --no-renames, so a moved and edited file counts, as it does in the script.
-          if git diff --name-only --no-renames --diff-filter=AM "$BASE...HEAD" -- packages/app/src \
-            | grep -E '\.jsx?$' | grep -vE '(\.test|\.spec|-specs)\.jsx?$|/__tests__/' > /dev/null; then
+          if git diff --name-only --no-renames --diff-filter=AM "$BASE...HEAD" -- src \
+            | grep -E '\.js$' > /dev/null; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -53,16 +53,16 @@ jobs:
 
       - name: Install dependencies
         if: steps.changed.outputs.code
-        run: npm ci --force
+        run: npm ci
 
       # The error left here first is what the comment sees if the script
       # crashes before writing its own result.
-      - name: Measure the changed lines the tests run
+      - name: Measure the changed lines the checks run
         continue-on-error: true
         timeout-minutes: 20
         env:
           BASE: origin/${{ github.base_ref }}
-          # The lines no test runs are marked as annotations at their place in
+          # The lines no check runs are marked as annotations at their place in
           # Files changed, which shows the pull request's head rather than the
           # merge this job checked out.
           PR_HEAD: ${{ github.event.pull_request.head.sha }}
@@ -71,7 +71,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/coverage-results"
           out="$RUNNER_TEMP/coverage-results/coverage.json"
           echo "{\"status\": \"error\", \"pr_number\": $PR_NUMBER}" > "$out"
-          node scripts/ci/changed-lines-coverage.js "$BASE" HEAD --annotate "$PR_HEAD" \
+          node scripts/ci/changed-lines-coverage.cjs "$BASE" HEAD --annotate "$PR_HEAD" \
             --pr-number "$PR_NUMBER" --out "$out"
 
       - uses: actions/upload-artifact@v6

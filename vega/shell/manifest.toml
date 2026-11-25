@@ -1,0 +1,81 @@
+schema-version = 1
+
+[package]
+title = "Moonfin"
+# version follows package.json, build.mjs keeps it in step
+version = "3.1.1"
+id = "org.moonfin.androidtv"
+icon = "@image/icon.png"
+
+[os.version]
+min = "1.2"
+target = "1.2"
+
+[needs]
+[[needs.module]]
+id = "/com.amazon.vega.os@IVega_1_2"
+
+[[needs.module]]
+id = "/com.amazon.kepler.kepler_graphics_2@IKeplerGraphics_1"
+
+[[needs.module]]
+id = "/com.amazon.kepler.kepler_system_info_1@IKeplerSystemInfo_0"
+
+[[needs.module]]
+id = "/com.amazon.kepler.keplerscript_netmgr_lib_2@INetmgrTurbomodule_0"
+
+[[needs.module]]
+id = "/com.amazon.kepler.keplerscript_4@IKeplerScript_0"
+
+[[needs.module]]
+id = "/com.amazon.kepler.webview_4@IWebview_4"
+
+[components]
+[[components.interactive]]
+id = "org.moonfin.androidtv.main"
+runtime-module = "/com.amazon.kepler.runtime.react_native_kepler_4@IReactNativeKepler_0"
+launch-type = "singleton"
+categories = ["com.amazon.category.main"]
+
+# Jellyfin and Emby servers on a LAN are plain http, and the server address is
+# the user's to choose, so every host has to be allowed.
+[network-traffic-policy.cleartext]
+allowed-domains = ["*"]
+
+[wants]
+[[wants.service]]
+id = "com.amazon.webview.renderer_service"
+
+[[wants.service]]
+id = "com.amazon.inputmethod.service"
+
+[[wants.service]]
+id = "com.amazon.media.server"
+
+[[wants.service]]
+id = "com.amazon.mediametrics.service"
+
+[[wants.service]]
+id = "com.amazon.mediabuffer.service"
+
+[[wants.service]]
+id = "com.amazon.mediatransform.service"
+
+[[wants.service]]
+id = "com.amazon.audio.stream"
+
+[[wants.service]]
+id = "com.amazon.audio.control"
+
+[[wants.service]]
+id = "com.amazon.kepler.ucc.publisher"
+
+[[wants.service]]
+id = "com.amazon.network.service"
+
+[[wants.service]]
+id = "com.amazon.gipc.uuid.*"
+
+[offers]
+[[offers.service]]
+id = "com.amazon.gipc.uuid.*"

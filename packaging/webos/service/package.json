@@ -1,0 +1,8 @@
+{
+	"name": "org.moonfin.webos.service",
+	"version": "1.0.0",
+	"description": "Moonfin network proxy service (TLS fallback for older webOS TVs)",
+	"main": "service.js",
+	"private": true,
+	"comment": "Requires 'webos-service', which the webOS firmware provides at runtime. Don't add it to dependencies, since it isn't on the public npm registry."
+}

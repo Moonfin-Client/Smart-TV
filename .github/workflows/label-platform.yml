@@ -33,9 +33,8 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
-            // Only the relevant section is read. Scanning the whole body matched the
-            // platform names in the pull request template's own unticked checkboxes,
-            // which put both platforms on every pull request.
+            // Only the relevant section is read, since the pull request template's own
+            // unticked checkboxes name every platform.
 
             const target = context.payload.issue || context.payload.pull_request;
             const body = target.body || '';

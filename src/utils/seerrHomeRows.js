@@ -1,0 +1,304 @@
+import $L from '../services/i18n.js';
+import seerrApi from '../services/seerrApi';
+import {getServerType} from '../services/jellyfinApi';
+import {seerrGenreBackdrop} from './seerrGenreArt';
+import hydrateRequestMediaItems, {hydrateRecentlyAddedItems, hydrateWatchlistItems} from './seerrHydration';
+import {libraryIdOf} from './seerrTarget';
+import {shuffled} from './shuffled';
+
+const HOME_ROW_LIMIT = 20;
+
+// The networks and studios the other Moonfin clients show, in their order.
+export const STREAMING_NETWORKS = [
+	{id: 213, name: 'Netflix', logo: 'wwemzKWzjKYJFfCeiB57q3r4Bcm.webp'},
+	{id: 2739, name: 'Disney+', logo: 'gJ8VX6JSu3ciXHuC2dDGAo2lvwM.webp'},
+	{id: 1024, name: 'Prime Video', logo: 'ifhbNuuVnlwYy5oXA5VIb2YR8AZ.webp'},
+	{id: 2552, name: 'Apple TV+', logo: '4KAy34EHvRM25Ih8wb82AuGU7zJ.webp'},
+	{id: 453, name: 'Hulu', logo: 'pqUTCleNUiTLAVlelGxUgWn1ELh.webp'},
+	{id: 49, name: 'HBO', logo: 'tuomPhY2UtuPTqqFnKMVHvSb724.webp'},
+	{id: 4353, name: 'Discovery+', logo: '1D1bS3Dyw4ScYnFWTlBOvJXC3nb.webp'},
+	{id: 2, name: 'ABC', logo: 'ndAvF4JLsliGreX87jAc9GdjmJY.webp'},
+	{id: 19, name: 'FOX', logo: '1DSpHrWyOORkL9N2QHX7Adt31mQ.webp'},
+	{id: 359, name: 'Cinemax', logo: '6mSHSquNpfLgDdv6VnOOvC5Uz2h.webp'},
+	{id: 174, name: 'AMC', logo: 'pmvRmATOCaDykE6JrVoeYxlFHw3.webp'},
+	{id: 67, name: 'Showtime', logo: 'Allse9kbjiP6ExaQrnSpIhkurEi.webp'},
+	{id: 318, name: 'Starz', logo: '8GJjw3HHsAJYwIWKIPBPfqMxlEa.webp'},
+	{id: 71, name: 'The CW', logo: 'ge9hzeaU7nMtQ4PjkFlc68dGAJ9.webp'},
+	{id: 6, name: 'NBC', logo: 'o3OedEP0f9mfZr33jz2BfXOUK5.webp'},
+	{id: 16, name: 'CBS', logo: 'nm8d7P7MJNiBLdgIzUK0gkuEA4r.webp'},
+	{id: 4330, name: 'Paramount+', logo: 'fi83B1oztoS47xxcemFdPMhIzK.webp'},
+	{id: 4, name: 'BBC One', logo: 'mVn7xESaTNmjBUyUtGNvDQd3CT1.webp'},
+	{id: 56, name: 'Cartoon Network', logo: 'c5OC6oVCg6QP4eqzW6XIq17CQjI.webp'},
+	{id: 80, name: 'Adult Swim', logo: '9AKyspxVzywuaMuZ1Bvilu8sXly.webp'},
+	{id: 13, name: 'Nickelodeon', logo: 'ikZXxg6GnwpzqiZbRPhJGaZapqB.webp'},
+	{id: 3353, name: 'Peacock', logo: 'gIAcGTjKKr0KOHL5s4O36roJ8p7.webp'}
+];
+
+export const MOVIE_STUDIOS = [
+	{id: 2, name: 'Disney', logo: 'wdrCwmRnLFJhEoH8GSfymY85KHT.webp'},
+	{id: 127928, name: '20th Century Studios', logo: 'h0rjX5vjW5r8yEnUBStFarjcLT4.webp'},
+	{id: 34, name: 'Sony Pictures', logo: 'GagSvqWlyPdkFHMfQ3pNq6ix9P.webp'},
+	{id: 174, name: 'Warner Bros. Pictures', logo: 'ky0xOc5OrhzkZ1N6KyUxacfQsCk.webp'},
+	{id: 33, name: 'Universal', logo: '8lvHyhjr8oUKOOy2dKXoALWKdp0.webp'},
+	{id: 4, name: 'Paramount', logo: 'fycMZt242LVjagMByZOLUGbCvv3.webp'},
+	{id: 3, name: 'Pixar', logo: '1TjvGVDMYsj6JBxOAkUHpPEwLf7.webp'},
+	{id: 521, name: 'DreamWorks', logo: 'kP7t6RwGz2AvvTkvnI1uteEwHet.webp'},
+	{id: 420, name: 'Marvel Studios', logo: 'hUzeosd33nzE5MCNsZxCGEKTXaQ.webp'},
+	{id: 9993, name: 'DC', logo: '2Tc1P3Ac8M479naPp1kYT3izLS5.webp'},
+	{id: 41077, name: 'A24', logo: '1ZXsGaFPgrgS6ZZGS37AqD5uU12.webp'}
+];
+
+// Silo's requests have no issues, and aren't Seerr.
+const onSilo = () => getServerType() === 'silo';
+export const seerrBrowseTitle = () => (onSilo() ? $L('Browse') : $L('Seerr Browse'));
+
+export const getSeerrHomeRowConfigs = () => [
+	{id: 'shortcuts', title: seerrBrowseTitle(), type: 'shortcut', cardType: 'landscape'},
+	{id: 'myRequests', title: $L('Recent Requests'), type: 'request', cardType: 'portrait'},
+	{id: 'yourWatchlist', title: $L('Your Watchlist'), type: 'media', cardType: 'portrait'},
+	{id: 'recentlyAdded', title: $L('Recently Added'), type: 'media', cardType: 'portrait'},
+	{id: 'trending', title: $L('Trending Now'), type: 'media', cardType: 'portrait'},
+	{id: 'popularMovies', title: $L('Popular Movies'), type: 'media', cardType: 'portrait'},
+	{id: 'popularTv', title: $L('Popular TV Shows'), type: 'media', cardType: 'portrait'},
+	{id: 'upcomingMovies', title: $L('Upcoming Movies'), type: 'media', cardType: 'portrait'},
+	{id: 'upcomingTv', title: $L('Upcoming TV Shows'), type: 'media', cardType: 'portrait'},
+	{id: 'genreMovies', title: $L('Browse Movies by Genre'), type: 'genre', mediaType: 'movie', cardType: 'landscape'},
+	{id: 'genreTv', title: $L('Browse TV by Genre'), type: 'genre', mediaType: 'tv', cardType: 'landscape'},
+	{id: 'studios', title: $L('Browse by Studio'), type: 'studio', cardType: 'logo'},
+	{id: 'networks', title: $L('Browse by Network'), type: 'network', cardType: 'logo'}
+];
+
+// Maps the plugin's home section names to the local Seerr row config ids
+// so Seerr rows share the home layout with the built-in rows.
+export const SEERR_SECTION_TO_CONFIG = {
+	seerr_shortcuts: 'shortcuts',
+	seerr_recent_requests: 'myRequests',
+	seerr_watchlist: 'yourWatchlist',
+	seerr_recently_added: 'recentlyAdded',
+	seerr_trending: 'trending',
+	seerr_popular_movies: 'popularMovies',
+	seerr_popular_series: 'popularTv',
+	seerr_upcoming_movies: 'upcomingMovies',
+	seerr_upcoming_series: 'upcomingTv',
+	seerr_movie_genres: 'genreMovies',
+	seerr_series_genres: 'genreTv',
+	seerr_studios: 'studios',
+	seerr_networks: 'networks'
+};
+
+export const SEERR_CONFIG_TO_SECTION = Object.fromEntries(
+	Object.entries(SEERR_SECTION_TO_CONFIG).map(([section, config]) => [config, section])
+);
+
+const yearOf = (item) => {
+	const date = item.release_date || item.releaseDate || item.first_air_date || item.firstAirDate || '';
+	const year = parseInt(String(date).slice(0, 4), 10);
+	return Number.isFinite(year) ? year : undefined;
+};
+
+export const normalizeMediaItem = (item) => {
+	const mediaType = item.media_type || item.mediaType || (item.title ? 'movie' : 'tv');
+	const poster = item.poster_path || item.posterPath;
+	const backdrop = item.backdrop_path || item.backdropPath;
+	return {
+		Id: `seerr-${mediaType}-${item.id}`,
+		Name: item.title || item.name,
+		Type: mediaType === 'movie' ? 'Movie' : 'Series',
+		ProductionYear: yearOf(item),
+		Overview: item.overview || '',
+		CommunityRating: item.vote_average ?? item.voteAverage,
+		Popularity: item.popularity,
+		_externalPosterUrl: poster ? seerrApi.getImageUrl(poster, 'w342') : null,
+		_externalBackdropUrl: backdrop ? seerrApi.getImageUrl(backdrop, 'w1280') : null,
+		mediaInfo: {status: item.mediaInfo?.status},
+		_seerrLibraryId: libraryIdOf(item.mediaInfo),
+		_seerr: true,
+		_seerrType: 'item',
+		_seerrMediaType: mediaType,
+		_seerrRaw: {mediaId: item.id, mediaType}
+	};
+};
+
+const normalizeRequestItem = (request) => {
+	const media = request.media || {};
+	const mediaType = request.type || media.mediaType || 'movie';
+	const poster = media.posterPath || media.poster_path;
+	const backdrop = media.backdropPath || media.backdrop_path;
+	return {
+		Id: `seerr-${mediaType}-${media.tmdbId}`,
+		Name: media.title || media.name || $L('Unknown'),
+		Type: mediaType === 'movie' ? 'Movie' : 'Series',
+		ProductionYear: yearOf(media),
+		Overview: media.overview || request.overview || '',
+		CommunityRating: media.voteAverage ?? media.vote_average,
+		Popularity: media.popularity,
+		_externalPosterUrl: poster ? seerrApi.getImageUrl(poster, 'w342') : null,
+		_externalBackdropUrl: backdrop ? seerrApi.getImageUrl(backdrop, 'w1280') : null,
+		mediaInfo: {status: media.status},
+		_seerrLibraryId: libraryIdOf(media),
+		_seerr: true,
+		_seerrType: 'item',
+		_seerrMediaType: mediaType,
+		_seerrRaw: {mediaId: media.tmdbId, mediaType}
+	};
+};
+
+// The jump tiles the shortcuts row holds. Static, so the row renders complete
+// without a fetch.
+const SEERR_SHORTCUTS = [
+	{key: 'discover', name: () => $L('Discover')},
+	{key: 'movies', name: () => $L('Movies')},
+	{key: 'series', name: () => $L('Series')},
+	{key: 'requests', name: () => $L('Requests')},
+	{key: 'issues', name: () => $L('Issues')}
+];
+
+export const seerrShortcuts = () => (onSilo() ? SEERR_SHORTCUTS.filter((shortcut) => shortcut.key !== 'issues') : SEERR_SHORTCUTS);
+
+// A tile is a fraction of the screen, so it asks for a still cut to its own size.
+// The full size one is kept alongside, since focusing a tile is what paints the
+// screen behind it.
+const TILE_STILL = 'w300';
+const BACKDROP_STILL = 'w780';
+
+const normalizeShortcutItem = (shortcut, backdrop) => ({
+	Id: `seerr-shortcut-${shortcut.key}`,
+	Name: shortcut.name(),
+	_externalTileUrl: backdrop ? seerrApi.getImageUrl(backdrop, TILE_STILL) : null,
+	_externalBackdropUrl: backdrop ? seerrApi.getImageUrl(backdrop, BACKDROP_STILL) : null,
+	_seerr: true,
+	_seerrType: 'shortcut',
+	_seerrRaw: {shortcut: shortcut.key}
+});
+
+// Picks one still per shortcut so the tiles carry artwork rather than a flat
+// color. Movies and TV Shows get one of their own kind, the rest take what's
+// left, and nothing repeats while there's still art to go round.
+export const pickShortcutBackdrops = (shortcuts, results) => {
+	const pathOf = (item) => item.backdrop_path || item.backdropPath;
+	const ofType = (type) => results
+		.filter((item) => (item.media_type || item.mediaType) === type && pathOf(item))
+		.map(pathOf);
+	const movies = ofType('movie');
+	const tv = ofType('tv');
+	const mixed = [];
+	for (let i = 0; i < Math.max(movies.length, tv.length); i++) {
+		if (i < tv.length) mixed.push(tv[i]);
+		if (i < movies.length) mixed.push(movies[i]);
+	}
+
+	const used = new Set();
+	const take = (...pools) => {
+		for (const pool of pools) {
+			for (const path of pool) {
+				if (!used.has(path)) {
+					used.add(path);
+					return path;
+				}
+			}
+		}
+		return null;
+	};
+
+	// Movies and TV Shows claim first, so a short pool can't leave them bare
+	// while a tile with no kind of its own takes the only still.
+	const picked = {};
+	shortcuts.forEach((shortcut) => {
+		if (shortcut.key === 'movies') picked[shortcut.key] = take(movies, tv);
+		else if (shortcut.key === 'series') picked[shortcut.key] = take(tv, movies);
+	});
+	shortcuts.forEach((shortcut) => {
+		if (picked[shortcut.key] === undefined) picked[shortcut.key] = take(mixed);
+	});
+	return picked;
+};
+
+const normalizeGenreItem = (genre, mediaType) => {
+	// The duotone art gives every genre its own color, and the Genre type puts
+	// the name across the card the way the library genre row draws it.
+	const art = seerrGenreBackdrop(genre.id, genre.backdrops);
+	const artUrl = art ? seerrApi.getImageUrl(art.path, art.size) : null;
+	return {
+		Id: `seerr-genre-${mediaType}-${genre.id}`,
+		Name: genre.name,
+		Type: 'Genre',
+		_externalTileUrl: artUrl,
+		_externalBackdropUrl: artUrl,
+		_seerr: true,
+		_seerrType: 'genre',
+		_seerrMediaType: mediaType,
+		_seerrRaw: {genreId: genre.id, genreName: genre.name, mediaType}
+	};
+};
+
+const normalizeStudioItem = (studio) => ({
+	Id: `seerr-studio-${studio.id}`,
+	Name: studio.name,
+	_externalLogoUrl: seerrApi.getImageUrl('/' + studio.logo, 'w185'),
+	_seerr: true,
+	_seerrType: 'studio',
+	_seerrRaw: {studioId: studio.id, studioName: studio.name}
+});
+
+const normalizeNetworkItem = (network) => ({
+	Id: `seerr-network-${network.id}`,
+	Name: network.name,
+	_externalLogoUrl: seerrApi.getImageUrl('/' + network.logo, 'w185'),
+	_seerr: true,
+	_seerrType: 'network',
+	_seerrRaw: {networkId: network.id, networkName: network.name}
+});
+
+export const fetchSeerrHomeRow = async (rowId, {userId} = {}) => {
+	try {
+		switch (rowId) {
+			case 'shortcuts': {
+				// Artwork is the only thing the read adds, so a failure still
+				// leaves a usable row.
+				const trending = await seerrApi.trending(1).catch(() => ({results: []}));
+				const results = shuffled(trending.results || []);
+				const backdrops = pickShortcutBackdrops(seerrShortcuts(), results);
+				return seerrShortcuts().map((shortcut) => normalizeShortcutItem(shortcut, backdrops[shortcut.key]));
+			}
+			case 'trending':
+				return ((await seerrApi.trending(1)).results || []).slice(0, HOME_ROW_LIMIT).map(normalizeMediaItem);
+			case 'recentlyAdded':
+				return (await hydrateRecentlyAddedItems((await seerrApi.getRecentlyAdded(HOME_ROW_LIMIT)).results || [])).map(normalizeMediaItem);
+			case 'yourWatchlist': {
+				const results = ((await seerrApi.getWatchlist(1)).results || []).slice(0, HOME_ROW_LIMIT);
+				return (await hydrateWatchlistItems(results)).map(normalizeMediaItem);
+			}
+			case 'popularMovies':
+				return ((await seerrApi.trendingMovies(1)).results || []).slice(0, HOME_ROW_LIMIT).map(normalizeMediaItem);
+			case 'popularTv':
+				return ((await seerrApi.trendingTv(1)).results || []).slice(0, HOME_ROW_LIMIT).map(normalizeMediaItem);
+			case 'upcomingMovies':
+				return ((await seerrApi.upcomingMovies(1)).results || []).slice(0, HOME_ROW_LIMIT).map(normalizeMediaItem);
+			case 'upcomingTv':
+				return ((await seerrApi.upcomingTv(1)).results || []).slice(0, HOME_ROW_LIMIT).map(normalizeMediaItem);
+			case 'genreMovies':
+				return ((await seerrApi.getGenreSliderMovies()) || []).map((g) => normalizeGenreItem(g, 'movie'));
+			case 'genreTv':
+				return ((await seerrApi.getGenreSliderTv()) || []).map((g) => normalizeGenreItem(g, 'tv'));
+			case 'studios':
+				return MOVIE_STUDIOS.map(normalizeStudioItem);
+			case 'networks':
+				return STREAMING_NETWORKS.map(normalizeNetworkItem);
+			case 'myRequests': {
+				let resolvedUserId = userId;
+				if (!resolvedUserId) {
+					const apiUser = await seerrApi.getUser().catch(() => null);
+					resolvedUserId = apiUser?.id;
+				}
+				if (!resolvedUserId) return [];
+				const data = await seerrApi.getMyRequests(resolvedUserId, HOME_ROW_LIMIT);
+				const hydrated = await hydrateRequestMediaItems(data.results || []);
+				return hydrated.filter((r) => r?.media?.tmdbId).map(normalizeRequestItem);
+			}
+			default:
+				return [];
+		}
+	} catch {
+		return [];
+	}
+};
