@@ -2674,7 +2674,7 @@
     "Show Missing Collection Items": "Mostra Elementi Mancanti delle Collezioni",
     "Show Physical Releases": "Mostra Uscite Fisiche",
     "Show Release Date": "Mostra Data di Uscita",
-    "Show Rewatch row in Home Sections": "Mostra la riga Da Riguardare nelle Sezioni Home",
+    "Show Rewatch row in Home Sections.": "Mostra la riga Da Riguardare nelle Sezioni Home",
     "Show Seerr Availability Badges": "Mostra Badge Disponibilità Seerr",
     "Show Technical Details": "Mostrare i Dettagli Tecnici?",
     "Show User Ratings": "Mostra Valutazioni Utente",
@@ -3219,5 +3219,6 @@
     "Text Stroke Blur": "Sfocatura Contorno Testo",
     "Choose what the Radarr and Sonarr rows show.": "Scegli cosa mostrano le righe di Radarr e Sonarr.",
     "Dolby Vision": "Dolby Vision",
-    "Unavailable": "Non disponibile"
+    "Unavailable": "Non disponibile",
+    "Recently Released Episodes": "Episodi Usciti di Recente"
 }

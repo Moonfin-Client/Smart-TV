@@ -1557,7 +1557,7 @@
     "Show Physical Releases": "Arată lansările fizice",
     "Show Release Date": "Arată data lansării",
     "Show Technical Details": "Arată detaliile tehnice",
-    "Show Rewatch row in Home Sections": "Arată rândul Revizionare în secțiunile ecranului principal",
+    "Show Rewatch row in Home Sections.": "Arată rândul Revizionare în secțiunile ecranului principal",
     "Show User Ratings": "Arată evaluările utilizatorilor",
     "Show app update notifications when a new release is available": "Arată notificări de actualizare a aplicației când este disponibilă o versiune nouă",
     "Show artist, album, and music playlist rows in Home Sections.": "Arată rândurile de artiști, albume și liste de redare muzicale în secțiunile ecranului principal.",
@@ -2353,5 +2353,6 @@
     "Anything new added to the server library": "Orice conținut nou adăugat în biblioteca serverului",
     "Text Stroke Color": "Culoarea conturului textului",
     "Dolby Vision": "Dolby Vision",
-    "Unavailable": "Indisponibil"
+    "Unavailable": "Indisponibil",
+    "Recently Released Episodes": "Episoade lansate recent"
 }

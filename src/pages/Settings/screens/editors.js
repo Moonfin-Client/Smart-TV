@@ -9,7 +9,7 @@ import { canKeepAsComplete } from '../../../services/incompleteRecordings.js'
 import { defaultSettings } from '../../../context/defaultSettings.js'
 import { DEFAULT_HOME_ROWS } from '../../../utils/homeLayout.js'
 import { ratingKey } from '../../../utils/ratingSources.js'
-import { isPickedRow, isSameServer, isSectionTypeRow, isSeerrSliderRow, makePickedRow, makeSeerrSliderRow, serverKey } from '../../../utils/pickedRows.js'
+import { findServerSection, isPickedRow, isSameServer, isSectionTypeRow, isSeerrSliderRow, makePickedRow, makeSeerrSliderRow, serverKey } from '../../../utils/pickedRows.js'
 import { getGenresIncludeTypes } from '../../../utils/homeRowSorting.js'
 import { isSupportedSlider, loadDiscoverSliders, reconcileSliderRows } from '../../../utils/seerrSliders.js'
 import { getSeerrHomeRowConfigs, SEERR_CONFIG_TO_SECTION } from '../../../utils/seerrHomeRows.js'
@@ -138,7 +138,15 @@ const groupLabel = (group) => {
   }
 }
 
-const rowTitle = (item) => (isPickedRow(item) || isSeerrSliderRow(item) ? item.name : editorRowName($L(item.name)))
+// A Silo row's title in the app's language, for the editor to show. The saved row keeps Silo's title.
+export const serverRowLabel = (sections, serverUrl, row) => {
+  if (!row || row.source !== 'server' || (row.serverUrl && !isSameServer(row.serverUrl, serverUrl))) return null
+  const section = findServerSection(sections || [], row)
+  return (section && section.label) || null
+}
+
+const rowTitle = (item, sections) =>
+  isPickedRow(item) || isSeerrSliderRow(item) ? serverRowLabel(sections, getServerUrl(), item) || item.name : editorRowName($L(item.name))
 
 // One sign in per server other than this one.
 const otherServers = (servers, url) => {
@@ -209,6 +217,7 @@ const openHomeRows = (page, view) => {
   view.groups = {}
   view.limit = ROW_RENDER_STEP
   view.liveTv = true
+  view.sections = []
   api
     .getLiveTvChannels(0, 1)
     .then((result) => {
@@ -217,8 +226,13 @@ const openHomeRows = (page, view) => {
     })
     .catch(() => {})
   // A failed slider read leaves the slider rows alone, rather than reading as Seerr having none.
-  Promise.all([findPickableRows(s, page.ctx.accounts, rows).catch(() => []), s.useMoonfinPlugin ? loadDiscoverSliders({ force: true }).catch(() => null) : null]).then(
-    ([found, sliders]) => {
+  // Silo's own sections, read once per open, name its rows in the app's language.
+  Promise.all([
+    findPickableRows(s, page.ctx.accounts, rows).catch(() => []),
+    s.useMoonfinPlugin ? loadDiscoverSliders({ force: true }).catch(() => null) : null,
+    getServerType() === 'silo' && api.getServerHomeSections ? api.getServerHomeSections().catch(() => []) : [],
+  ]).then(
+    ([found, sliders, sections]) => {
       const reconciled = sliders ? reconcileSliderRows(rows, sliders, getServerUrl()) : { rows, changed: false }
       const merged = mergeFoundRows(reconciled.rows, found)
       // A pick or slider the server dropped or renamed is saved right away.
@@ -228,6 +242,7 @@ const openHomeRows = (page, view) => {
       merged.added.forEach((row) => (added[row.id] = true))
       view.found = { rows: found, added }
       view.rows = withOrder([...merged.rows, ...merged.added])
+      view.sections = sections
       view.loading = false
       page.refresh()
       page.$setTimeout(() => page.focusList(null), 0)
@@ -298,7 +313,7 @@ SCREENS.homeRows = {
       out.push(
         reorderEntry({
           sid: 'homerow-' + item.id,
-          title: rowTitle(item),
+          title: rowTitle(item, view.sections),
           subtitle: subtitle(item),
           checkbox: true,
           enabled: true,
@@ -333,7 +348,7 @@ SCREENS.homeRows = {
         out.push(
           reorderEntry({
             sid: 'homerow-' + item.id,
-            title: rowTitle(item),
+            title: rowTitle(item, view.sections),
             subtitle: subtitle(item),
             checkbox: true,
             enabled: false,

@@ -1579,5 +1579,6 @@
     "Available groups · {count}": "Tillgängliga grupper · {count}",
     "Groups other people create on this server will show up here.": "Grupper som andra personer skapar på den här servern kommer att visas här.",
     "Joining a group may replace your current playback queue.": "Om du går med i en grupp kan det hända att din nuvarande uppspelningskö ersätts.",
-    "nothing queued yet": "Inget i kön ännu"
+    "nothing queued yet": "Inget i kön ännu",
+    "Recently Released Episodes": "Nyligen släppta avsnitt"
 }
