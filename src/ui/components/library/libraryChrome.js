@@ -6,13 +6,16 @@ import { LETTERS } from '../../../utils/gridChrome.js'
 import { textWidth } from './measure.js'
 import { uiFont } from '../../text.js'
 import { hex } from '../../themeColor.js'
+import { theme } from '../../theme.js'
 
 const WHITE = '#ffffff'
 const INK = '#101010'
-const ACCENT = '#00a4dc'
 const FIELD = '#1e1e28b8'
 const SIDE = 87
 const INFO_H = 152
+
+// The theme's accent and focus color, set from the theme each time the header is laid out.
+let C = { accent: '#00a4dcff', focus: '#ffffffff' }
 
 // A bound border object reaches the renderer as it is, so its color goes in as the renderer's number.
 export { hex as colorNum }
@@ -29,7 +32,7 @@ const iconButton = (id, icon, x, y, size, group, ms, extra) => ({
 // The search field, a frosted pill with the glyph inside and a ring on focus.
 const searchField = (x, y, w, query, group, ms, extra) => ({
   id: 'search', group, kind: 'search', x, y, w, h: 66, r: 33, ms,
-  base: FIELD, ring: true, ringBorder: ringOf(3),
+  base: FIELD, ring: true, ringBorder: ringOf(3, C.focus),
   icon: 'lib_search', ix: 20, iy: 19, isz: 28, iconOff: WHITE, inkOn: WHITE, iconAlpha: 1,
   label: query || $L('Search this library...'), lfont: uiFont(), lsize: 25, lx: 61, ly: 16.5, lh: 33, lmax: w - 84,
   labelOff: query ? WHITE : '#ffffff9e', labelOn: query ? WHITE : '#ffffff9e',
@@ -39,10 +42,10 @@ const searchField = (x, y, w, query, group, ms, extra) => ({
 // A letter of the jump strip, bare until focus outlines it in the accent.
 const letterButton = (letter, x, y, group, ms, extra) => ({
   id: 'L-' + letter, group, kind: 'letter', letter, x, y, w: 44, h: 44, r: 6, ms,
-  ring: true, ringBorder: ringOf(1, ACCENT),
+  ring: true, ringBorder: ringOf(1, C.accent),
   label: letter, lfont: uiFont('medium'), lfontOn: uiFont('bold'), lsize: 22, lh: 44, ly: 0,
   lx: (44 - textWidth(letter, 22, 'medium')) / 2, lmax: 44,
-  labelOff: '#ffffffd9', labelOn: ACCENT,
+  labelOff: '#ffffffd9', labelOn: C.accent,
   ...extra,
 })
 
@@ -110,7 +113,7 @@ const titleBlock = (s, x0, y0, group, ms, stacked) => {
     const w = textWidth(name, 26, 'bold') + 16 + 2
     const c = {
       id: 'crumb-' + depth, group, kind: 'crumb', depth, x, y: mid - 19, w, h: 38, r: 6, ms,
-      fill: '#ffffff14', ring: true, ringBorder: ringOf(1, ACCENT),
+      fill: '#ffffff14', ring: true, ringBorder: ringOf(1, C.accent),
       label: name, lfont: s.crumbFonts[depth] || uiFont('bold'), lsize: 26, lx: 9, ly: 4, lh: 30, lmax: w,
       labelOff: '#ffffff99', labelOn: WHITE,
     }
@@ -260,4 +263,8 @@ const neon = (out) => {
   return out
 }
 
-export const libraryChrome = (s) => (s.neon ? neon(layout(s)) : layout(s))
+// The letters and crumbs outline in the accent, and the search field rings in the focus color.
+export const libraryChrome = (s, t = theme()) => {
+  C = { accent: t.accent, focus: t.focus }
+  return s.neon ? neon(layout(s)) : layout(s)
+}

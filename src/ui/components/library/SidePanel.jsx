@@ -3,7 +3,7 @@ import { displayFont, fontFor, themeSpacing, uiFont } from '../../text.js'
 import { hex } from '../../color.js'
 import { focusMs } from './motion.js'
 import { layoutSide } from './sideLayout.js'
-import { activeThemeId } from '../../theme.js'
+import { activeThemeId, theme } from '../../theme.js'
 import { keyed } from './pageKit.js'
 import * as settings from '../../../state/settings.js'
 
@@ -14,7 +14,6 @@ import * as settings from '../../../state/settings.js'
 // dimmer.
 // shortcut: the sheet's backdrop blur isn't drawn, only its 92 percent tint.
 const FOCUSABLE = { radio: 1, setting: 1 }
-const ACCENT_EDGE = { width: 1, color: hex('#00a4dc') }
 const RADIO_EDGE = { width: 1, color: hex('#ffffff66') }
 const NEON = {
   accent: '#ff2e92',
@@ -116,19 +115,19 @@ export default function SidePanel(props) {
               const lit = () => focused() && op().fi === cur()
               return (
                 <view x={33} y={op().y} width={380} height={op().h}>
-                  <view width={380} height={op().h} borderRadius={8} color={op().selected ? (props.neon ? NEON.picked : '#00a4dc1f') : '#00000000'} />
+                  <view width={380} height={op().h} borderRadius={8} color={op().selected ? (props.neon ? NEON.picked : theme().accentA(0.12)) : '#00000000'} />
                   <view
                     width={380}
                     height={op().h}
                     borderRadius={8}
                     color={props.neon ? NEON.lit : '#ffffff1a'}
-                    border={props.neon ? NEON.edge : ACCENT_EDGE}
+                    border={props.neon ? NEON.edge : { width: 1, color: hex(theme().accent) }}
                     alpha={lit() ? 1 : 0}
                   />
                   <Show when={op().isRadio}>
                     <view x={17} y={(op().h - 22) / 2} width={22} height={22} borderRadius={11} color="#00000000" border={RADIO_EDGE} />
                     <Show when={op().selected}>
-                      <view x={23} y={(op().h - 22) / 2 + 6} width={10} height={10} borderRadius={5} color={props.neon ? NEON.accent : '#00a4dc'} />
+                      <view x={23} y={(op().h - 22) / 2 + 6} width={10} height={10} borderRadius={5} color={props.neon ? NEON.accent : theme().accent} />
                     </Show>
                   </Show>
                   <text
