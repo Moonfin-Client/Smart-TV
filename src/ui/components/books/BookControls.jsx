@@ -11,7 +11,8 @@ const CLEAR = '#00000000'
 const TAB_GLOW = { color: shadowColor('#ffffff40'), x: 0, y: 0, blur: 14, spread: 1 }
 const ring = (w, color) => ({ width: w, color: hex(color) })
 
-// `tabs` is [{ id, label }] and `focus` is the focused index, or -1.
+// `tabs` is [{ id, label }] and `focus` is the focused index, or -1. onPointerTab(i) hears the Magic
+// Remote's cursor on a tab and onPointerTabClick(i), when given, a click on one (app/pointer.js).
 export function TabBar(props) {
   const placed = createMemo(() => {
     const tabs = props.tabs || []
@@ -46,6 +47,13 @@ export function TabBar(props) {
           )
         }}
       </For>
+      <view
+        width={barW()}
+        height={63}
+        pointerItems={() => (props.onPointerTab ? placed().map((t) => ({ x: t.x, y: 4, w: t.w, h: 55 })) : [])}
+        onPointerItem={(_, i) => props.onPointerTab(i)}
+        onPointerItemClick={props.onPointerTabClick ? (_, i) => props.onPointerTabClick(i) : undefined}
+      />
     </view>
   )
 }
@@ -58,7 +66,16 @@ export function Pill(props) {
   const width = () => Math.ceil(textWidth(props.label, fs(), 'bold')) + pad() * 2 + 6 + (props.icon ? 34 : 0)
   const ink = () => (props.focused ? props.look.buttonInk : props.look.onSurface)
   return (
-    <view x={props.x || 0} y={props.y || 0} width={width()} height={ht()} borderRadius={ht() / 2} color={props.focused ? props.look.buttonFocused : props.look.os08}>
+    <view
+      x={props.x || 0}
+      y={props.y || 0}
+      width={width()}
+      height={ht()}
+      borderRadius={ht() / 2}
+      color={props.focused ? props.look.buttonFocused : props.look.os08}
+      onPointerOver={props.onPointerOver}
+      onPointerClick={props.onPointerClick}
+    >
       <view width={width()} height={ht()} borderRadius={ht() / 2} color={CLEAR} border={ring(3, props.look.focus)} alpha={props.focused ? 1 : 0} />
       <view>
         <Show when={props.icon}>
@@ -91,7 +108,13 @@ export function HeroButtons(props) {
           const lit = () => props.focus === b().i
           const ink = () => (lit() ? props.look.buttonInk : b().primary ? props.look.onAccent : '#ffffff')
           return (
-            <view x={b().x} width={b().w} height={52}>
+            <view
+              x={b().x}
+              width={b().w}
+              height={52}
+              onPointerOver={props.onPointerButton ? () => props.onPointerButton(b().i) : undefined}
+              onPointerClick={props.onPointerButtonClick ? () => props.onPointerButtonClick(b().i) : undefined}
+            >
               <view width={b().w} height={52} borderRadius={26} color={lit() ? props.look.buttonFocused : b().primary ? props.look.accent : '#ffffff24'} />
               <view width={b().w} height={52} borderRadius={26} color={CLEAR} border={ring(3, props.look.focus)} alpha={lit() ? 1 : 0} />
               <view>

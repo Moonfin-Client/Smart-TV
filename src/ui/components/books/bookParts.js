@@ -6,6 +6,19 @@ import { hex2 } from '../../themeColor.js'
 import { ellipsize, textWidth } from './bookText.js'
 import { STATION_COLORS } from './bookScreens.js'
 
+// The Magic Remote's cursor on a screen (app/pointer.js). `focus` moves the screen's own focus. A
+// hover (click false) only does it when the control shows whole (`whole`) and isn't focused already
+// (`lit`), so nothing scrolls under the cursor; a click always does, and returns true so OK then
+// presses the control. The screen takes focus from the nav first.
+export const bookPointer = (props, has) => (focus, { whole = true, lit = false, click = false } = {}) => {
+  if (!click && (!whole || lit)) return false
+  if (!has() && props.host && props.host.pointScreen) props.host.pointScreen()
+  focus()
+  return click
+}
+// Whether [top, top + h] shows whole in a view scrolled to `scroll` and `viewH` tall.
+export const showsWhole = (top, h, scroll, viewH) => top >= scroll - 0.5 && top + h <= scroll + viewH + 0.5
+
 export const RAIL_WIDTH = 414
 export const STRIP_H = 81
 export const CHIPS_H = 89

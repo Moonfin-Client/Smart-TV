@@ -5,7 +5,9 @@ import BookCard from './BookCard.jsx'
 import { shelfHeight } from './bookParts.js'
 
 // Cards stand on the shelf's bottom edge, or hang from its top with `top`. `focus` is the focused
-// index, or -1, and `pad` is the shelf's [top, right, bottom, left] padding.
+// index, or -1, and `pad` is the shelf's [top, right, bottom, left] padding. onPointerCard(i, { whole,
+// click }) hears the Magic Remote's cursor on a card, whole when the shelf shows all of it
+// (app/pointer.js). pointerRing rings the card under the cursor, for a page that scrolls to each shelf.
 export default function BookShelf(props) {
   const [sx, setSx] = createSignal(0)
   const cards = () => props.cards || []
@@ -33,13 +35,27 @@ export default function BookShelf(props) {
       },
     ),
   )
+  const whole = (p) => p.x - sx() >= -0.5 && p.x + p.card.w - sx() <= props.viewW + 0.5
+  const point = (p, click) => (props.onPointerCard ? props.onPointerCard(p.i, { whole: whole(p), click }) : false)
   return (
     <view x={props.x || 0} y={props.y || 0} width={props.viewW} height={shelfHeight(cards(), props.pad)} clipping>
       <view x={-sx()} width={Math.max(contentW(), props.viewW)} height={shelfHeight(cards(), props.pad)}>
         <For each={list.keys()}>
           {(k) => {
             const p = list.item(k)
-            return <BookCard x={p().x} y={p().y} card={p().card} look={props.look} zoom={props.zoom} focused={isFocused(p().i)} />
+            return (
+              <BookCard
+                x={p().x}
+                y={p().y}
+                card={p().card}
+                look={props.look}
+                zoom={props.zoom}
+                focused={isFocused(p().i)}
+                pointerRing={props.pointerRing}
+                onPointerOver={() => point(p(), false)}
+                onPointerClick={() => point(p(), true)}
+              />
+            )
           }}
         </For>
       </view>

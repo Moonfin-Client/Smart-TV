@@ -27,7 +27,7 @@ import { HeroButtons, Pill, TabBar } from './BookControls.jsx'
 import SidePanel from './SidePanel.jsx'
 import { bookCard } from './bookCards.js'
 import { columnsFor, gridMove, gridRows, lineY, rowIndexOf } from './bookGrid.js'
-import { heroButtons, pillWidth } from './bookParts.js'
+import { bookPointer, heroButtons, pillWidth, showsWhole } from './bookParts.js'
 import { lineCount, tabBarWidth, textWidth } from './bookText.js'
 import { bookMenuItem, bookNavFor, formatEyebrow, titleMeta, titlesCount, titlesHeading } from './bookScreens.js'
 import { TITLE_SORTS, sortById, titlesFetcher } from './bookTitles.js'
@@ -387,6 +387,57 @@ export default function TitlesScreen(props) {
     })
     reveal()
   }
+  // The Magic Remote's cursor (app/pointer.js): a control, a continue tile or a cover in full view
+  // takes focus on hover; one the page or the continue row would scroll to takes it on a click.
+  const point = bookPointer(props, has)
+  const shows = (top, h) => showsWhole(top, h, scrollY(), props.viewH)
+  const pointGrid = (i, click) => {
+    const g = geo().rows[rowIndexOf(rows(), i)]
+    const card = cards()[i]
+    if (!g || !card || showGenres()) return false
+    return point(() => toGrid(i), { whole: shows(g.y + g.h - (card.h + 78), card.h + 78), lit: own() && zone() === 'grid' && cur() === i, click })
+  }
+  const pointControl = (kind, i, click) => {
+    const at = controls().list.findIndex((c) => c.kind === kind && c.i === i)
+    if (at < 0 || showGenres()) return false
+    return point(
+      () => {
+        batch(() => {
+          setZone('header')
+          setHcur(at)
+        })
+        reveal()
+      },
+      { whole: shows(resumeH() + 18, 63), lit: own() && zone() === 'header' && hcur() === at, click },
+    )
+  }
+  const pointContinue = (i, click) => {
+    if (!resume()[i] || showGenres()) return false
+    const x = 12 + i * 588 - contX()
+    return point(
+      () => {
+        batch(() => {
+          setZone('continue')
+          setCcur(i)
+        })
+        reveal()
+      },
+      { whole: shows(69, 167) && x >= 0 && x + 568 <= cw() - 108, lit: own() && zone() === 'continue' && ccur() === i, click },
+    )
+  }
+  const pointPanel = (i, click) => {
+    if (showGenres()) return false
+    return point(
+      () => {
+        batch(() => {
+          setZone('panel')
+          setPcur(i)
+        })
+        reveal()
+      },
+      { whole: shows(geo().panelY + 30 + panel().buttonsY, 52), lit: own() && zone() === 'panel' && pcur() === i, click },
+    )
+  }
   const gridKey = (direction) => {
     const r = rowIndexOf(rows(), cur())
     // The open panel sits between its row and the next, so both step into it at Read.
@@ -589,7 +640,16 @@ export default function TitlesScreen(props) {
                   const tile = resumeList.item(k)
                   const lit = () => zone() === 'continue' && own() && isCcur(tile().i)
                   return (
-                    <view x={tile().x} width={568} height={167} pivot={0.5} transition={{ scale: { duration: 150, easing: 'ease-out' } }} scale={lit() ? 1.03 : 1}>
+                    <view
+                      x={tile().x}
+                      width={568}
+                      height={167}
+                      pivot={0.5}
+                      transition={{ scale: { duration: 150, easing: 'ease-out' } }}
+                      scale={lit() ? 1.03 : 1}
+                      onPointerOver={() => pointContinue(tile().i, false)}
+                      onPointerClick={() => pointContinue(tile().i, true)}
+                    >
                       <view width={568} height={167} borderRadius={23} color={look().os06} />
                       <view x={-3} y={-3} width={574} height={173} borderRadius={26} color={CLEAR} border={{ width: 3, color: hex(look().focus) }} alpha={lit() ? 1 : 0} />
                       <view x={13} y={tile().coverY} width={tile().coverW} height={tile().coverH} borderRadius={8} color={look().surfaceVariant}>
@@ -652,10 +712,28 @@ export default function TitlesScreen(props) {
         </text>
         <view>
           <Show when={showScopeTabs()}>
-            <TabBar x={controls().scopeX} y={resumeH() + 18} tabs={scopeTabs()} active={shownScope()} focus={controlFocus('scope')} look={look()} />
+            <TabBar
+              x={controls().scopeX}
+              y={resumeH() + 18}
+              tabs={scopeTabs()}
+              active={shownScope()}
+              focus={controlFocus('scope')}
+              look={look()}
+              onPointerTab={(i) => pointControl('scope', i, false)}
+              onPointerTabClick={(i) => pointControl('scope', i, true)}
+            />
           </Show>
         </view>
-        <TabBar x={controls().sortX} y={resumeH() + 18} tabs={sortTabs} active={sortId()} focus={controlFocus('sort')} look={look()} />
+        <TabBar
+          x={controls().sortX}
+          y={resumeH() + 18}
+          tabs={sortTabs}
+          active={sortId()}
+          focus={controlFocus('sort')}
+          look={look()}
+          onPointerTab={(i) => pointControl('sort', i, false)}
+          onPointerTabClick={(i) => pointControl('sort', i, true)}
+        />
         <Pill
           x={controls().filterX}
           y={resumeH() + 22}
@@ -664,13 +742,26 @@ export default function TitlesScreen(props) {
           focused={controlFocus('filter') === 0}
           iconColor={genre() ? look().accent : ''}
           look={look()}
+          onPointerOver={() => pointControl('filter', 0, false)}
+          onPointerClick={() => pointControl('filter', 0, true)}
         />
 
         <view width={cw()} height={Math.max(props.viewH, geo().height)}>
           <For each={placedList.keys()}>
             {(k) => {
               const pc = placedList.item(k)
-              return <BookCard x={pc().x} y={pc().y} card={pc().card} look={look()} zoom={props.zoom} focused={zone() === 'grid' && own() && isCur(pc().i)} />
+              return (
+                <BookCard
+                  x={pc().x}
+                  y={pc().y}
+                  card={pc().card}
+                  look={look()}
+                  zoom={props.zoom}
+                  focused={zone() === 'grid' && own() && isCur(pc().i)}
+                  onPointerOver={() => pointGrid(pc().i, false)}
+                  onPointerClick={() => pointGrid(pc().i, true)}
+                />
+              )
             }}
           </For>
         </view>
@@ -716,7 +807,14 @@ export default function TitlesScreen(props) {
                     {panel().progress}
                   </text>
                 </view>
-                <HeroButtons y={panel().buttonsY} buttons={panel().buttons} focus={zone() === 'panel' && own() ? pcur() : -1} look={look()} />
+                <HeroButtons
+                  y={panel().buttonsY}
+                  buttons={panel().buttons}
+                  focus={zone() === 'panel' && own() ? pcur() : -1}
+                  look={look()}
+                  onPointerButton={(i) => pointPanel(i, false)}
+                  onPointerButtonClick={(i) => pointPanel(i, true)}
+                />
               </view>
             </view>
           </Show>

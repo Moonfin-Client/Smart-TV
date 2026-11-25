@@ -8,6 +8,7 @@ import { api, getServerUrl } from '../../../services/jellyfinApi.js'
 import { bookImageUrl, combinedTypes } from '../../../utils/bookLibrary.js'
 import { cleanOverview } from '../../../utils/overviewText.js'
 import { ScreenTitle } from './BookControls.jsx'
+import { bookPointer, showsWhole } from './bookParts.js'
 import { countLabel, gridMove, gridRows, rowIndexOf } from './bookGrid.js'
 import { ellipsize } from './bookText.js'
 import { loadBookCollections } from './bookLibraryData.js'
@@ -22,7 +23,7 @@ const COVER = { resizeMode: { type: 'cover' } }
 function CollectionCard(props) {
   const textFont = uiFont()
   return (
-    <view x={props.card.x} y={props.card.y} width={props.w} height={CARD_H}>
+    <view x={props.card.x} y={props.card.y} width={props.w} height={CARD_H} onPointerOver={props.onPointerOver} onPointerClick={props.onPointerClick}>
       <view width={props.w} height={CARD_H} borderRadius={24} color={props.look.os06} />
       <view width={props.w} height={CARD_H} borderRadius={24} color={CLEAR} border={{ width: 3, color: hex(props.look.focus) }} alpha={props.focused ? 1 : 0} />
       <For each={props.card.strip}>
@@ -106,6 +107,17 @@ export default function CollectionsScreen(props) {
     const view = props.viewH - HEADER_H
     setScrollY(focusScroll(top, CARD_H, scrollY(), view, Math.max(0, height() - view)))
   }
+  const point = bookPointer(props, has)
+  const pointCard = (i, click) => {
+    const top = 24 + Math.floor(i / 2) * (CARD_H + 30)
+    return point(
+      () => {
+        setCur(i)
+        reveal()
+      },
+      { whole: showsWhole(top, CARD_H, scrollY(), props.viewH - HEADER_H), lit: has() && cur() === i, click },
+    )
+  }
   const move = (direction) => () => {
     const next = gridMove(rows(), rowIndexOf(rows(), cur()), cur(), direction)
     if (next != null) {
@@ -143,7 +155,16 @@ export default function CollectionsScreen(props) {
           <For each={list.keys()}>
             {(k) => {
               const cc = list.item(k)
-              return <CollectionCard card={cc()} w={cardW()} look={look()} focused={has() && isCur(cc().i)} />
+              return (
+                <CollectionCard
+                  card={cc()}
+                  w={cardW()}
+                  look={look()}
+                  focused={has() && isCur(cc().i)}
+                  onPointerOver={() => pointCard(cc().i, false)}
+                  onPointerClick={() => pointCard(cc().i, true)}
+                />
+              )
             }}
           </For>
           <Show when={!items().length}>
