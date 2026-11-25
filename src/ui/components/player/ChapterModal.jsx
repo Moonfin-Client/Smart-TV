@@ -91,6 +91,7 @@ export default function ChapterModal(props) {
         if (props.ref) props.ref(n)
       }}
       width={1920}
+      pointerModal
       height={1080}
       transition={tx({ alpha: { duration: on() ? 200 : 0, easing: 'ease' } })}
       alpha={on() ? 1 : 0}
@@ -125,7 +126,21 @@ export default function ChapterModal(props) {
               {(c) => {
                 const focused = () => isCur(c.i)
                 return (
-                  <view x={c.x} y={12} width={280} height={228} transition={{ scale: FADE }} scale={focused() ? 1.05 : 1}>
+                  <view
+                    x={c.x}
+                    y={12}
+                    width={280}
+                    height={228}
+                    transition={{ scale: FADE }}
+                    scale={focused() ? 1.05 : 1}
+                    // The strip scrolls to its focused chapter, so the Magic Remote's cursor rings a
+                    // chapter and a click picks it (app/pointer.js).
+                    pointerRing={10}
+                    onPointerClick={() => {
+                      setCur(c.i)
+                      return true
+                    }}
+                  >
                     <view width={280} height={228} borderRadius={10} color="#00000000" shadow={GLOW} alpha={focused() ? 1 : 0} />
                     <view width={280} height={228} borderRadius={10} color="#161616ff" alpha={focused() ? 1 : 0} />
                     <view width={280} height={228} borderRadius={10} color={c.bg} border={c.border} />

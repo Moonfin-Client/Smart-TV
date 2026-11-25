@@ -111,6 +111,7 @@ import { shellApp } from '../../state/shell/shellState.js'
 import { setPlayerControls } from '../../services/remoteControl.js'
 import { errorStep } from './playbackFallback.js'
 import { createServerSeek } from './serverSeek.js'
+import { pointerMoves } from '../../app/pointer.js'
 import { AT_LIVE_SECONDS, isAtLive, liveWindowFor, nextLiveWindow } from './liveWindow.js'
 import SubtitleFetchIndicator from '../../ui/components/player/SubtitleFetchIndicator.jsx'
 import { holdSeekSeconds, holdStep } from '../../ui/components/music/heldSeek.js'
@@ -1132,6 +1133,17 @@ export default function Player(props) {
     if (Math.abs(b - s.buffered) > 0.0005) s.buffered = Math.max(b, progress())
   }
   // Where a seek may land: a live stream's rewind window, or the title less its last two seconds.
+  // The Magic Remote's cursor moving brings up the controls, and with them focus for the cursor to
+  // move between them (app/pointer.js).
+  function onPointerMove() {
+    if (errorScreen() || props.slideshow) return
+    if (!s.osd) showOsd()
+    else armOsdTimer()
+  }
+  function pointOsd() {
+    if (my.zone !== 'controls' && s.panel === 'none' && !s.dialog && my.zone !== 'skip') focusRef('controls', 'controls')
+    armOsdTimer()
+  }
   function seekBounds() {
     const w = s.liveWindow
     return w ? [w.start, w.edge] : [0, s.dur > 0 ? s.dur - 2 : Infinity]
@@ -2728,6 +2740,7 @@ export default function Player(props) {
     })
   }
 
+  onCleanup(pointerMoves(onPointerMove))
   onMount(async () => {
     if (root) root.setFocus()
     await initVideo()
@@ -2795,6 +2808,14 @@ export default function Player(props) {
       ref={(n) => (root = n)}
       width={1920}
       height={1080}
+      // A click on the picture plays or pauses (app/pointer.js).
+      onPointerClick={() => {
+        // The error screen's one control is Go Back.
+        if (errorScreen()) return exit()
+        // Not on a panel or a dialog over it, whose own controls take their clicks.
+        if (props.slideshow || my.zone === 'skip' || s.panel !== 'none' || s.dialog) return
+        togglePlay()
+      }}
       onEnter={() => {
         // The error screen's one control is Go Back.
         if (errorScreen()) {
@@ -2949,6 +2970,11 @@ export default function Player(props) {
         onOsdKey={onOsdKey}
         onScrub={onScrub}
         onProgressEnter={onProgressEnter}
+        onOsdPointer={pointOsd}
+        onSeekAt={(f) => {
+          if (!(s.dur > 0)) return
+          seekTo(f * s.dur)
+        }}
         onOsdAction={onOsdAction}
         onOsdEdge={onOsdEdge}
       />

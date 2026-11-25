@@ -4,7 +4,7 @@
 //
 // A control takes the pointer with these props:
 //   onPointerOver(node)   the cursor came onto it. Controls whose screen holds still move focus here.
-//   onPointerClick(node)  OK (or a mouse click) on it. Returning true means it focused the control
+//   onPointerClick(node, p)  OK (or a mouse click) on it, p the stage point (localPoint() maps it). Returning true means it focused the control
 //                         and Enter should now press it. Without one, a click on a control with
 //                         onPointerOver is that control's Enter: hover has already focused it.
 //   pointerRing           draw the hover ring around it (PointerRing.jsx). Rows that slide under focus
@@ -114,7 +114,7 @@ const targetOf = (n, x, y) => {
         node: n,
         i,
         over: n.onPointerItem ? () => n.onPointerItem(it, i, n) : null,
-        click: n.onPointerItemClick ? () => n.onPointerItemClick(it, i, n) : null,
+        click: n.onPointerItemClick ? () => n.onPointerItemClick(it, i, n, { x, y }) : null,
         ring: r ? { x: f.x + it.x * f.kx, y: f.y + it.y * f.ky, w: it.w * f.kx, h: it.h * f.ky, radius: (r === true ? it.r || 0 : r) * f.kx } : null,
       }
     }
@@ -130,7 +130,7 @@ const targetOf = (n, x, y) => {
     node: n,
     i: -1,
     over: n.onPointerOver ? () => n.onPointerOver(n) : null,
-    click: n.onPointerClick ? () => n.onPointerClick(n) : null,
+    click: n.onPointerClick ? () => n.onPointerClick(n, { x, y }) : null,
     ring,
   }
 }
@@ -151,6 +151,19 @@ export const pointerFocus = (node) => {
   if (!node || node.states.has('$focus')) return
   for (let p = node.parent; p; p = p.parent) if (p.onPointerFocus && p.onPointerFocus(node) === true) return
   node.setFocus()
+}
+
+// A stage point in a node's own units, for a control that acts on where it's clicked (a seek bar).
+export const localPoint = (node, p) => {
+  const f = frame(node.lng)
+  return { x: (p.x - f.x) / f.kx, y: (p.y - f.y) / f.ky }
+}
+
+// Hears every move of the cursor over the app, as a page that shows its controls on movement wants.
+const movers = new Set()
+export const pointerMoves = (fn) => {
+  movers.add(fn)
+  return () => movers.delete(fn)
 }
 
 const toStage = (e) => {
@@ -210,6 +223,7 @@ const onMove = (e) => {
   lastY = e.clientY
   wake()
   const p = toStage(e)
+  movers.forEach((fn) => fn(p))
   hover(targetAt(p.x, p.y))
 }
 
