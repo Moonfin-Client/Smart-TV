@@ -358,7 +358,7 @@ export default function Frost(props) {
       let laid
       if (m.tab === 'episodes') {
         area = { x: 60, y: 162, w: ww - 120, h: wh - 162 - 75 }
-        laid = episodesTab(m.seasonEpisodes, area.w, v.server, c)
+        laid = episodesTab(m.seasonEpisodes, area.w, v.server, c, v.settings)
       } else if (m.tab === 'cast') {
         area = { x: 72, y: 162, w: ww - 144, h: wh - 162 - 75 }
         laid = castTab(m.cast, area.w, v.server, c)

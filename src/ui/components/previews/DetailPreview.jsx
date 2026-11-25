@@ -7,6 +7,7 @@ import { applyOledMode } from '../../../utils/oledMode.js'
 import { scrimSrc } from '../../../utils/scrimImage.js'
 import { normalizeRatingStyle, personalRatingOf } from '../../../utils/personalRating.js'
 import { getSelectionSource, isMdblistEnabled, isRatingSourceEnabled } from '../../../services/mdblistApi.js'
+import { hidesMediaDescription } from '../../../pages/Details/detailsMedia.js'
 import { premiereDim, premiereScrim } from '../../../pages/Details/premiere/premiereRules.js'
 import { quickLookSurface } from '../../../pages/Details/quickLook/quickLookRules.js'
 import RatingsRow from '../home/RatingsRow.jsx'
@@ -69,7 +70,7 @@ export default function DetailPreview(props) {
   const [fontsIn, setFontsIn] = createSignal(0)
   const shown = createMemo(() => {
     const list = props.items || []
-    return props.s.hideDetailsMediaDescription ? list.map((it) => ({ ...it, overview: '' })) : list
+    return list.map((it) => (hidesMediaDescription({ Type: it.type || it.Type || 'Movie' }, props.s) ? { ...it, overview: '' } : it))
   })
   const live = () => shown().length > 0
   const item = () => shown()[0] || null

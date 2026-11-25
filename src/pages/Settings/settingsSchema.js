@@ -802,7 +802,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.NAV, id: 'detailSections', label: () => $L('Sections'), desc: () => $L('Choose which parts of the Details screen to show'), icon: 'dashboard_customize_outlined', keywords: () => ['sections', 'hide', 'logo', 'tagline', 'cast', 'crew', 'studios', 'chapters', 'extras', 'collections', 'similar', 'more like this', 'episodes', 'media info', 'seerr', 'recommendations', 'biography'], action: (ctx) => ctx.actions.openDetailSections()},
 					{kind: KIND.TOGGLE, key: 'detailExpandedTabs', label: () => $L('Expanded Tabs'), desc: () => $L('Automatically show tab content while browsing tabs. Turn off to open and close each tab manually.'), icon: 'tab', when: (ctx) => ctx.settings.detailScreenStyle === 'v2'},
 					{kind: KIND.TOGGLE, key: 'detailShowTechnicalDetails', label: () => $L('Show Technical Details'), desc: () => $L('Show codec, resolution, and stream information in banner summary'), icon: 'info_outline'},
-					{kind: KIND.TOGGLE, key: 'hideDetailsMediaDescription', label: () => $L('Hide Media Description'), desc: () => $L('Hide the movie or episode descriptive text.'), icon: 'description_outlined'},
+					{kind: KIND.NAV, id: 'mediaDescriptionVisibility', label: () => $L('Toggle Media Description Visibility'), desc: () => $L('Hide media descriptions from various detail pages.'), icon: 'description_outlined', keywords: () => ['description', 'overview', 'spoiler', 'movie', 'show', 'season', 'episode', 'collection'], action: (ctx) => ctx.actions.openScreen('appearance', 'mediaDescriptionVisibility', 'setting-mediaDescriptionVisibility')},
 					{kind: KIND.TOGGLE, key: 'detailUseSeriesThumbnails', label: () => $L('Use Series Thumbnails'), desc: () => $L('Replace thumbnails on the details page with the series thumbnail'), icon: 'image_outlined', when: (ctx) => ['v1', 'v4', 'v5', 'v6', 'v7'].indexOf(ctx.settings.detailScreenStyle) >= 0},
 					{kind: KIND.SECTION, id: 'recommendations', label: () => $L('Recommendations')},
 					{kind: KIND.OPTION, key: 'recommendationSystemSource', label: () => $L('Recommendation System'), desc: () => $L('Moonfin scores your own library, Server takes the picks from your media server, TMDb uses Seerr, and Hybrid leads with the server then tops up locally'), options: getRecommendationSystemSourceOptions, fallback: () => $L('Moonfin Recommends'), icon: 'auto_awesome'},
@@ -812,6 +812,20 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.SLIDER, key: 'themeMusicVolume', label: () => $L('Theme Music Volume'), min: 0, max: 100, step: 5, format: percent, icon: 'volume_down'},
 					{kind: KIND.TOGGLE, key: 'themeMusicOnHomeRows', label: () => $L('Theme Music on Home Rows'), desc: () => $L('Play when browsing home screen'), icon: 'queue_music'},
 					{kind: KIND.TOGGLE, key: 'themeMusicLoop', label: () => $L('Loop Theme Music'), desc: () => $L('Repeat the track instead of playing it once'), icon: 'repeat'}
+				]
+			},
+			{
+				id: 'mediaDescriptionVisibility',
+				icon: 'description_outlined',
+				menu: false,
+				label: () => $L('Media Description Visibility'),
+				description: () => $L('Hide media descriptions from various detail pages.'),
+				rows: [
+					{kind: KIND.TOGGLE, key: 'hideDetailsMediaDescriptionMovie', label: () => $L('Movie Pages'), desc: () => $L('Hide descriptions on movie detail pages'), icon: 'movie_outlined'},
+					{kind: KIND.TOGGLE, key: 'hideDetailsMediaDescriptionShow', label: () => $L('Show Pages'), desc: () => $L('Hide descriptions on TV show detail pages'), icon: 'tv'},
+					{kind: KIND.TOGGLE, key: 'hideDetailsMediaDescriptionSeason', label: () => $L('Season Pages'), desc: () => $L('Hide descriptions on season detail pages'), icon: 'video_library_outlined'},
+					{kind: KIND.TOGGLE, key: 'hideDetailsMediaDescriptionEpisode', label: () => $L('Episode Pages'), desc: () => $L('Hide descriptions on episode detail pages, season episode lists, and player drawer'), icon: 'play_circle_outline'},
+					{kind: KIND.TOGGLE, key: 'hideDetailsMediaDescriptionBoxSet', label: () => $L('Collection Pages'), desc: () => $L('Hide descriptions on collection and box set pages'), icon: 'collections_bookmark_outlined'}
 				]
 			},
 			{

@@ -263,7 +263,9 @@ export const SYNCABLE_KEYS = [
   'mediaBarOverlayColor', 'mediaBarOverlayOpacity',
   'homeRows', 'homeRowsStyle', 'modernCardsOnMyMediaRow', 'detailScreenStyle', 'detailExpandedTabs', 'fullScreenRows', 'homeRowsPosterSize', 'useSeriesThumbnails',
   'episodePreviewEnabled', 'mediaPreviewMode', 'previewAudioEnabled', 'previewVolume',
-  'hideDetailsMediaDescription', 'detailUseSeriesThumbnails', 'hideHomeMediaDescription',
+  'hideDetailsMediaDescription',
+  'hideDetailsMediaDescriptionMovie', 'hideDetailsMediaDescriptionShow', 'hideDetailsMediaDescriptionSeason', 'hideDetailsMediaDescriptionEpisode', 'hideDetailsMediaDescriptionBoxSet',
+  'detailUseSeriesThumbnails', 'hideHomeMediaDescription',
   'hideHomeWatchProgress', 'hideHomeUnwatchedCount',
   'personPageSortOption', 'personPageGroupItems',
   'personalRatingStyle', 'recentlyReleasedSeriesType', 'mergeRecentRowsByType', 'hideWatchedInRecentRows', 'playlistsGroupByType', 'groupItemsIntoCollections',
@@ -335,6 +337,11 @@ export const profileToLocal = (serverProfile) => {
       local[localKey] = converted
     }
   }
+  // Legacy single-toggle profiles carry over to the granular Movie and Episode keys until set.
+  if (typeof local.hideDetailsMediaDescription === 'boolean') {
+    if (local.hideDetailsMediaDescriptionMovie === undefined) local.hideDetailsMediaDescriptionMovie = local.hideDetailsMediaDescription
+    if (local.hideDetailsMediaDescriptionEpisode === undefined) local.hideDetailsMediaDescriptionEpisode = local.hideDetailsMediaDescription
+  }
   // Continue Watching syncs on its own server key, while this app keeps it with the other rows.
   const continueWatching = rowImageTypeFromServer(serverProfile.homeImageTypeContinueWatching)
   if (continueWatching) local.homeRowImageTypes = { ...local.homeRowImageTypes, resume: continueWatching }
@@ -379,7 +386,7 @@ const DEVICE_SYNC_PROFILE = 'tv'
 export const activeSyncProfile = (syncProfile) => (SYNC_PROFILES.includes(syncProfile) ? syncProfile : DEVICE_SYNC_PROFILE)
 
 // The active profile wins, then global, then the admin defaults.
-const resolveFromEnvelope = (envelope, adminDefaults, profile) => {
+export const resolveFromEnvelope = (envelope, adminDefaults, profile) => {
   const active = activeSyncProfile(profile)
   const sources =
     active === 'global'

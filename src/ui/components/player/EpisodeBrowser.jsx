@@ -4,6 +4,8 @@ import { api, getServerUrl, getUserId } from '../../../services/jellyfinApi.js'
 import { withoutBlockedItems } from '../../../services/parentalControls.js'
 import { browsableEpisodes, initialSeasonId, seasonIdOf } from '../../../utils/episodeBrowser.js'
 import { getImageUrl } from '../../../utils/helpers.js'
+import { hidesMediaDescription } from '../../../pages/Details/detailsMedia.js'
+import { kidsModeSettings } from '../../../utils/kidsMode.js'
 import * as settings from '../../../state/settings.js'
 import { logoUrl } from '../../images.js'
 import { fontFor, uiFont } from '../../text.js'
@@ -151,7 +153,7 @@ export default function EpisodeBrowser(props) {
     const marks = markers
     const laid = episodeRows(episodes, item.Id, {
       thumb,
-      hideOverview: settings.get('hideDetailsMediaDescription') === true,
+      hideOverview: hidesMediaDescription({ Type: 'Episode' }, kidsModeSettings(settings.all())),
       pillsFor: (ep) => (marks ? markerPills(markerForEpisode(marks, ep.Id), null, true) : []),
     })
     setRows(laid)

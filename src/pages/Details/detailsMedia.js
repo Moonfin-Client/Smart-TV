@@ -3,8 +3,9 @@
 
 import $L from '../../services/i18n.js';
 
-import {getImageUrl} from '../../utils/helpers';
-import {videoRangeBadges} from '../../utils/videoRange';
+import {getImageUrl} from '../../utils/helpers.js';
+import {isSeerrOnlyItem} from '../../utils/seerrTarget.js';
+import {videoRangeBadges} from '../../utils/videoRange.js';
 
 // Caps that match the mobile clients, so a title forced down on one device looks the
 // same on the others. The server transcodes to fit whichever is chosen.
@@ -19,12 +20,35 @@ export const COLLECTION_ITEM_TYPES = ['Movie', 'Series', 'Season', 'Episode', 'V
 
 export const IDENTIFIABLE_TYPES = ['Movie', 'Series', 'Season', 'Episode', 'BoxSet', 'Person', 'MusicAlbum', 'MusicArtist', 'Book', 'Trailer', 'MusicVideo'];
 
-// Whether the summary is being kept back for someone avoiding spoilers. Only a
-// film or an episode gives the plot away, so a series or a season keeps its
-// description either way.
-export const hidesMediaDescription = (item, settings) =>
-	settings?.hideDetailsMediaDescription === true &&
-	(item?.Type === 'Movie' || item?.Type === 'Episode');
+const resolvedHideFlag = (settings, key) => {
+	if (typeof settings?.[key] === 'boolean') return settings[key];
+	return settings?.hideDetailsMediaDescription === true;
+};
+
+// Whether the summary is being kept back for someone avoiding spoilers or opting
+// out of descriptions on video detail pages. Seerr discovery pages and non-video
+// pages stay visible; Kids Mode always hides descriptions.
+export const hidesMediaDescription = (item, settings) => {
+	if (settings?.kidsModeEnabled === true) return true;
+	if (isSeerrOnlyItem(item) || item?.ServerId === 'seerr' || item?._isSeerr === true) return false;
+	switch (item?.Type) {
+		case 'Movie':
+			return resolvedHideFlag(settings, 'hideDetailsMediaDescriptionMovie');
+		case 'Series':
+		case 'Show':
+		case 'Tv':
+			return settings?.hideDetailsMediaDescriptionShow === true;
+		case 'Season':
+			return settings?.hideDetailsMediaDescriptionSeason === true;
+		case 'Episode':
+			return resolvedHideFlag(settings, 'hideDetailsMediaDescriptionEpisode');
+		case 'BoxSet':
+		case 'Collection':
+			return settings?.hideDetailsMediaDescriptionBoxSet === true;
+		default:
+			return false;
+	}
+};
 
 // The parent series artwork, for standing in where an episode still or a chapter
 // frame would give something away. Null when the series offers no artwork, which

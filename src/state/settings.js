@@ -39,6 +39,10 @@ export const loadSettings = async () => {
   const stored = await getFromStorage('settings')
   settings = { ...defaultSettings, ...(stored || {}) }
   settings.homeRows = withoutRetiredRows(settings.homeRows)
+  if (stored && stored.hideDetailsMediaDescription === true) {
+    if (stored.hideDetailsMediaDescriptionMovie === undefined) settings.hideDetailsMediaDescriptionMovie = true
+    if (stored.hideDetailsMediaDescriptionEpisode === undefined) settings.hideDetailsMediaDescriptionEpisode = true
+  }
   mirrorTruehd()
   // Anything computed from the defaults before this ran computes again.
   bump()
