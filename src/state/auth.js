@@ -250,11 +250,42 @@ export const leaveSession = () => {
   setSignedOut()
 }
 
+// A Silo login is the account's, shared by its household profiles, so it ends on the server (which
+// retires its refresh token) only with the last of them saved here.
+export const endSiloLoginIfLast = async (entry) => {
+  if (entry?.serverType !== 'silo' || !entry.accessToken) return
+  const shared = (await multiServerManager.getAllServersArray()).some(
+    (other) => other.serverType === 'silo' && other.accessToken === entry.accessToken
+  )
+  if (shared) return
+  try {
+    await jellyfinApi.createApiForServer(entry.url, entry.accessToken, entry.userId, 'silo').logout()
+  } catch (e) {
+    console.warn('[auth] Ending the Silo login failed:', e)
+  }
+}
+
 export const logout = async () => {
   await remoteControl.runPlayerCommand('stop')
   stopMusic()
+  const leaving = {
+    serverType: jellyfinApi.getServerType(),
+    url: jellyfinApi.getServerUrl(),
+    accessToken: jellyfinApi.getApiKey(),
+    userId: jellyfinApi.getUserId(),
+  }
   const active = await multiServerManager.getActiveServer()
-  if (active) await multiServerManager.removeServer(active.serverId, active.userId, { keepServer: true })
+  if (active) {
+    // Signing out of a Silo profile signs its whole account out: every profile of the household
+    // goes, whichever one is in use.
+    const saved = leaving.serverType === 'silo' ? await multiServerManager.getAllServersArray() : []
+    const self = saved.find((e) => e.serverId === active.serverId && e.userId === active.userId)
+    const household = saved.filter((e) => e !== self && multiServerManager.sameSiloHousehold(e, self, leaving.accessToken))
+    for (const entry of household) await multiServerManager.removeServer(entry.serverId, entry.userId)
+    await multiServerManager.removeServer(active.serverId, active.userId, { keepServer: true })
+  }
+  // Silo's refresh token stays good until the login is ended on the server too.
+  await endSiloLoginIfLast(leaving)
   const remaining = await multiServerManager.getTotalUserCount()
   if (remaining > 0) {
     const next = await multiServerManager.getActiveServer()
