@@ -308,7 +308,7 @@ export const SYNCABLE_KEYS = [
   // Settings this app has no screen for ride along so another client's value survives.
   'showCastButton',
   'classicHomeRowsPadding', 'modernHomeRowsPadding',
-  'detailShowTechnicalDetails',
+  'detailShowTechnicalDetails', 'detailShowFullDate',
   'recommendationSystemSource', 'recommendationsApplyParentalRatingCap',
   'calendarReminders',
   'detailButtonsMaxVisible',

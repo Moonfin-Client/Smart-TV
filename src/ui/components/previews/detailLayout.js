@@ -10,7 +10,7 @@ import { minimalistScrimAlpha } from '../../../pages/Details/minimalist/minimali
 import { stageScrimAlpha } from '../../../pages/Details/stage/stageRules.js'
 import { hex2 } from '../../themeColor.js'
 import { itemAt } from './kit.js'
-import { detailMeta, detailTech, detailWash, detailActions, MORE_ICON } from './detailRules.js'
+import { detailMeta, detailPreviewYear, detailTech, detailWash, detailActions, MORE_ICON } from './detailRules.js'
 
 const LH = 33
 // The text shadow on Classic's title, overview, headings and poster titles.
@@ -412,7 +412,8 @@ const nouveau = (o, ctx) => {
   logoOrTitle(o, ctx, 40, y, 260, 62, 'bottomLeft', { size: 30, weight: 700, color: t.onSurface })
   y += 62 + 8
   const pieces = []
-  if (item.year) pieces.push({ id: 'year', text: String(item.year) })
+  const yearText = detailPreviewYear(item, s)
+  if (yearText) pieces.push({ id: 'year', text: yearText })
   if (item.officialRating) pieces.push({ id: 'rating', text: item.officialRating })
   if (item.genres.length > 0) pieces.push({ id: 'genres', text: item.genres.slice(0, 3).join(' · ') })
   metaInline(o, t, 40, y, pieces, { gap: 16 })

@@ -9,6 +9,7 @@ import { focusNav } from '../../../app/focus.js'
 import { scrimSrc } from '../../../utils/scrimImage.js'
 import { serverBlurredUrl } from '../../../utils/serverBlur.js'
 import { softBackdrop } from '../../../services/softBackdrop.js'
+import { formatDetailReleaseDate } from '../../../utils/dateFormat.js'
 import { getImageUrl } from '../../../utils/helpers.js'
 import { checkSeerr } from '../../../state/seerr.js'
 import Draw from '../stage/Draw.jsx'
@@ -277,7 +278,7 @@ export default function Classic(props) {
       item: it.Type === 'BoxSet' ? { ...it, People: bag.lists.cast } : it,
       posterUrl: posterOf(bag),
       name: (bag.bookSeriesItem ? bag.bookSeriesItem.Name : it.Name) || '',
-      year: it.ProductionYear || '',
+      year: formatDetailReleaseDate(it, { showFullDate: Boolean(bag.settings.detailShowFullDate), dateFormat: bag.settings.dateFormat }),
       officialRating: it.OfficialRating || '',
       seasonCount: it.ChildCount || bag.lists.seasons.length || 0,
       genres: it.Genres || [],

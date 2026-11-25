@@ -36,6 +36,7 @@ export const adaptItem = (item) => {
     episodeLine: (labels && labels.full) || null,
     type: item.Type || null,
     year: item.ProductionYear || null,
+    premiereDate: item.PremiereDate || null,
     officialRating: item.OfficialRating || null,
     runtimeMinutes: ticksToMinutes(item.RunTimeTicks),
     genres: Array.isArray(item.Genres) ? item.Genres : [],

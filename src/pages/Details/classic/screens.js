@@ -3,6 +3,7 @@
 import $L from '../../../services/i18n.js'
 import { fontFor, uiFont } from '../../../ui/text.js'
 import { textWidth, wrapLines } from '../../../ui/components/details/measure.js'
+import { formatDetailReleaseDate } from '../../../utils/dateFormat.js'
 import { formatDuration, getImageUrl } from '../../../utils/helpers.js'
 import { personDateLines } from '../../../utils/personCredits.js'
 import { offersFavorite } from '../personFavorite.js'
@@ -80,7 +81,8 @@ export const paintSeason = (comp, d) => {
     lines.forEach((ln, i) => text(o, `title${i}`, x0, y + i * 55.2, ln, 48, 'bold', t.onSurface, { lh: 55.2 }))
     y += lines.length * 55.2
     const facts = []
-    if (it.ProductionYear) facts.push({ text: String(it.ProductionYear) })
+    const releaseDate = formatDetailReleaseDate(it, { showFullDate: Boolean(d.settings?.detailShowFullDate), dateFormat: d.settings?.dateFormat })
+    if (releaseDate) facts.push({ text: releaseDate })
     if (it.OfficialRating) facts.push({ text: it.OfficialRating, badge: true })
     facts.push({ text: `${episodes.length} ${episodes.length !== 1 ? $L('Episodes') : $L('Episode')}` })
     if (it.Genres && it.Genres.length) facts.push({ text: it.Genres.slice(0, 3).join(' • ') })

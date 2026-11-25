@@ -334,6 +334,7 @@ export const defaultSettings = {
 	detailButtonsMaxVisible: 0,
 	personalRatingStyle: 'thumbs',
 	detailExpandedTabs: true,
+	detailShowFullDate: false,
 	hideDetailsMediaDescription: false,
 	detailUseSeriesThumbnails: false,
 	hideHomeMediaDescription: false,
