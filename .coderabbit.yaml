@@ -26,29 +26,31 @@ reviews:
       mode: "off"
   path_filters:
     - "!**/package-lock.json"
+    # The MSDF font atlases, written by npm run fonts.
+    - "!public/fonts/*.msdf.json"
   path_instructions:
-    - path: "packages/**"
+    - path: "src/**"
       instructions: |
-        Moonfin for Smart TVs is one Enact (React) app built for LG webOS, Samsung Tizen and Amazon Fire TV (Vega). packages/app is the shared app, packages/platform-* hold per platform code, and packages/build-* do the packaging.
-        - The browser floor is Chrome 38 and Safari 7 (webOS 3 and Tizen 2.4), set in packages/app/.browserslistrc. core-js covers JS built-ins, but DOM APIs above that floor, like ResizeObserver or IntersectionObserver, need a fallback. Don't suggest newer browser APIs as a cleanup.
-        - The build inlines every `var(--theme-*, fallback)` to its fallback, so CSS variables theme nothing on a TV. New themed UI adds rules in packages/app/src/theme/themeOverrides.js or uses inline styles from the active theme.
-        - Overlays, dialogs and full screen layers have to hold focus with a shared holder from packages/app/src/utils/spotlightContainers.js, or with `leaveFor` set to '' on all four sides, or `spotlightRestrict="self-only"`. `restrict: 'self-only'` in a SpotlightContainerDecorator config does nothing, because the prop's default overwrites it. Rows, grids and tab bars have to let focus out.
-        - App.js handles Back in a capture listener that stops the event, so a component's own onKeyDown Back handler never runs. Screens and overlays register their Back handling through backHandlerRef.
-        - One unknown enum value or property in the device profile makes Jellyfin answer PlaybackInfo with a 400 for every video. New profile conditions, properties or enum values have to exist in Jellyfin 10.10, or be gated through packages/app/src/services/profileForServer.js.
+        Moonfin for Smart TVs is one SolidJS app on the SolidTV renderer (a fork of the LightningJS renderer), built for LG webOS, Samsung Tizen, Amazon Fire TV (Vega) and Xbox. Every screen draws into one WebGL canvas, so the interface has no DOM and no CSS. src/services, src/utils and src/platform/<platform> are the data layer and the per platform code, src/pages and src/ui the screens, and vega/, xbox/ and packaging/ do the packaging.
+        - The browser floor is Chrome 38 (webOS 3). The legacy bundle is ES5 with only the polyfills listed in vite.config.js and src/fastPolyfills.js, so a built-in or DOM API outside those needs a fallback. Don't suggest newer browser APIs as a cleanup.
+        - Never use Solid stores (createStore, createMutable), since they need Proxy, which Chrome 38 lacks. Use signals, or reactive() from src/state/reactive.js.
+        - A packaged file loaded anywhere but a node's src (a font, a script, a sound, a worker, a url() in a DOM stylesheet) goes through assetUrl() from src/utils/assetUrl.js, so a TV running an in-app update uses that update's copy. Images on nodes get this from the renderer patch.
+        - Chrome 38 has no KeyboardEvent.key, so src/app/keys.js lists every key by its code. A new key goes there before anything handles it.
+        - A key handler stops a key only by returning exactly `true`. Anything else lets it bubble up the focus path, and what nothing handles reaches App, where Back goes back or asks to exit.
+        - Every dynamic child (`<For>`, `<Index>`, `<Show>`) gets a container of its own, because the renderer draws children in the order their nodes were created, not their place in the JSX.
+        - A `transition` object that reads a signal comes from tx() or fx() in src/ui/fx.js. A literal is rebuilt whenever the element's props change, and the renderer restarts the animation.
+        - A view with no width or height takes its parent's size when it's created and is culled once those bounds leave the screen, so a scrolling track needs its content's size.
+        - One unknown enum value or property in the device profile makes Jellyfin answer PlaybackInfo with a 400 for every video. New profile conditions, properties or enum values have to exist in Jellyfin 10.10, or be gated through src/services/profileForServer.js.
         - The Auto max bitrate values in getAutoMaxBitrate come from LG's published AV format limits. Don't suggest raising them to match other clients.
-        - webOS ignores object-fit on video, because the hardware plane fills the element's box. Size the element itself to get cover or contain.
-        - On Fire TV (Vega), any backdrop-filter over a playing video turns the picture black. Player overlays drop their blur under the `.vega` class, and new overlays over video need the same rule.
+        - TVs ignore object-fit on video, because the hardware plane fills the element's box. Size the element itself to get cover or contain.
         - On Fire TV (Vega), never put HEVC in a TS based HLS profile, since the WebView can't demux it. fMP4 carries HEVC. Keep a TS HLS entry too, or Jellyfin has nothing to send live TV.
-        - Changes to which libraries exist or their order dispatch `moonfin:browseRefresh` with `{libraries: true}`, or Home keeps its cached rows for up to 30 minutes.
-        - New UI strings use $L and go only in packages/app/resources/strings.json. The per locale strings.json files come from Weblate.
-        - @enact/cli and @webos-tools/cli live in the git ignored tools/ prefix. Never add them to devDependencies.
-        - EmulatorJS: do game state and gameManager work on the `start` event, not `ready`, since gameManager doesn't exist yet on ready. Treat startGameError as the failure signal, because `exit` doesn't fire for most failures. In page teardown has to clear the listeners, timers, script tag and joysticks EmulatorJS leaves behind.
+        - Changes to which libraries exist or their order call browseRefresh({libraries: true}) from src/state/browseCache.js, or Home keeps its cached rows for up to 30 minutes.
+        - New UI strings use $L and go only in public/resources/strings.json. The per locale strings.json files come from Weblate.
+        - EmulatorJS: do game state and gameManager work on the `start` event, not `ready`, since gameManager doesn't exist yet on ready. Treat startGameError as the failure signal, because `exit` doesn't fire for most failures. Page teardown has to clear the listeners, timers, script tag and joysticks EmulatorJS leaves behind.
         - Say Seerr, not Jellyseerr.
-    - path: "**/*.less"
+    - path: "scripts/patch-renderer.mjs"
       instructions: |
-        - Nothing polyfills CSS. A property or selector above the Chrome 38 and Safari 7 floor (flex gap, aspect-ratio, inset, :is, :where and similar) is dropped silently on older TVs. scripts/check-legacy-css.js holds a per file baseline that can only go down.
-        - Old engines drop a whole grouped rule when one selector has a pseudo class they don't know, like :focus-within. Keep those selectors in their own rule.
-        - Tizen and webOS paint in software raster, so focus effects are expensive. New focus box-shadows, blur, `transition: all`, and transitions on layout properties like width, max-width or padding need perf-low and perf-mid overrides, like the existing rules in packages/app/src/styles/perf-overrides.less.
+        - These patches rewrite the renderer in node_modules on every install and fail loudly when upstream code moves. A renderer upgrade has to carry every patch, and scripts/patch-renderer.check.mjs checks them. Components never compensate for a patched behavior on their own.
   tools:
     eslint:
       # e18e suggests newer built-ins and dependency swaps that don't fit a
