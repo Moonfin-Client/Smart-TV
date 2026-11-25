@@ -31,7 +31,6 @@ const REQUEST_FILTERS = ['all', 'pending', 'approved', 'processing', 'available'
 const ISSUE_FILTERS = ['open', 'resolved', 'all']
 const LIST_X = 114
 const POLL_MS = 30000
-const WHITE_EDGE = { width: 1, color: hex('#ffffffff') }
 const RETRY_SHADOW = { color: shadowColor('#0000004d'), x: 0, y: 18, blur: 18, spread: 0 }
 
 const requestFilterLabel = (f) => {
@@ -94,14 +93,13 @@ export default function Requests(props) {
   const loadingLabel = $L('Loading requests...')
   const retryLabel = $L('Retry')
   const shifts = {
-    header: 19 + cssShift(45, headerFont),
+    header: 100 + cssShift(45, headerFont),
     body: cssShift(30, bodyFont),
     loading: cssShift(30, loadingFont),
     retry: 3 + cssShift(39, retryFont),
   }
 
   const t = () => theme()
-  const headerX = () => (navOnLeft() ? 87 : 147)
   const tabs = createMemo(() => {
     const list = [{ id: 'requests', label: $L('Requests'), count: counts().pending }]
     // Silo's requests have no issues.
@@ -124,8 +122,8 @@ export default function Requests(props) {
       return {
         key: tab.id, x: at, w, h, label: tab.label, textY: (h - 33) / 2 + 2.5,
         badge: badgeW ? { text: String(tab.count), w: badgeW, x: 34.6 + textW + 12, y: (h - 38) / 2 } : null,
-        fill: selected ? '#00a4dc2e' : '#ffffff0f', border: selected ? '#00a4dc99' : '#00000000',
-        ink: selected || focused ? '#ffffffff' : '#ffffffa6', ring: focused ? 1 : 0,
+        fill: selected ? t().accentA(0.18) : t().os(0.06), border: selected ? t().accentA(0.6) : '#00000000',
+        ink: t().os(selected || focused ? 1 : 0.65), ring: focused ? 1 : 0,
       }
     })
   })
@@ -148,8 +146,8 @@ export default function Requests(props) {
       const focused = zone() === 'filters' && !thread() && i === filterCur()
       return {
         key: `${view()}-${id}`, id, x: at, w, label, countText, countX: 22.6 + textW + 9.6,
-        fill: selected ? '#00a4dc29' : '#ffffff0f', border: selected ? '#00a4dc99' : '#ffffff2e',
-        ink: selected || focused ? '#ffffffff' : '#ffffffa6', ring: focused ? 1 : 0,
+        fill: selected ? t().accentA(0.16) : t().os(0.06), border: selected ? t().accentA(0.6) : t().chipBorder.color,
+        ink: t().os(selected || focused ? 1 : 0.65), ring: focused ? 1 : 0,
       }
     })
   })
@@ -167,16 +165,17 @@ export default function Requests(props) {
     return { first, last: first + Math.ceil(listH() / stepY()) + 2 }
   })
   const showList = () => !loading() && !error()
-  // Each tile's model is kept while its request, its arr answer and the viewer stay the same.
+  // Each tile's model is kept while its request, its arr answer, the viewer and the theme stay the same.
   const models = new WeakMap()
   const tileModel = (r, i) => {
     const ans = answers()[queueKey(r)]
     const v = viewer()
     const sp = split()
+    const th = t()
     const was = models.get(r)
-    if (was && was.i === i && was.ans === ans && was.v === v && was.sp === sp) return was.model
+    if (was && was.i === i && was.ans === ans && was.v === v && was.sp === sp && was.th === th) return was.model
     const model = requestTile(r, i, { queueResponse: ans, viewer: v, split: sp })
-    models.set(r, { i, ans, v, sp, model })
+    models.set(r, { i, ans, v, sp, th, model })
     return model
   }
   // The list makes way for the spinner or the error.
@@ -203,8 +202,9 @@ export default function Requests(props) {
     const out = []
     for (let i = first; i <= last && i < list.length; i++) {
       const was = rowModels.get(list[i])
-      const model = was && was.i === i && was.v === v ? was.model : issueRow(list[i], i, v)
-      rowModels.set(list[i], { i, v, model })
+      const th = t()
+      const model = was && was.i === i && was.v === v && was.th === th ? was.model : issueRow(list[i], i, v)
+      rowModels.set(list[i], { i, v, th, model })
       out.push({ key: model.key, model, y: i * ISSUE_ROW.step + ISSUE_ROW.inset })
     }
     return out
@@ -622,7 +622,7 @@ export default function Requests(props) {
         return true
       }}
     >
-      <text x={headerX()} y={shifts.header} fontFamily={headerFont} fontSize={45} lineHeight={58.5} color="#e6e6e6ff">
+      <text x={138} y={shifts.header} fontFamily={headerFont} fontSize={45} lineHeight={58.5} color={t().onBackground}>
         {headerTitle}
       </text>
 
@@ -631,13 +631,13 @@ export default function Requests(props) {
           {(p) => (
             <view x={p.x} y={180} width={p.w} height={p.h}>
               <view width={p.w} height={p.h} borderRadius={p.h / 2} color={p.fill} border={{ width: 1, color: hex(p.border) }} />
-              <view width={p.w} height={p.h} borderRadius={p.h / 2} color="#00000000" border={WHITE_EDGE} alpha={p.ring} />
+              <view width={p.w} height={p.h} borderRadius={p.h / 2} color="#00000000" border={{ width: 3, color: hex(t().focus) }} alpha={p.ring} />
               <text x={34.6} y={p.textY} fontFamily={pillFont} fontSize={26.4} lineHeight={33} color={p.ink}>
                 {p.label}
               </text>
               <Show when={p.badge}>
-                <view x={p.badge.x} y={p.badge.y} width={p.badge.w} height={38} borderRadius={19} color="#00a4dcff">
-                  <text x={10.8} y={3.9} fontFamily={boldFont} fontSize={18} lineHeight={33} color="#ffffffff">
+                <view x={p.badge.x} y={p.badge.y} width={p.badge.w} height={38} borderRadius={19} color={t().accent}>
+                  <text x={10.8} y={3.9} fontFamily={boldFont} fontSize={18} lineHeight={33} color={t().onAccent}>
                     {p.badge.text}
                   </text>
                 </view>
@@ -652,11 +652,11 @@ export default function Requests(props) {
           {(c) => (
             <view x={c.x} y={filtersY()} width={c.w} height={49}>
               <view width={c.w} height={49} borderRadius={24.5} color={c.fill} border={{ width: 1, color: hex(c.border) }} />
-              <view width={c.w} height={49} borderRadius={24.5} color="#00000000" border={WHITE_EDGE} alpha={c.ring} />
+              <view width={c.w} height={49} borderRadius={24.5} color="#00000000" border={{ width: 3, color: hex(t().focus) }} alpha={c.ring} />
               <text x={22.6} y={10} fontFamily={pillFont} fontSize={21.6} lineHeight={33} color={c.ink}>
                 {c.label}
               </text>
-              <text x={c.countX} y={10} fontFamily={boldFont} fontSize={21.6} lineHeight={33} color="#00a4dcff">
+              <text x={c.countX} y={10} fontFamily={boldFont} fontSize={21.6} lineHeight={33} color={t().accent}>
                 {c.countText}
               </text>
             </view>

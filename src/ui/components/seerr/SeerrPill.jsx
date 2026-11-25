@@ -2,6 +2,7 @@ import { Show } from 'solid-js'
 import { highMs } from '../../tier.js'
 import { uiFont } from '../../text.js'
 import { hex } from '../../color.js'
+import { theme } from '../../theme.js'
 import { textWidth } from './look.js'
 import { tx } from '../../fx.js'
 
@@ -13,6 +14,7 @@ export const pillWidth = (label, badge) =>
 const EDGE = { width: 1, color: hex('#ffffff3d') }
 
 export default function SeerrPill(props) {
+  const t = () => theme()
   const font = uiFont()
   const badgeFont = uiFont('bold')
   const w = () => pillWidth(props.label, props.badge)
@@ -33,7 +35,7 @@ export default function SeerrPill(props) {
         height={60}
         borderRadius={30}
         color="#00000000"
-        border={{ width: 1, color: hex(props.ring || '#00a4dcff') }}
+        border={{ width: 3, color: hex(props.ring || t().focus) }}
         alpha={props.focused ? 1 : 0}
       />
       <view x={24} y={15} width={30} height={30} src={'icons/' + props.icon + '.webp'} color="#ffffffb3" />
@@ -42,8 +44,8 @@ export default function SeerrPill(props) {
       </text>
       <view>
         <Show when={props.badge > 0}>
-          <view x={80 + textWidth(props.label, 23)} y={15} width={textWidth(badgeText(), 19, 'bold') + 20} height={27} borderRadius={13.5} color="#00a4dcff">
-            <text x={10} y={2} fontFamily={badgeFont} fontSize={19} lineHeight={22.8} color="#ffffffff">
+          <view x={80 + textWidth(props.label, 23)} y={15} width={textWidth(badgeText(), 19, 'bold') + 20} height={27} borderRadius={13.5} color={t().accent}>
+            <text x={10} y={2} fontFamily={badgeFont} fontSize={19} lineHeight={22.8} color={t().onAccent}>
               {badgeText()}
             </text>
           </view>

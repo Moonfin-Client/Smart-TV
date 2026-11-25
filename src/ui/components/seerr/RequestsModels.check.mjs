@@ -13,6 +13,7 @@ registerHooks({
   },
 })
 const { GRID, tileHeight, requestTile, downloadBar, statusChip } = await import('./RequestsModels.js')
+const { theme } = await import('../../theme.js')
 
 // The grid over the 1692px list: six 262px tiles, 544px tall, or 569 with split names.
 assert.equal(GRID.cols, 6)
@@ -29,7 +30,7 @@ const req = (over) => ({ id: 7, type: 'movie', status: 2, createdAt: '2026-11-18
 const pending = requestTile(req({ status: 1, media: { tmdbId: 155, status: 2 } }), 0, { viewer: admin, split: false })
 assert.deepEqual(pending.actions.map((a) => [a.id, a.x]), [['approve', 20], ['decline', 186]])
 assert.equal(pending.status, 'chip')
-assert.equal(pending.stripe, '#eab308')
+assert.equal(pending.stripe, theme().status.pending)
 assert.deepEqual(pending.lines.map((l) => [l.k, l.y]), [['by', 469], ['date', 493]])
 
 // Split names go under their own label and push the date down a line.
@@ -54,6 +55,7 @@ assert.ok(bare.pctX > 180 && bare.pctX < 234, 'the percentage ends at the bar\'s
 
 const chip = statusChip('Available', 'available')
 assert.equal(chip.text, 'AVAILABLE')
-assert.equal(chip.border, '#22c55e')
+assert.equal(chip.border, theme().status.available)
+assert.equal(statusChip('Approved', 'approved').border, theme().accent)
 
 console.log('RequestsModels ok')

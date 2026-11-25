@@ -2,7 +2,7 @@ import { For, Index, Show, createEffect, createMemo, createSignal, on, onCleanup
 import IncompleteBadge from './IncompleteBadge.jsx'
 import LabelSet from './LabelSet.jsx'
 import SeerrBanner from './SeerrBanner.jsx'
-import { BADGE_SHADOW, DOT_SHADOW, MISSING_SHADOW, SEERR_COLORS, SEERR_ICONS, serverBadgeW, useMarks } from './ClassicCard.jsx'
+import { BADGE_SHADOW, DOT_SHADOW, MISSING_SHADOW, SEERR_ICONS, seerrDotLook, serverBadgeW, useMarks } from './ClassicCard.jsx'
 import { labelSets } from './cardMarks.js'
 import { cssShift, uiFont } from '../../text.js'
 import { hex } from '../../color.js'
@@ -257,8 +257,8 @@ export default function ModernCard(props) {
           width={33}
           height={33}
           borderRadius={16.5}
-          color={dot() === 'partial' ? '#22c55eff' : '#ffffffff'}
-          border={{ width: 2.5, color: hex(SEERR_COLORS[dot()] || '#ffffffff') }}
+          color={seerrDotLook(dot()).fill}
+          border={{ width: 2.5, color: hex(seerrDotLook(dot()).ring) }}
           shadow={DOT_SHADOW}
           transition={tx(slide())}
         >
@@ -268,7 +268,7 @@ export default function ModernCard(props) {
             width={23.8}
             height={23.8}
             src={'icons/' + (SEERR_ICONS[dot()] || 'checkRounded') + '.webp'}
-            color={dot() === 'partial' ? '#ffffffff' : SEERR_COLORS[dot()] || '#ffffffff'}
+            color={seerrDotLook(dot()).ink}
           />
         </view>
       </Show>

@@ -1,8 +1,9 @@
 // What the requests screen draws for each request tile and issue row, worked out once so the
-// templates only bind fields. Sizes are at 1920x1080, where 1rem is 24px. Colors are fixed, apart
-// from the download fill, which follows the theme.
+// templates only bind fields. Sizes are at 1920x1080, where 1rem is 24px. Colors come from the
+// theme, so a model is only good for the theme it was made under.
 import $L from '../../../services/i18n.js'
 import { theme } from '../../theme.js'
+import { hex2 } from '../../themeColor.js'
 import { cssShift, fontFor, uiFont } from '../../text.js'
 import { textWidth, spacedWidth } from './look.js'
 import { getImageUrl } from '../../../services/seerrApi.js'
@@ -25,28 +26,33 @@ export const GRID = (() => {
 // The tile's own height follows the grid's, which keeps the minimum height's 2:3 against its width.
 export const tileHeight = (split) => Math.round(((232 - 16) * 1.5 + 142 + (split ? 22 : 0) + 16) * GRID.scale)
 
-// A status chip: fill at 80%, a border of the hue and light text of it, uppercase.
-const CHIP = {
-  pending: ['#eab308', '#eab308cc', '#fbf1d3'],
-  requested: ['#8b8dfa', '#8b8dfacc', '#eaeafe'],
-  available: ['#22c55e', '#22c55ecc', '#d7f5e2'],
-  error: ['#ef4444', '#ef4444cc', '#fcdddd'],
-  approved: ['#00a4dc', '#00a4dccc', '#d1eff9'],
+// A status's hue from the theme: its status colors, and the accent for approved.
+const hueOf = (color) => {
+  const t = theme()
+  return color === 'approved' || !t.status[color] ? t.accent : t.status[color]
 }
+// A theme '#rrggbbaa' color with its own alpha scaled by a.
+export const fade = (c, a = 1) => c.slice(0, 7) + hex2(parseInt(c.slice(7, 9) || 'ff', 16) * a)
+// The hue mixed toward white, for light text on a fill of it.
+const tint = (c, k) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(c.slice(i, i + 2), 16) * (1 - k) + 255 * k).toString(16).padStart(2, '0')).join('')
+
+// A status chip: fill at 80%, a border of the hue and light text of it, uppercase.
 export const statusChip = (label, color) => {
-  const [border, fill, ink] = CHIP[color] || CHIP.approved
+  const hue = hueOf(color)
+  const border = fade(hue)
+  const fill = fade(hue, 0.8)
+  const ink = tint(hue, 0.8)
   const text = String(label || '').toUpperCase()
   return { text, border, fill, ink, w: Math.round(spacedWidth(text, 18, 'bold', 0.4) + 26), font: uiFont('bold') }
 }
 
-const STRIPES = { pending: '#eab308', requested: '#8b8dfa', available: '#22c55e', error: '#ef4444', approved: '#00a4dc' }
 
 // The tile's round icon buttons, laid out across the poster's foot.
 const ICONS = {
-  approve: ['req_approve', '#22c55e', () => $L('Approve')],
-  decline: ['req_decline', '#ef4444', () => $L('Decline')],
-  retry: ['req_retry', '#eab308', () => $L('Retry')],
-  cancel: ['close', '#ffffff', () => $L('Cancel')],
+  approve: ['req_approve', (t) => t.status.available, () => $L('Approve')],
+  decline: ['req_decline', (t) => t.status.error, () => $L('Decline')],
+  retry: ['req_retry', (t) => t.status.pending, () => $L('Retry')],
+  cancel: ['close', (t) => t.onSurface, () => $L('Cancel')],
 }
 
 // A download bar. compact is the tile's, at 17px over a 6px track. The label's left side
@@ -108,7 +114,7 @@ export const requestTile = (request, index, { queueResponse, viewer, split }) =>
   const actions = names.map((id, i) => {
     const [icon, color, label] = ICONS[id]
     // One button sits at the left, two spread to either side.
-    return { key: id, id, icon, color, label: label(), x: i === 0 ? 20 : 8 + GRID.poster - 12 - 56 }
+    return { key: id, id, icon, color: color(theme()), label: label(), x: i === 0 ? 20 : 8 + GRID.poster - 12 - 56 }
   })
   const requester = requesterName(request)
   const reason = summary && summary.reason
@@ -138,9 +144,9 @@ export const requestTile = (request, index, { queueResponse, viewer, split }) =>
     image: media.posterPath ? getImageUrl(media.posterPath, 'w342') : '',
     badge,
     badgeW: Math.round(spacedWidth(badge, 15, 'bold', 0.8) + 18),
-    badgeColor: isMovie ? '#3b82f6d9' : '#8b5cf6d9',
+    badgeColor: fade(isMovie ? theme().status.movie : theme().status.show, 0.85),
     badgeFont: uiFont('bold'),
-    stripe: STRIPES[info.color] || STRIPES.approved,
+    stripe: hueOf(info.color),
     actions,
     title,
     titleFont: fontFor(title, 'bold'),
@@ -174,6 +180,7 @@ export const issueRow = (issue, index, viewer) => {
     ? $L('Reported by {name}').replace('{name}', issue.createdBy.displayName)
     : requestDate(issue.createdAt)
   const toggleLabel = acts.toggle === 'resolve' ? $L('Resolve') : $L('Reopen')
+  const toggleHue = acts.toggle === 'resolve' ? theme().status.available : theme().status.pending
   const toggleW = Math.round(textWidth(toggleLabel, 22.8, 'bold') + 50)
   return {
     key: `issue-${issue.id}`,
@@ -196,8 +203,8 @@ export const issueRow = (issue, index, viewer) => {
         label: toggleLabel,
         w: toggleW,
         x: 1644 - 24 - toggleW,
-        ink: acts.toggle === 'resolve' ? '#22c55e' : '#eab308',
-        fill: acts.toggle === 'resolve' ? '#22c55e29' : '#eab30829',
+        ink: toggleHue,
+        fill: fade(toggleHue, 0.16),
       }]
       : [],
     open: issue.status === ISSUE_STATUS.OPEN,

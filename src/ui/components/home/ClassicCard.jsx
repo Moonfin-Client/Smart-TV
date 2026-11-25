@@ -5,7 +5,7 @@ import LabelSet from './LabelSet.jsx'
 import SeerrBanner from './SeerrBanner.jsx'
 import { labelSets, watchMarks } from './cardMarks.js'
 import { cssShift, uiFont } from '../../text.js'
-import { shadowColor } from '../../theme.js'
+import { shadowColor, theme } from '../../theme.js'
 import { hex } from '../../color.js'
 import { tx } from '../../fx.js'
 
@@ -15,7 +15,15 @@ import { tx } from '../../fx.js'
 // fades out with its badges, so the video under the canvas shows.
 // Props: `card` (cards.js classicCard), `focused`, `look` (look.js homeLook), `vid`, `x`, `ref`.
 
-export const SEERR_COLORS = { available: '#22c55eff', partial: '#22c55eff', processing: '#9333eaff', pending: '#eab308ff' }
+// A Seerr dot's fill, ring and icon color, in the theme's status colors as Details draws them
+// (look.js statusDot): a filled dash when partly there, else the hue on the badge color.
+export const seerrDotLook = (status) => {
+  const t = theme()
+  const tone = status === 'available' || status === 'partial' ? t.status.available
+    : status === 'processing' ? t.status.requested : status === 'pending' ? t.status.pending : t.onBadge
+  const partial = status === 'partial'
+  return { fill: partial ? tone : t.onBadge, ring: tone, ink: partial ? t.onBadge : tone }
+}
 export const SEERR_ICONS = { available: 'checkRounded', partial: 'removeRounded', processing: 'scheduleRounded', pending: 'scheduleRounded' }
 export const BADGE_SHADOW = { color: shadowColor('#0000004d'), x: 0, y: 1.5, blur: 4, spread: 0 }
 export const DOT_SHADOW = { color: shadowColor('#0000004d'), x: 0, y: 2.5, blur: 7, spread: 0 }
@@ -258,8 +266,8 @@ export default function ClassicCard(props) {
           width={33}
           height={33}
           borderRadius={16.5}
-          color={dot() === 'partial' ? '#22c55eff' : '#ffffffff'}
-          border={{ width: 2.5, color: hex(SEERR_COLORS[dot()] || '#ffffffff') }}
+          color={seerrDotLook(dot()).fill}
+          border={{ width: 2.5, color: hex(seerrDotLook(dot()).ring) }}
           shadow={DOT_SHADOW}
         >
           <view
@@ -268,7 +276,7 @@ export default function ClassicCard(props) {
             width={23.8}
             height={23.8}
             src={'icons/' + (SEERR_ICONS[dot()] || 'checkRounded') + '.webp'}
-            color={dot() === 'partial' ? '#ffffffff' : SEERR_COLORS[dot()] || '#ffffffff'}
+            color={seerrDotLook(dot()).ink}
           />
         </view>
       </Show>
@@ -279,8 +287,8 @@ export default function ClassicCard(props) {
           width={28}
           height={28}
           borderRadius={14}
-          color={left() === 'partial' ? '#22c55eff' : '#ffffffff'}
-          border={{ width: 2.5, color: hex(SEERR_COLORS[left()] || '#ffffffff') }}
+          color={seerrDotLook(left()).fill}
+          border={{ width: 2.5, color: hex(seerrDotLook(left()).ring) }}
           shadow={DOT_SHADOW}
         >
           <view
@@ -289,7 +297,7 @@ export default function ClassicCard(props) {
             width={20.2}
             height={20.2}
             src={'icons/' + (SEERR_ICONS[left()] || 'checkRounded') + '.webp'}
-            color={left() === 'partial' ? '#ffffffff' : SEERR_COLORS[left()] || '#ffffffff'}
+            color={seerrDotLook(left()).ink}
           />
         </view>
       </Show>
