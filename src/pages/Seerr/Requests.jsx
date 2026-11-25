@@ -437,6 +437,15 @@ export default function Requests(props) {
     })
     reveal()
   }
+  // The Magic Remote's cursor focuses a tab, a filter or a request, and OK then uses it
+  // (app/pointer.js).
+  const pointAt = (z, i) => {
+    if (thread()) return
+    if (zone() !== z) setZone(z)
+    if (z === 'tabs' && tabCur() !== i) setTabCur(i)
+    else if (z === 'filters' && filterCur() !== i) setFilterCur(i)
+    else if (z === 'list' && cur() !== i) setCur(i)
+  }
   const selectTab = (id) => {
     if (id === view()) return
     batch(() => {
@@ -626,7 +635,7 @@ export default function Requests(props) {
         {headerTitle}
       </text>
 
-      <view>
+      <view onPointerChildOver={(i) => pointAt('tabs', i)}>
         <For each={tabPills()}>
           {(p) => (
             <view x={p.x} y={180} width={p.w} height={p.h}>
@@ -647,7 +656,7 @@ export default function Requests(props) {
         </For>
       </view>
 
-      <view>
+      <view onPointerChildOver={(i) => pointAt('filters', i)}>
         <For each={filters()}>
           {(c) => (
             <view x={c.x} y={filtersY()} width={c.w} height={49}>
@@ -666,7 +675,12 @@ export default function Requests(props) {
 
       <view y={listTop() - 12} width={1920} height={listH() + 12} clipping>
         <view transition={{ y: { duration: 250, easing: 'ease-out' } }} y={12 - scroll()} width={1920} height={contentH()}>
-          <view width={1920} height={contentH()}>
+          <view
+            width={1920}
+            height={contentH()}
+            pointerItems={() => tiles().map((e) => ({ x: e.x, y: e.y, w: GRID.w, h: stepY() - GRID.gap }))}
+            onPointerItem={(it) => pointAt('list', Math.round(it.y / stepY()) * GRID.cols + Math.round((it.x - LIST_X) / (GRID.w + GRID.gap)))}
+          >
             <For each={tileList.keys()}>
               {(k) => {
                 const e = tileList.item(k)
@@ -674,7 +688,12 @@ export default function Requests(props) {
               }}
             </For>
           </view>
-          <view width={1920} height={contentH()}>
+          <view
+            width={1920}
+            height={contentH()}
+            pointerItems={() => rows().map((e) => ({ x: 138, y: e.y, w: 1644, h: ISSUE_ROW.h }))}
+            onPointerItem={(it) => pointAt('list', Math.round(it.y / ISSUE_ROW.step))}
+          >
             <For each={rowList.keys()}>
               {(k) => {
                 const e = rowList.item(k)
