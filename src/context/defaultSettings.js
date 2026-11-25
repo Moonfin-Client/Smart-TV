@@ -213,7 +213,6 @@ export const defaultSettings = {
 	imdbMostPopularMoviesEnabled: false,
 	imdbMostPopularTvShowsEnabled: false,
 	imdbLowestRatedMoviesEnabled: false,
-	imdbTopEnglishMoviesEnabled: false,
 	imdbRowsSortBy: 'none',
 	imdbRowsSortOrder: 'ascending',
 	tmdbRowsSortBy: 'none',

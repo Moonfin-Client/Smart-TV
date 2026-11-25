@@ -58,7 +58,6 @@ export const DEFAULT_HOME_ROWS = [
 	{id: 'imdb-popular-movies', name: 'IMDb Most Popular Movies', enabled: false, order: 17},
 	{id: 'imdb-popular-tv', name: 'IMDb Most Popular TV Shows', enabled: false, order: 18},
 	{id: 'imdb-lowest-rated', name: 'IMDb Lowest Rated Movies', enabled: false, order: 19},
-	{id: 'imdb-top-english', name: 'IMDb Top Rated English Movies', enabled: false, order: 20},
 	{id: 'sinceyouwatched1', name: 'Since You Watched Row 1', enabled: false, order: 21},
 	{id: 'sinceyouwatched2', name: 'Since You Watched Row 2', enabled: false, order: 22},
 	{id: 'sinceyouwatched3', name: 'Since You Watched Row 3', enabled: false, order: 23},
@@ -127,8 +126,7 @@ const TV_TO_SERVER_ROW = {
 	'imdb-top250-tv': 'imdb_top_250_tv_shows',
 	'imdb-popular-movies': 'imdb_most_popular_movies',
 	'imdb-popular-tv': 'imdb_most_popular_tv_shows',
-	'imdb-lowest-rated': 'imdb_lowest_rated_movies',
-	'imdb-top-english': 'imdb_top_english_movies'
+	'imdb-lowest-rated': 'imdb_lowest_rated_movies'
 };
 const SERVER_TO_TV_ROW = {
 	'latestmedia': 'latest-media',
@@ -148,8 +146,7 @@ const SERVER_TO_TV_ROW = {
 	'imdb_top_250_tv_shows': 'imdb-top250-tv',
 	'imdb_most_popular_movies': 'imdb-popular-movies',
 	'imdb_most_popular_tv_shows': 'imdb-popular-tv',
-	'imdb_lowest_rated_movies': 'imdb-lowest-rated',
-	'imdb_top_english_movies': 'imdb-top-english'
+	'imdb_lowest_rated_movies': 'imdb-lowest-rated'
 };
 
 const ROW_IMAGE_TYPES = ['poster', 'backdrop', 'logo', 'thumb', 'banner'];
@@ -181,6 +178,9 @@ export const homeRowImageTypesFromServer = (value) => {
 	}
 	return overrides;
 };
+
+// A layout saved before the IMDb Top Rated English Movies row was removed still lists it.
+export const withoutRetiredRows = (rows) => (Array.isArray(rows) ? rows.filter((row) => row?.id !== 'imdb-top-english') : rows);
 
 // A row the saved layout lacks is appended switched off, except where `enabledById` says
 // otherwise. The seasonal row uses that: a client that predates it drops it from the layout it

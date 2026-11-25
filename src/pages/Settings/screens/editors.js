@@ -389,7 +389,6 @@ SCREENS.homeRows = {
       'imdb-popular-movies': 'imdbMostPopularMoviesEnabled',
       'imdb-popular-tv': 'imdbMostPopularTvShowsEnabled',
       'imdb-lowest-rated': 'imdbLowestRatedMoviesEnabled',
-      'imdb-top-english': 'imdbTopEnglishMoviesEnabled',
       seasonal: 'seasonalRowEnabled',
       mdblist_watching_now: 'mdblistWatchingNowEnabled',
     }

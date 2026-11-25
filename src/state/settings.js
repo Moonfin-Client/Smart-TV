@@ -4,6 +4,7 @@
 // are values pulled from the server.
 import { defaultSettings } from '../context/defaultSettings.js'
 import { getFromStorage, saveToStorage } from '../services/storage.js'
+import { withoutRetiredRows } from '../utils/homeLayout.js'
 import { getStore } from './store.js'
 
 let settings = { ...defaultSettings }
@@ -37,6 +38,7 @@ const bump = () => {
 export const loadSettings = async () => {
   const stored = await getFromStorage('settings')
   settings = { ...defaultSettings, ...(stored || {}) }
+  settings.homeRows = withoutRetiredRows(settings.homeRows)
   mirrorTruehd()
   // Anything computed from the defaults before this ran computes again.
   bump()

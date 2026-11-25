@@ -35,8 +35,7 @@ export const IMDB_PRESETS = [
 	{id: 'imdb-top250-tv', get title() { return $L('IMDb Top 250 TV Shows'); }, type: 'imdb_top_250_tv_shows'},
 	{id: 'imdb-popular-movies', get title() { return $L('IMDb Most Popular Movies'); }, type: 'imdb_most_popular_movies'},
 	{id: 'imdb-popular-tv', get title() { return $L('IMDb Most Popular TV Shows'); }, type: 'imdb_most_popular_tv_shows'},
-	{id: 'imdb-lowest-rated', get title() { return $L('IMDb Lowest Rated Movies'); }, type: 'imdb_lowest_rated_movies'},
-	{id: 'imdb-top-english', get title() { return $L('IMDb Top Rated English Movies'); }, type: 'imdb_top_english_movies'}
+	{id: 'imdb-lowest-rated', get title() { return $L('IMDb Lowest Rated Movies'); }, type: 'imdb_lowest_rated_movies'}
 ];
 
 // Built once per language, after the strings load.
