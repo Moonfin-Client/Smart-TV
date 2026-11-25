@@ -1,5 +1,5 @@
 <h1 align="center">Moonfin for Smart-TVs</h1>
-<h3 align="center">Premium Jellyfin, Emby, Plex and Silo client for webOS and Tizen TVs</h3>
+<h3 align="center">Premium Jellyfin, Emby, Plex and Silo client for webOS and Tizen TVs, Fire TV and Xbox</h3>
 
 ---
 
@@ -20,6 +20,8 @@
 ## What is Moonfin for Smart TVs?
 
 Moonfin is a Jellyfin, Emby, Plex and Silo client for Samsung Smart TVs (Tizen), LG Smart TVs (webOS), Fire TV sticks running Vega OS and Xbox consoles. One shared codebase powers every platform, with a video pipeline tuned for each, so you get hardware-accelerated playback, a UI designed around a remote instead of a mouse, and features that most TV clients leave out.
+
+The interface is built with [SolidTV](https://github.com/solid-tv/solid), SolidJS on a fork of the LightningJS renderer, and draws every screen into one WebGL canvas, with the video playing underneath it.
 
 ## Features
 
@@ -42,30 +44,30 @@ Moonfin is a Jellyfin, Emby, Plex and Silo client for Samsung Smart TVs (Tizen),
 - **Personal ratings** as a like, stars, or a score out of ten, usable as a library filter.
 - **Achievement Badges** on Jellyfin servers that run the Achievement Badges plugin, and **anime markers** like Filler, Manga Canon, and Subbed/Dubbed on cards and detail screens from the Moonbase plugin.
 - **Automatic performance tuning** that matches visual effects to how capable your TV is, with a manual override.
-- **Wide device support**, from Samsung 2016 sets (Tizen 2.4) and LG webOS 3.0 through the latest models, including Let's Encrypt support on older webOS models whose built-in certificate stores are out of date.
+- **Wide device support**, from Samsung 2017 sets (Tizen 3.0) and LG webOS 3.0 through the latest models, including Let's Encrypt support on older webOS models whose built-in certificate stores are out of date.
 
 The full list is on the [Features](https://github.com/Moonfin-Client/Smart-TV/wiki/Features) wiki page.
 
 ## Screenshots
 
 <p align="center">
-  <img src="images/1-home.png" width="100%" alt="Home screen with the featured media bar" />
+  <img src="images/1-home.webp" width="100%" alt="Home screen with the featured media bar" />
 </p>
 <p align="center">
-  <img src="images/2-playback.png" width="49%" alt="Player with trickplay thumbnails and the subtitle menu" />
-  <img src="images/5-livetv.png" width="49%" alt="Live TV guide, channel changer and player" />
+  <img src="images/2-playback.webp" width="49%" alt="Player with trickplay thumbnails and the subtitle menu" />
+  <img src="images/5-livetv.webp" width="49%" alt="Live TV guide, channel changer and player" />
 </p>
 <p align="center">
-  <img src="images/3-details.png" width="49%" alt="The five detail screen styles" />
-  <img src="images/4-mediabars.png" width="49%" alt="The six media bar styles" />
+  <img src="images/3-details.webp" width="49%" alt="The five detail screen styles" />
+  <img src="images/4-mediabars.webp" width="49%" alt="The six media bar styles" />
 </p>
 <p align="center">
-  <img src="images/8-home-rows.png" width="49%" alt="Modern and Classic home rows" />
-  <img src="images/6-navigation.png" width="49%" alt="Top and Sidebar navigation" />
+  <img src="images/8-home-rows.webp" width="49%" alt="Modern and Classic home rows" />
+  <img src="images/6-navigation.webp" width="49%" alt="Top and Sidebar navigation" />
 </p>
 <p align="center">
-  <img src="images/7-books-games.png" width="49%" alt="Books library and retro game library" />
-  <img src="images/9-music.png" width="49%" alt="Music player with synced lyrics" />
+  <img src="images/7-books-games.webp" width="49%" alt="Books library and retro game library" />
+  <img src="images/9-music.webp" width="49%" alt="Music player with synced lyrics" />
 </p>
 
 **Disclaimer:** Screenshots shown in this documentation feature media content, artwork, and actor likenesses for demonstration purposes only. None of the media, studios, actors, or other content depicted are affiliated with, sponsored by, or endorsing the Moonfin client or the Jellyfin project. All rights to the portrayed content belong to their respective copyright holders. These screenshots are used solely to demonstrate the functionality and interface of the application.
@@ -78,7 +80,6 @@ Fire TV sticks running Vega OS can get Moonfin from the [Amazon Appstore](https:
 |---|---|---|
 | **Tizen Regular** | `Moonfin_Tizen_Regular_v*.wgt` | Samsung Smart TVs (2017+, square icon) |
 | **Tizen Oblong** | `Moonfin_Tizen_Oblong_v*.wgt` | Samsung Smart TVs (2017+, oblong icon) |
-| **Tizen Legacy** | `Moonfin_Tizen_Legacy_v*.wgt` | Samsung Smart TVs (2016, Tizen 2.4) |
 | **webOS** | `Moonfin_webOS_v*.ipk` | LG Smart TVs (2016+, webOS 3.0+) |
 | **Vega** | `Moonfin_Vega_v*.vpkg` | Fire TV sticks on Vega OS (Fire TV Stick 4K Select and newer) |
 
@@ -88,7 +89,9 @@ The easiest route on each brand:
 - **Samsung:** the [Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung) tool, which signs and installs the `.wgt` for you.
 - **Fire TV (Vega OS):** the [Amazon Appstore](https://www.amazon.com/Moonfin/dp/B0H76BG3DW). The `.vpkg` from the Releases page can still be sideloaded with Developer Mode on the stick and the Vega SDK's `vega device install-app` on a computer.
 - **Xbox:** the [Microsoft Store](https://apps.microsoft.com/detail/9plb327dd51d). The `.zip` from the Releases page can still be sideloaded on a console in Developer Mode through the Xbox Device Portal.
-  - The console draws every app's interface at 1080p and scales it up to the TV, so on a 4K set the text and posters look a little softer than the TV's own apps. That is how Xbox runs apps, Plex and Jellyfin look the same, and video is not affected: it goes through the console's own player at 4K and in HDR or Dolby Vision.
+  - The console draws every app's interface at 1080p and scales it up to the TV, so on a 4K set the text and posters look a little softer than the TV's own apps. That's how Xbox runs apps, Plex and Jellyfin look the same, and video isn't affected: it goes through the console's own player at 4K and in HDR or Dolby Vision.
+
+Sideloaded LG and Samsung installs update themselves: when a new release is out, its What's New dialog offers Download Update, and the app restarts into the new version. Updates bring the new code, translations, images, fonts and engines, so only a release that changes what the TV sets up at install, like the app's permissions or startup page, is a normal reinstall. Coming from a Moonfin release before this rebuild, install the new package by hand once, the same way as the first time. It installs over the old app and keeps your sign-in and settings.
 
 Step-by-step instructions for all of them, including turning on Developer Mode, are on the [Installation and Sideloading](https://github.com/Moonfin-Client/Smart-TV/wiki/Installation-and-Sideloading) page. Once installed, [Getting Started](https://github.com/Moonfin-Client/Smart-TV/wiki/Getting-Started) walks through connecting to your server.
 
@@ -115,7 +118,7 @@ The deeper reference material lives in the [Wiki](https://github.com/Moonfin-Cli
 | [User Guide](https://github.com/Moonfin-Client/Smart-TV/wiki/User-Guide) | The remote inside the player, typing on a TV, themes, home rows, and parental controls |
 | [Common Problems](https://github.com/Moonfin-Client/Smart-TV/wiki/Common-Problems) | Plain fixes for connection, login, install, playback, sound and subtitle trouble |
 | [Seerr Setup](https://github.com/Moonfin-Client/Smart-TV/wiki/Seerr-Setup) | Connecting Seerr through the Moonfin server plugin |
-| [Building from Source](https://github.com/Moonfin-Client/Smart-TV/wiki/Building-from-Source) | Build scripts, the three Tizen variants, and dev servers |
+| [Building from Source](https://github.com/Moonfin-Client/Smart-TV/wiki/Building-from-Source) | Build scripts, the Tizen variants, and dev servers |
 | [Development](https://github.com/Moonfin-Client/Smart-TV/wiki/Development) | Project structure, platform abstraction, and developer notes |
 | [Collecting Logs](https://github.com/Moonfin-Client/Smart-TV/wiki/Collecting-Logs) | Diagnostic logging and what to attach to an issue |
 
@@ -123,17 +126,17 @@ The deeper reference material lives in the [Wiki](https://github.com/Moonfin-Cli
 
 ```bash
 npm install
-npm run build:tizen:all   # Samsung: Regular, Oblong, and Legacy
-npm run build:webos       # LG
-npm run build:xbox        # Xbox, on Windows with the Visual Studio Build Tools
+npm run package:tizen     # Samsung
+npm run package:webos     # LG
+npm run package:xbox      # Xbox, on Windows with the Visual Studio Build Tools
 ```
 
-A current Node.js LTS release (20 or newer) with npm is the only prerequisite.
+A current Node.js LTS release (20.19 or newer) with npm builds the app. Packaging also needs each platform's own tools: the webOS CLI for LG, the Tizen CLI and a signing profile for Samsung, the Vega SDK for Fire TV and the Visual Studio Build Tools for Xbox. The packages land in `out/`.
 
 <details>
-<summary><b>Advanced:</b> where the build CLIs live</summary>
+<summary><b>Advanced:</b> the two bundles and test builds</summary>
 
-`npm install` also sets up the build CLIs in the git-ignored `tools/` directory, which keeps them out of the lockfile on purpose. See `tools/package.json` for the reasoning. Full details, including the individual variant builds and the dev servers, are on [Building from Source](https://github.com/Moonfin-Client/Smart-TV/wiki/Building-from-Source).
+Each LG and Samsung package carries two bundles, and the app picks the one the TV can run when it starts. Full details, including the individual bundle builds, the side-by-side test builds and the dev server, are on [Building from Source](https://github.com/Moonfin-Client/Smart-TV/wiki/Building-from-Source).
 
 </details>
 
@@ -164,7 +167,7 @@ To submit a change, fork the repo, create a feature branch, make your changes wi
 Moonfin is built on the work of others:
 
 - **[Jellyfin Project](https://jellyfin.org)** for the media server
-- **[Enact](https://enactjs.com)** for the React-based framework for TV apps
+- **[SolidTV](https://github.com/solid-tv/solid)**, **[SolidJS](https://www.solidjs.com)** and **[LightningJS](https://lightningjs.io)** for the framework and the renderer it draws with
 - **Jellyfin Tizen and webOS Contributors** for the original clients
 - **Moonfin Contributors** for everything they have added to the project
 
@@ -174,6 +177,6 @@ This project is licensed under the MPL 2.0 license. Some parts incorporate conte
 
 ---
 <p align="center">
-   <strong>Moonfin for Smart TVs</strong> is an independent client and is not affiliated with the Jellyfin, Emby or Silo projects or with Plex.<br>
+   <strong>Moonfin for Smart TVs</strong> is an independent client and isn't affiliated with the Jellyfin, Emby or Silo projects or with Plex.<br>
    <a href="https://github.com/Moonfin-Client">Back to main Moonfin project</a>
 </p>
