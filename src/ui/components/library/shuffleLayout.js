@@ -1,7 +1,11 @@
 // The shuffle dialog at 1920x1080. Its 1620 by 920 content box sits at 150,80 inside 18px of padding
 // and a 1px border, and its rows stack 18 apart.
 const BOX = { x: 150, y: 80, w: 1620, h: 920 }
-export const CARD = { w: 172, h: 260, gap: 18, top: 147 }
+// The card row starts 18 under the 49 high badge. A focused card grows 1.16 times about its middle,
+// rises 10 and wears a 3px halo.
+const ROW_TOP = 147
+const BADGE_BOTTOM = BOX.y + 49
+export const FOCUS = { scale: 1.16, lift: 10, halo: 3 }
 export const ACTION = { y: 939, h: 61, gap: 12, w: (1620 - 2 * 12) / 3 }
 const PICKER = { w: 682, x: 619, titleH: 66, rowH: 56, cancelH: 57, bodyH: 69, listMax: 820 - 2 - 66 - 57 }
 
@@ -33,9 +37,23 @@ export const panelLayout = (metaH, ratingsH) => {
   const top = y + 15
   return {
     y, h, titleY: top, metaY: top + 41, ratingsY: top + 41 + metaH, overviewY: top + 41 + metaH + ratingsH + 12,
-    rowH: y - 18 - CARD.top,
+    rowH: y - 18 - ROW_TOP,
   }
 }
+
+// Posters are sized once, for the tallest panel (a meta line and two lines of compact ratings), so
+// they hold still while the panel changes from item to item. A focused card keeps 12 clear of the
+// badge and ends where the row does, and no poster is wider than 250, as in Core on TV. The gap
+// leaves room for a focused card to grow into.
+const cardSize = () => {
+  const grow = (FOCUS.scale - 1) / 2
+  const top = BADGE_BOTTOM + 12 + FOCUS.halo
+  const bottom = panelLayout(33, 113).y - 18 - FOCUS.halo
+  const h = Math.min(375, Math.floor((bottom - top) / FOCUS.scale))
+  const w = Math.round((h * 2) / 3)
+  return { w, h, gap: 18 + Math.ceil(w * grow), y: top + FOCUS.lift + h * grow, top: ROW_TOP }
+}
+export const CARD = cardSize()
 
 // A picker is as tall as its list, up to 820, and centered. Loading and empty say so in one line.
 export const pickerLayout = (rows, message) => {

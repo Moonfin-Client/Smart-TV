@@ -7,7 +7,7 @@ import { rgba } from '../../themeColor.js'
 import { hex } from '../../color.js'
 import { fontsReady, textWidth } from './measure.js'
 import { buildItemImageUrl, getInfoBits } from './shuffleHelpers.js'
-import { ACTION, CARD, actionX, cardXs, nearest, panelLayout, pickerLayout, pickerScroll } from './shuffleLayout.js'
+import { ACTION, CARD, FOCUS, actionX, cardXs, nearest, panelLayout, pickerLayout, pickerScroll } from './shuffleLayout.js'
 import { api, getApiKey, getServerUrl } from '../../../services/jellyfinApi.js'
 import { isMdblistEnabled } from '../../../services/mdblistApi.js'
 import { fetchRandomItems, fetchShuffleGenres, fetchShuffleLibraries } from '../../../services/shuffleOverlayService.js'
@@ -389,25 +389,25 @@ export default function ShuffleOverlay(props) {
               return (
                 <view
                   x={c.x}
-                  y={on() ? 137 : 147}
-                  width={172}
-                  height={260}
+                  y={on() ? CARD.y - FOCUS.lift : CARD.y}
+                  width={CARD.w}
+                  height={CARD.h}
                   pivot={0.5}
-                  scale={on() ? 1.16 : 1}
+                  scale={on() ? FOCUS.scale : 1}
                   alpha={on() ? 1 : 0.6}
                   transition={tx({ y: EASE(140), scale: EASE(140), alpha: EASE(140) })}
                 >
-                  <view x={-3} y={-3} width={180} height={266} borderRadius={17} color={CLEAR} border={look().halo} alpha={on() ? 1 : 0} />
-                  <view width={174} height={260} borderRadius={14} color={look().tile} border={look().tileEdge} />
+                  <view x={-3} y={-3} width={CARD.w + 8} height={CARD.h + 6} borderRadius={17} color={CLEAR} border={look().halo} alpha={on() ? 1 : 0} />
+                  <view width={CARD.w + 2} height={CARD.h} borderRadius={14} color={look().tile} border={look().tileEdge} />
                   <Show when={c.image}>
-                    <view x={1} y={1} width={172} height={258} borderRadius={13} src={c.image} />
+                    <view x={1} y={1} width={CARD.w} height={CARD.h - 2} borderRadius={13} src={c.image} />
                   </Show>
                   <Show when={c.letter}>
-                    <text fontFamily={c.letterFont} fontSize={64} lineHeight={33} x={87} y={113.5 + sh.c64} mountX={0.5} color={look().faint}>
+                    <text fontFamily={c.letterFont} fontSize={64} lineHeight={33} x={CARD.w / 2 + 1} y={(CARD.h - 33) / 2 + sh.c64} mountX={0.5} color={look().faint}>
                       {c.letter}
                     </text>
                   </Show>
-                  <view width={174} height={260} borderRadius={14} color={CLEAR} border={look().focusEdge} alpha={on() ? 1 : 0} />
+                  <view width={CARD.w + 2} height={CARD.h} borderRadius={14} color={CLEAR} border={look().focusEdge} alpha={on() ? 1 : 0} />
                 </view>
               )
             }}

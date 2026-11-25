@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict'
-import { actionX, cardXs, nearest, panelLayout, pickerLayout, pickerScroll } from './shuffleLayout.js'
+import { CARD, actionX, cardXs, nearest, panelLayout, pickerLayout, pickerScroll } from './shuffleLayout.js'
 
-// Five cards and the three 532 wide actions.
-assert.deepEqual(cardXs(5), [494, 684, 874, 1064, 1254])
+// The posters fill the row left by the tallest panel, and five of them with the three 532 wide actions.
+assert.deepEqual([CARD.w, CARD.h, CARD.gap], [244, 366, 38])
+assert.ok(CARD.y - 10 + 1.08 * CARD.h + 3 <= panelLayout(33, 113).y - 18)
+assert.deepEqual(cardXs(5), [274, 556, 838, 1120, 1402])
 assert.deepEqual([0, 1, 2].map(actionX), [150, 694, 1238])
 // Up from each action lands on the first, middle and last card.
-assert.deepEqual([0, 1, 2].map((i) => nearest(actionX(i) + 266, cardXs(5), 172)), [0, 2, 4])
+assert.deepEqual([0, 1, 2].map((i) => nearest(actionX(i) + 266, cardXs(5), CARD.w)), [0, 2, 4])
 // 21 Jump Street's panel: a meta line and one line of labeled compact ratings.
 const p = panelLayout(33, 58.5)
 assert.equal(p.y, 644.5)
