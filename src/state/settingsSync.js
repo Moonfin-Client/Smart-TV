@@ -338,9 +338,9 @@ export const profileToLocal = (serverProfile) => {
     }
   }
   // Legacy single-toggle profiles carry over to the granular Movie and Episode keys until set.
-  if (local.hideDetailsMediaDescription === true) {
-    if (local.hideDetailsMediaDescriptionMovie === undefined) local.hideDetailsMediaDescriptionMovie = true
-    if (local.hideDetailsMediaDescriptionEpisode === undefined) local.hideDetailsMediaDescriptionEpisode = true
+  if (typeof local.hideDetailsMediaDescription === 'boolean') {
+    if (local.hideDetailsMediaDescriptionMovie === undefined) local.hideDetailsMediaDescriptionMovie = local.hideDetailsMediaDescription
+    if (local.hideDetailsMediaDescriptionEpisode === undefined) local.hideDetailsMediaDescriptionEpisode = local.hideDetailsMediaDescription
   }
   // Continue Watching syncs on its own server key, while this app keeps it with the other rows.
   const continueWatching = rowImageTypeFromServer(serverProfile.homeImageTypeContinueWatching)
