@@ -170,6 +170,17 @@ export default function Person(props) {
       width={1920}
       height={1080}
       color="#000000ff"
+      // The row the Magic Remote's cursor focuses becomes the zone (app/pointer.js).
+      onPointerFocus={(n) => {
+        for (let p = n; p; p = p.parent) {
+          if (p !== rowNodes[0] && p !== rowNodes[1]) continue
+          setTab(p === rowNodes[0] ? 0 : 1)
+          setZone('row')
+          focusZone()
+          return true
+        }
+        return false
+      }}
       forwardFocus={() => {
         const row = zone() === 'row' && rowNodes[tab()]
         if (!row) return false
@@ -280,7 +291,20 @@ export default function Person(props) {
               <view>
                 <For each={tabs()}>
                   {(tb) => (
-                    <view x={tb.x} y={nf().tabsY} width={tb.w} height={55}>
+                    <view
+                      x={tb.x}
+                      y={nf().tabsY}
+                      width={tb.w}
+                      height={55}
+                      onPointerOver={() => {
+                        // The Magic Remote's cursor focuses a tab (app/pointer.js); its row shows as on Left/Right.
+                        if (zone() !== 'tabs') {
+                          setZone('tabs')
+                          focusZone()
+                        }
+                        if (tab() !== tb.i) setTab(tb.i)
+                      }}
+                    >
                       <view width={tb.w} height={55} borderRadius={8} color={theme().accentA(0.2)} alpha={tb.i === tab() ? 1 : 0} />
                       <view width={tb.w} height={55} borderRadius={8} color="#00000000" border={edge()} alpha={tb.i === tabFocus() ? 1 : 0} />
                       <text x={25} y={13} fontFamily={tabFont} fontSize={22} lineHeight={33} color={tb.i === tab() ? '#ffffffff' : '#aaaaaaff'}>
