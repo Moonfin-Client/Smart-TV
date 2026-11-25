@@ -4,7 +4,7 @@
 export default function CalPill(props) {
   const p = () => props.p
   return (
-    <view x={props.x || 0} y={props.y || 0} width={p().w} height={p().h} alpha={p().dim ? 0.35 : 1}>
+    <view x={props.x || 0} y={props.y || 0} width={p().w} height={p().h} alpha={p().dim ? 0.35 : 1} onPointerOver={props.onPointerOver} onPointerClick={props.onPointerClick}>
       <view width={p().w} height={p().h} borderRadius={p().radius} color={props.ring} alpha={props.focused ? 1 : 0} />
       <view
         x={p().border}
