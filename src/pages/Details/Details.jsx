@@ -7,7 +7,7 @@ import TabCells from '../../ui/components/details/TabCells.jsx'
 import UpNextCard from '../../ui/components/details/UpNextCard.jsx'
 import Overview from '../../ui/components/details/Overview.jsx'
 import FileInfo from '../../ui/components/details/FileInfo.jsx'
-import SeerrTab from '../../ui/components/details/SeerrTab.jsx'
+import SeerrTab, { seerrTabLayout } from '../../ui/components/details/SeerrTab.jsx'
 import SeerrStatusDownloads, { downloadsLayout, pollSeerr, withDownloads } from '../../ui/components/seerr/SeerrStatusDownloads.jsx'
 import { byKey } from '../../ui/components/details/keyed.js'
 import { appHidden } from '../../ui/components/details/env.js'
@@ -683,11 +683,21 @@ export default function Details(props) {
     setTc({ kind: open.kind, cells: open.cells || [], headings: open.headings || [], info: open.info || null, seerr: open.seerr || null, y: contentTop })
     m.contentH = (tabs.length ? contentTop + Math.max(320, open.height) : laid.heroBottom) + PAD_BOTTOM
   }
+  // The file info grows as its track lists open, so the page's height follows it.
+  createEffect(() => {
+    const box = tc()
+    if (box.kind !== 'details' || !refs.fileinfo || !refs.fileinfo.contentHeight) return
+    m.contentH = box.y + Math.max(320, refs.fileinfo.contentHeight()) + PAD_BOTTOM
+  })
   const tabContent = (id, d) => {
     if (id === 'details') {
+      // 600 until the file info lays itself out, and its effect below takes its height.
       return { kind: 'details', info: { item: m.item, mediaSource: d.mediaSource, audio: m.tracks.audio, subtitle: m.tracks.subtitle, w: d.contentW }, height: 600 }
     }
-    if (id === 'seerr') return { kind: 'seerr', seerr: { seerr: m.seerr, w: d.contentW }, height: 600 }
+    if (id === 'seerr') {
+      const seerr = { seerr: m.seerr, w: d.contentW }
+      return { kind: 'seerr', seerr, height: seerrTabLayout(seerr).h }
+    }
     const laid = layoutTab(id, d)
     return { kind: 'cells', cells: laid.cells, headings: laid.headings, height: laid.height }
   }
@@ -755,8 +765,8 @@ export default function Details(props) {
       const c = cell || m.focusedCell
       if (!c) return
       const box = untrack(tc)
-      // A media card takes focus on its artwork, so the labels under it don't count.
-      item = { y: box.y + c.y, h: c.kind === 'card' ? c.cardH : c.h }
+      // A media card scrolls into view with its caption.
+      item = { y: box.y + c.y, h: c.h }
       const group = box.cells.filter((x) => x.idx >= 0 && (x.section == null || x.section === c.section))
       if (group.length) {
         const top = Math.min(...group.map((x) => x.y))

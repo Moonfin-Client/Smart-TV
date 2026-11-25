@@ -298,17 +298,17 @@ export const layoutSections = (d, contentW, top) => {
   if (parts.length) rows.push(scrollRowFor('parts', 'chapter', $L('Additional Parts'), thumbEntries('pt', 'extra', parts, server), 16))
   if (others.length) rows.push(scrollRowFor('extras', 'chapter', $L('Extras'), thumbEntries('ex', 'extra', others, server), 16))
   if (d.cast.length) rows.push(scrollRowFor('cast', 'cast', $L('Cast'), castCells(d.cast, server), 23))
-  d.collectionSections.forEach((sec, i) => rows.push(scrollRowFor(`col${i}`, 'media', sec.name, sec.items.map((x, j) => mediaCell(`col${i}-`, x, j, { s })), 16)))
-  if (d.similar.length) rows.push(scrollRowFor('similar', 'media', $L('More Like This'), d.similar.map((x, j) => mediaCell('sim', x, j, { s })), 16))
+  d.collectionSections.forEach((sec, i) => rows.push(scrollRowFor(`col${i}`, 'media', sec.name, sec.items.map((x, j) => mediaCell(`col${i}-`, x, j, { s })), 24)))
+  if (d.similar.length) rows.push(scrollRowFor('similar', 'media', $L('More Like This'), d.similar.map((x, j) => mediaCell('sim', x, j, { s })), 24))
   if (L.reviews && L.reviews.length) rows.push(scrollRowFor('reviews', 'review', $L('Reviews'), reviewCells(L.reviews), 16))
   const sr = d.seerr
   if (sr && sr.pieces) {
     seerrRows(sr).forEach((r) => rows.push(r))
     if (sr.pieces.recommendations) {
-      rows.push(scrollRowFor('seerrRecs', 'media', `${sr.displayName} · ${$L('Recommendations')}`, (sr.recommendationCards || []).map((x, j) => mediaCell('sr', x, j, { s })), 16))
+      rows.push(scrollRowFor('seerrRecs', 'media', `${sr.displayName} · ${$L('Recommendations')}`, (sr.recommendationCards || []).map((x, j) => mediaCell('sr', x, j, { s })), 24))
     }
     if (sr.pieces.similar) {
-      rows.push(scrollRowFor('seerrSim', 'media', `${sr.displayName} · ${$L('Similar')}`, (sr.similarCards || []).map((x, j) => mediaCell('ss', x, j, { s })), 16))
+      rows.push(scrollRowFor('seerrSim', 'media', `${sr.displayName} · ${$L('Similar')}`, (sr.similarCards || []).map((x, j) => mediaCell('ss', x, j, { s })), 24))
     }
   }
   // The rows start 8px in, 36px apart. A media row that comes first keeps its own 40px.

@@ -19,6 +19,7 @@ export const detailTokens = () => {
     scrimA: (a) => withAlpha(t.scrim, a),
     surfaceA: (a) => withAlpha(t.surface, a),
     accentA: (a) => withAlpha(t.accent, a),
+    focusA: (a) => withAlpha(t.focus, a),
     // The current episode's ring keeps this blue in every theme.
     accentRing: '#00a4dcb3',
     isPixel: t.isPixel,

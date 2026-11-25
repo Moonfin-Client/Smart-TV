@@ -27,7 +27,6 @@ const GONE = {
   authorFont: 'roboto', previewFont: 'roboto', overviewFont: 'roboto', iconFont: 'roboto', t: '', text: '', label: '', fill: '#00000000', color: '#00000000',
 }
 const KINDS = ['card', 'person', 'chapter', 'studio', 'review', 'episode', 'track', 'pill', 'clear', 'empty']
-const REVIEW_RING = hex('#00a4dcff')
 const CLEAR_EDGE = hex('#ffffff33')
 const FADE = { duration: 150 }
 
@@ -228,7 +227,7 @@ export default function TabCells(props) {
           {(k) => (
             <view x={at(k).x} y={at(k).y} width={160} height={at(k).h}>
               <view x={10} width={140} height={140} pivot={0.5} scale={isFocus(at(k).idx) ? 1.08 : 1} transition={{ scale: FADE }}>
-                <view x={-4} y={-4} width={148} height={148} borderRadius={74} color="#ffffff99" alpha={isFocus(at(k).idx) ? 1 : 0} transition={{ alpha: FADE }} />
+                <view x={-4} y={-4} width={148} height={148} borderRadius={74} color={t().focus} alpha={isFocus(at(k).idx) ? 1 : 0} transition={{ alpha: FADE }} />
                 <view width={140} height={140} borderRadius={70} color="#ffffff1a" />
                 <view alpha={at(k).photo ? 0 : 0.4} x={40} y={40} width={60} height={60} src="icons/d/series.webp" color="#ffffffff" />
                 <view
@@ -250,7 +249,7 @@ export default function TabCells(props) {
           {(k) => (
             <view x={at(k).x} y={at(k).y} width={300} height={at(k).h}>
               <view width={300} height={168.75} pivot={0.5} scale={isFocus(at(k).idx) ? 1.05 : 1} transition={{ scale: FADE }}>
-                <view x={-4} y={-4} width={308} height={176.75} borderRadius={14} color="#ffffff99" alpha={isFocus(at(k).idx) ? 1 : 0} transition={{ alpha: FADE }} />
+                <view x={-4} y={-4} width={308} height={176.75} borderRadius={14} color={t().focus} alpha={isFocus(at(k).idx) ? 1 : 0} transition={{ alpha: FADE }} />
                 <view width={300} height={168.75} borderRadius={10} color="#1a1d22ff" />
                 <view
                   alpha={at(k).thumb ? 1 : 0}
@@ -279,7 +278,7 @@ export default function TabCells(props) {
           {(k) => (
             <view x={at(k).x} y={at(k).y} width={240} height={at(k).h}>
               <view width={240} height={130} pivot={0.5} scale={isFocus(at(k).idx) ? 1.05 : 1} transition={{ scale: FADE }}>
-                <view x={-4} y={-4} width={248} height={138} borderRadius={16} color="#ffffff99" alpha={isFocus(at(k).idx) ? 1 : 0} transition={{ alpha: FADE }} />
+                <view x={-4} y={-4} width={248} height={138} borderRadius={16} color={t().focus} alpha={isFocus(at(k).idx) ? 1 : 0} transition={{ alpha: FADE }} />
                 <view width={240} height={130} borderRadius={12} color="#ffffff1a" />
                 <view
                   alpha={at(k).logo ? 1 : 0}
@@ -302,7 +301,7 @@ export default function TabCells(props) {
           {(k) => (
             <view x={at(k).x} y={at(k).y} width={520} height={250}>
               <view width={520} height={250} borderRadius={16} color={isFocus(at(k).idx) ? '#34343cd1' : '#24242ab8'} />
-              <view width={520} height={250} borderRadius={16} color="#00000001" border={{ width: 3, color: REVIEW_RING }} alpha={isFocus(at(k).idx) ? 1 : 0} />
+              <view width={520} height={250} borderRadius={16} color="#00000001" border={{ width: 3, color: hex(t().focus) }} alpha={isFocus(at(k).idx) ? 1 : 0} />
               <view x={27} y={25} width={56} height={56} borderRadius={28} color="#ffffff29">
                 <text y={13.5} fontFamily={bold()} fontSize={26} lineHeight={34} textAlign="center" contain="width" maxWidth={56} color="#ffffffff">
                   {at(k).initial}

@@ -13,6 +13,8 @@ import * as seerrApi from '../../../services/seerrApi.js'
 import { castPhotoUrl } from '../detailsMedia.js'
 
 export const BODY_W = 1526
+// Cells sit 24px apart across a line, as on Home, and lines 30px apart.
+const GAP_X = 24
 const GAP = 30
 const MEDIA = { portrait: { w: 240, h: 360 }, square: { w: 240, h: 240 }, landscape: { w: 384, h: 216 } }
 
@@ -32,8 +34,8 @@ const flow = (cells, top, centered, row0) => {
   for (let start = 0; start < cells.length; row++) {
     let used = 0
     let n = 0
-    while (start + n < cells.length && (n === 0 || used + GAP + cells[start + n].w <= BODY_W)) {
-      used += (n ? GAP : 0) + cells[start + n].w
+    while (start + n < cells.length && (n === 0 || used + GAP_X + cells[start + n].w <= BODY_W)) {
+      used += (n ? GAP_X : 0) + cells[start + n].w
       n++
     }
     const line = cells.slice(start, start + n)
@@ -44,7 +46,7 @@ const flow = (cells, top, centered, row0) => {
       c.y = y
       c.h = c.stretch ? h : c.h
       c.row = row
-      x += c.w + GAP
+      x += c.w + GAP_X
     })
     y += h + GAP
     start += n
