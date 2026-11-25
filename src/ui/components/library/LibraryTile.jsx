@@ -125,7 +125,7 @@ export default function LibraryTile(props) {
               lineHeight={o().tLh || 22.8}
               maxWidth={o().cardW + 6}
               maxLines={1}
-              color="#ffffff"
+              color={o().titleColor || '#ffffff'}
               textShadow={o().textShadow ? CARD_TEXT_SHADOW : undefined}
             >
               {c().title || ''}

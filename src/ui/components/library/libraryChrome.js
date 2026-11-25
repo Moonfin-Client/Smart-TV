@@ -8,34 +8,31 @@ import { uiFont } from '../../text.js'
 import { hex } from '../../themeColor.js'
 import { theme } from '../../theme.js'
 
-const WHITE = '#ffffff'
-const INK = '#101010'
-const FIELD = '#1e1e28b8'
 const SIDE = 87
 const INFO_H = 152
 
 // The theme's accent and focus color, set from the theme each time the header is laid out.
-let C = { accent: '#00a4dcff', focus: '#ffffffff' }
+let C = { accent: '#00a4dcff', focus: '#ffffffff', text: '#ffffffff', ink: '#101010ff', field: '#1e1e28b8', dock: '#171717e0', os: (a) => '#ffffff' + Math.round(a * 255).toString(16).padStart(2, '0') }
 
 // A bound border object reaches the renderer as it is, so its color goes in as the renderer's number.
 export { hex as colorNum }
-const ringOf = (w, color = WHITE) => ({ w, color: hex(color) })
+const ringOf = (w, color = C.text) => ({ w, color: hex(color) })
 
 // The round-cornered toolbar button, 44 square in the Classic toolbar and 66 in
 // the Modern bar and the dock.
 const iconButton = (id, icon, x, y, size, group, ms, extra) => ({
   id, group, kind: 'button', x, y, w: size, h: size, r: size === 44 ? 9 : 16, ms,
-  fill: WHITE, icon, ix: (size - 29) / 2, iy: (size - 29) / 2, isz: 29, iconOff: '#ffffff80', inkOn: INK, iconAlpha: 1,
+  fill: C.text, icon, ix: (size - 29) / 2, iy: (size - 29) / 2, isz: 29, iconOff: C.os(0.5), inkOn: C.ink, iconAlpha: 1,
   ...extra,
 })
 
 // The search field, a frosted pill with the glyph inside and a ring on focus.
 const searchField = (x, y, w, query, group, ms, extra) => ({
   id: 'search', group, kind: 'search', x, y, w, h: 66, r: 33, ms,
-  base: FIELD, ring: true, ringBorder: ringOf(3, C.focus),
-  icon: 'lib_search', ix: 20, iy: 19, isz: 28, iconOff: WHITE, inkOn: WHITE, iconAlpha: 1,
+  base: C.field, ring: true, ringBorder: ringOf(3, C.focus),
+  icon: 'lib_search', ix: 20, iy: 19, isz: 28, iconOff: C.text, inkOn: C.text, iconAlpha: 1,
   label: query || $L('Search this library...'), lfont: uiFont(), lsize: 25, lx: 61, ly: 16.5, lh: 33, lmax: w - 84,
-  labelOff: query ? WHITE : '#ffffff9e', labelOn: query ? WHITE : '#ffffff9e',
+  labelOff: query ? C.text : C.os(0.62), labelOn: query ? C.text : C.os(0.62),
   ...extra,
 })
 
@@ -45,7 +42,7 @@ const letterButton = (letter, x, y, group, ms, extra) => ({
   ring: true, ringBorder: ringOf(1, C.accent),
   label: letter, lfont: uiFont('medium'), lfontOn: uiFont('bold'), lsize: 22, lh: 44, ly: 0,
   lx: (44 - textWidth(letter, 22, 'medium')) / 2, lmax: 44,
-  labelOff: '#ffffffd9', labelOn: C.accent,
+  labelOff: C.os(0.85), labelOn: C.accent,
   ...extra,
 })
 
@@ -65,10 +62,10 @@ const pill = (p, x, y, ms, extra) => {
   w += 22 + 3
   return {
     id: p.id, group: 'bar', kind: 'pill', x, y, w: Math.ceil(w), h: 66, r: 16, ms,
-    fill: WHITE, icon: p.icon, ix: 21, iy: 19, isz: 28, iconOff: WHITE, inkOn: INK, iconAlpha: 0.7,
-    label: p.label, lfont: uiFont('bold'), lsize: 22, lx: 59, ly: 20.5, lh: 25, lmax: labelW + 40, labelOff: WHITE, labelOn: INK,
-    value: p.value, vfont: uiFont(), vsize: 22, vx, vy: 20.5, vmax: 240, valueOff: WHITE, valueAlpha: 0.65,
-    arrow: p.arrow, ax, ay: 22, asz: 22, arrowOff: WHITE,
+    fill: C.text, icon: p.icon, ix: 21, iy: 19, isz: 28, iconOff: C.text, inkOn: C.ink, iconAlpha: 0.7,
+    label: p.label, lfont: uiFont('bold'), lsize: 22, lx: 59, ly: 20.5, lh: 25, lmax: labelW + 40, labelOff: C.text, labelOn: C.ink,
+    value: p.value, vfont: uiFont(), vsize: 22, vx, vy: 20.5, vmax: 240, valueOff: C.text, valueAlpha: 0.65,
+    arrow: p.arrow, ax, ay: 22, asz: 22, arrowOff: C.text,
     ...extra,
   }
 }
@@ -82,11 +79,11 @@ const dockRow = (p, y, ms) => {
   const vx = (p.arrow ? ax - 12 : chevX - 12) - valueW
   return {
     id: p.id, group: 'dock', kind: 'dockRow', x: 30, y, w: 359, h: 66, r: 16, ms,
-    fill: WHITE, icon: p.icon, ix: 19, iy: 19, isz: 28, iconOff: WHITE, inkOn: INK, iconAlpha: 0.7,
-    label: p.label, lfont: uiFont('bold'), lsize: 20, lx: 59, ly: 21, lh: 24, lmax: Math.max(20, vx - 12 - 59), labelOff: WHITE, labelOn: INK,
-    value: p.value, vfont: uiFont(), vsize: 20, vx, vy: 21, vmax: 150, valueOff: WHITE, valueAlpha: 0.65,
-    arrow: p.arrow, ax, ay: 22, asz: 22, arrowOff: WHITE,
-    chev: 'lib_chevron_right', cx: chevX, cy: 20, csz: 26, chevOff: WHITE, chevAlpha: 0.5,
+    fill: C.text, icon: p.icon, ix: 19, iy: 19, isz: 28, iconOff: C.text, inkOn: C.ink, iconAlpha: 0.7,
+    label: p.label, lfont: uiFont('bold'), lsize: 20, lx: 59, ly: 21, lh: 24, lmax: Math.max(20, vx - 12 - 59), labelOff: C.text, labelOn: C.ink,
+    value: p.value, vfont: uiFont(), vsize: 20, vx, vy: 21, vmax: 150, valueOff: C.text, valueAlpha: 0.65,
+    arrow: p.arrow, ax, ay: 22, asz: 22, arrowOff: C.text,
+    chev: 'lib_chevron_right', cx: chevX, cy: 20, csz: 26, chevOff: C.text, chevAlpha: 0.5,
     next: { right: 'out' },
   }
 }
@@ -98,10 +95,10 @@ const titleBlock = (s, x0, y0, group, ms, stacked) => {
   const count = s.count > 0 ? $L('{count} items').replace('{count}', s.count) : ''
   if (!s.crumbs || !s.crumbs.length) {
     const tw = s.neon ? textWidth(s.title, 38, 'neon-display-bold', NEON_TITLE_LS) : textWidth(s.title, 38)
-    out.texts.push({ k: 'title', text: s.title, x: x0, y: y0, size: 38, lh: 33, font: s.titleFont, color: WHITE, max: s.titleMax })
+    out.texts.push({ k: 'title', text: s.title, x: x0, y: y0, size: 38, lh: 33, font: s.titleFont, color: C.text, max: s.titleMax })
     if (count) {
       const cx = stacked ? x0 : x0 + Math.min(tw, s.titleMax) + 17
-      out.texts.push({ k: 'count', text: count, x: cx, y: stacked ? y0 + 33 : y0 + 7, size: 17, lh: 33, font: uiFont(), color: '#ffffff66' })
+      out.texts.push({ k: 'count', text: count, x: cx, y: stacked ? y0 + 33 : y0 + 7, size: 17, lh: 33, font: uiFont(), color: C.os(0.4) })
       out.w = stacked ? Math.max(tw, textWidth(count, 17)) : Math.min(tw, s.titleMax) + 17 + textWidth(count, 17)
     } else out.w = tw
     return out
@@ -113,25 +110,25 @@ const titleBlock = (s, x0, y0, group, ms, stacked) => {
     const w = textWidth(name, 26, 'bold') + 16 + 2
     const c = {
       id: 'crumb-' + depth, group, kind: 'crumb', depth, x, y: mid - 19, w, h: 38, r: 6, ms,
-      fill: '#ffffff14', ring: true, ringBorder: ringOf(1, C.accent),
+      fill: C.os(0.08), ring: true, ringBorder: ringOf(1, C.accent),
       label: name, lfont: s.crumbFonts[depth] || uiFont('bold'), lsize: 26, lx: 9, ly: 4, lh: 30, lmax: w,
-      labelOff: '#ffffff99', labelOn: WHITE,
+      labelOff: C.os(0.6), labelOn: C.text,
     }
     out.controls.push(c)
     x += w
   }
   crumbButton(s.rootName, 0)
   s.crumbs.forEach((f, i) => {
-    out.texts.push({ k: 'sep' + i, text: '›', x: x + 4, y: mid - 17, size: 28, lh: 33, font: uiFont(), color: '#ffffff4d' })
+    out.texts.push({ k: 'sep' + i, text: '›', x: x + 4, y: mid - 17, size: 28, lh: 33, font: uiFont(), color: C.os(0.3) })
     x += 4 + textWidth('›', 28) + 4
     if (i < s.crumbs.length - 1) crumbButton(f.name, i + 1)
     else {
-      out.texts.push({ k: 'cur', text: f.name, x: x + 8, y: mid - 19, size: 32, lh: 38, font: f.font || uiFont('bold'), color: WHITE })
+      out.texts.push({ k: 'cur', text: f.name, x: x + 8, y: mid - 19, size: 32, lh: 38, font: f.font || uiFont('bold'), color: C.text })
       x += 16 + textWidth(f.name, 32, 'bold')
     }
   })
   if (count) {
-    out.texts.push({ k: 'count', text: count, x: x + 17, y: mid - 16, size: 17, lh: 33, font: uiFont(), color: '#ffffff66' })
+    out.texts.push({ k: 'count', text: count, x: x + 17, y: mid - 16, size: 17, lh: 33, font: uiFont(), color: C.os(0.4) })
     x += 17 + textWidth(count, 17)
   }
   out.w = x - x0
@@ -151,8 +148,8 @@ const layout = (s) => {
   const out = { controls: [], texts: [], boxes: [], infoX: SIDE, infoY: -1, gridX: SIDE, gridTop: 0, gridW: 1920 - 2 * SIDE }
 
   if (s.style === 'docked') {
-    out.boxes.push({ k: 'dock', x: 0, y: 0, w: 420, h: 1080, color: '#171717e0' })
-    out.boxes.push({ k: 'dockEdge', x: 419, y: 0, w: 1, h: 1080, color: '#ffffff0f' })
+    out.boxes.push({ k: 'dock', x: 0, y: 0, w: 420, h: 1080, color: C.dock })
+    out.boxes.push({ k: 'dockEdge', x: 419, y: 0, w: 1, h: 1080, color: C.os(0.06) })
     out.controls.push(iconButton('home', 'lib_home', 30, 36, 66, 'dock', ms, { next: { right: 'out' } }))
     const title = titleBlock({ ...s, titleMax: 279 }, 110, 36, 'dock', ms, true)
     out.controls.push(...title.controls)
@@ -166,8 +163,8 @@ const layout = (s) => {
     rows.forEach((r, i) => out.controls.push(dockRow(r, 216 + i * 70, ms)))
     if (s.letters) {
       const top = 216 + rows.length * 70 - 4 + 20
-      out.boxes.push({ k: 'dockRule', x: 30, y: top, w: 359, h: 1, color: '#ffffff14' })
-      out.texts.push({ k: 'caption', text: $L('Jump to letter'), x: 30, y: top + 25, size: 17, lh: 33, font: uiFont('medium'), color: '#ffffff99', spacing: 1 })
+      out.boxes.push({ k: 'dockRule', x: 30, y: top, w: 359, h: 1, color: C.os(0.08) })
+      out.texts.push({ k: 'caption', text: $L('Jump to letter'), x: 30, y: top + 25, size: 17, lh: 33, font: uiFont('medium'), color: C.os(0.6), spacing: 1 })
       LETTERS.forEach((l, i) => {
         out.controls.push(letterButton(l, 30 + (i % 7) * 52, top + 70 + Math.floor(i / 7) * 52, 'dock', ms))
       })
@@ -184,7 +181,7 @@ const layout = (s) => {
     const title = titleBlock({ ...s, titleMax: 1746 - 200 }, SIDE, 24, 'crumbs', ms, false)
     out.controls.push(...title.controls.map((c) => ({ ...c, next: { down: '@bar' } })))
     out.texts.push(...title.texts)
-    out.boxes.push({ k: 'bar', x: SIDE, y: 76, w: 1746, h: 82, r: 24, color: FIELD })
+    out.boxes.push({ k: 'bar', x: SIDE, y: 76, w: 1746, h: 82, r: 24, color: C.field })
     const down = s.letters ? 'L-#' : 'out'
     const pills = [{ id: 'sort', icon: 'lib_sort', label: $L('Sort By'), value: s.sortLabel, arrow }]
     if (s.group) pills.push({ id: 'group', icon: 'lib_group', label: $L('Group By'), value: s.groupLabel })
@@ -197,9 +194,9 @@ const layout = (s) => {
     const controlsW = controls.reduce((a, c) => a + c.w, 0) + 6 * (controls.length - 1)
     const searchW = 1730 - 66 - 6 - 1 - 6 - 6 - 6 - 1 - 6 - 6 - controlsW
     out.controls.push(iconButton('home', 'lib_home', 95, 84, 66, 'bar', ms, { next: { down } }))
-    out.boxes.push({ k: 'div1', x: 167, y: 97, w: 1, h: 40, color: '#ffffff1a' })
+    out.boxes.push({ k: 'div1', x: 167, y: 97, w: 1, h: 40, color: C.os(0.1) })
     out.controls.push(searchField(180, 84, searchW, s.query, 'bar', ms, { next: { down } }))
-    out.boxes.push({ k: 'div2', x: 180 + searchW + 6, y: 97, w: 1, h: 40, color: '#ffffff1a' })
+    out.boxes.push({ k: 'div2', x: 180 + searchW + 6, y: 97, w: 1, h: 40, color: C.os(0.1) })
     let x = 180 + searchW + 6 + 1 + 6 + 6
     controls.forEach((c) => {
       c.x = x
@@ -257,14 +254,19 @@ const neon = (out) => {
     if (c.kind === 'search') return
     const edge = ringOf(c.kind === 'letter' || c.kind === 'crumb' ? c.ringBorder.w : 3, NEON_ACCENT)
     Object.assign(c, { fill: NEON_FOCUS, ring: true, ringBorder: edge })
-    if (c.kind === 'button') Object.assign(c, { iconOff: NEON_CYAN, inkOn: c.w === 44 ? INK : NEON_CYAN })
+    if (c.kind === 'button') Object.assign(c, { iconOff: NEON_CYAN, inkOn: NEON_CYAN })
     if (c.kind === 'pill' || c.kind === 'dockRow') Object.assign(c, { labelOn: NEON_CYAN, inkOn: NEON_CYAN, valueOff: NEON_CYAN })
   })
   return out
 }
 
-// The letters and crumbs outline in the accent, and the search field rings in the focus color.
+// The letters and crumbs outline in the accent, and the search field rings in the focus color. Text
+// is the theme's foreground, the bar, dock and field sit on its surface, and a focused button, pill
+// or dock row fills with the foreground in background-colored ink.
 export const libraryChrome = (s, t = theme()) => {
-  C = { accent: t.accent, focus: t.focus }
+  C = {
+    accent: t.accent, focus: t.focus, text: t.onSurface, os: t.os, ink: t.background,
+    field: t.surface.slice(0, 7) + 'b8', dock: t.surface.slice(0, 7) + 'e0',
+  }
   return s.neon ? neon(layout(s)) : layout(s)
 }

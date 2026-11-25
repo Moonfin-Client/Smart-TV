@@ -5,10 +5,7 @@ import { theme } from '../../theme.js'
 // One row of a LibraryPanel dialog, drawn from its laid out model. Optional parts exist only when the
 // row needs them. `neon` draws Neon Pulse: option rows focused and picked in the accent, a picked
 // radio filled with it, and the headings cyan.
-const ON = '#ffffff'
-const OFF = '#ffffffcc'
 const CLEAR = '#00000000'
-const DIM_EDGE = { width: 1, color: hex('#ffffff59') }
 const OPTION = { check: 1, radio: 1, clear: 1, more: 1 }
 const NEON_EDGE = { width: 1, color: hex('#ff2e92') }
 const NEON_CYAN = '#00e5ff'
@@ -18,6 +15,11 @@ export default function PanelRow(props) {
   const t = theme()
   const ACCENT_EDGE = { width: 1, color: hex(t.accent) }
   const FIELD_EDGE = { width: 3, color: hex(t.focus) }
+  // Text and lines in the theme's foreground, and the options in its chip shape.
+  const ON = t.onSurface
+  const OFF = t.os(0.8)
+  const DIM_EDGE = { width: 1, color: hex(t.os(0.35)) }
+  const CHIP_EDGE = { width: t.chipBorder.w, color: hex(t.chipBorder.color) }
   const r = () => props.r
   const k = () => r().kind
   const on = () => !!props.focused
@@ -26,16 +28,16 @@ export default function PanelRow(props) {
   return (
     <view x={25} y={r().y}>
       <Show when={k() === 'line'}>
-        <view width={r().inner} height={1} color="#ffffff1f" />
+        <view width={r().inner} height={1} color={t.os(0.12)} />
       </Show>
       <Show when={OPTION[k()]}>
-        <view width={r().inner} height={54} borderRadius={8} color={props.neon && on() ? '#ff2e9226' : props.neon && (r().checked || r().selected) ? '#ff2e921f' : '#ffffff1a'} />
+        <view width={r().inner} height={54} borderRadius={t.chipRadius} color={props.neon && on() ? '#ff2e9226' : props.neon && (r().checked || r().selected) ? '#ff2e921f' : t.chipBackground} border={props.neon ? undefined : CHIP_EDGE} />
       </Show>
       <Show when={k() === 'section'}>
-        <view width={r().inner} height={48} borderRadius={8} color="#ffffff1a" alpha={on() ? 1 : 0} />
+        <view width={r().inner} height={48} borderRadius={t.chipRadius} color={t.os(0.1)} alpha={on() ? 1 : 0} />
       </Show>
       <Show when={r().focusable && k() !== 'search'}>
-        <view width={r().inner} height={r().h} borderRadius={8} color={CLEAR} border={props.neon && OPTION[k()] ? NEON_EDGE : ACCENT_EDGE} alpha={on() ? 1 : 0} />
+        <view width={r().inner} height={r().h} borderRadius={t.chipRadius} color={CLEAR} border={props.neon && OPTION[k()] ? NEON_EDGE : ACCENT_EDGE} alpha={on() ? 1 : 0} />
       </Show>
       <Show when={k() === 'check'}>
         <Show
@@ -86,7 +88,7 @@ export default function PanelRow(props) {
           lineHeight={23}
           maxWidth={r().inner - 80}
           maxLines={1}
-          color={r().open || on() ? '#ffffff' : props.neon ? NEON_CYAN : '#ffffffb8'}
+          color={r().open || on() ? t.onSurface : props.neon ? NEON_CYAN : t.os(0.72)}
         >
           {r().labelText}
         </text>
@@ -110,18 +112,18 @@ export default function PanelRow(props) {
           width={26}
           height={26}
           src={r().open ? 'icons/lib_expand_less.webp' : 'icons/lib_expand_more.webp'}
-          color={on() ? '#ffffff' : '#ffffffb8'}
+          color={on() ? t.onSurface : t.os(0.72)}
         />
       </Show>
       <Show when={k() === 'heading'}>
-        <text fontFamily={r().labelFont} fontSize={19} x={16} y={20} lineHeight={33} color={props.neon ? NEON_CYAN : '#ffffffb8'}>
+        <text fontFamily={r().labelFont} fontSize={19} x={16} y={20} lineHeight={33} color={props.neon ? NEON_CYAN : t.os(0.72)}>
           {r().labelText}
         </text>
       </Show>
       <Show when={k() === 'search'}>
-        <view width={r().inner} height={66} borderRadius={33} color="#1e1e28b8">
+        <view width={r().inner} height={66} borderRadius={33} color={t.surface.slice(0, 7) + 'b8'}>
           <view width={r().inner} height={66} borderRadius={33} color={CLEAR} border={FIELD_EDGE} alpha={on() ? 1 : 0} />
-          <view x={20} y={19} width={28} height={28} src="icons/lib_search.webp" color="#ffffff" />
+          <view x={20} y={19} width={28} height={28} src="icons/lib_search.webp" color={t.onSurface} />
           <text
             fontFamily={r().labelFont}
             fontSize={25}
@@ -130,14 +132,14 @@ export default function PanelRow(props) {
             lineHeight={33}
             maxWidth={r().inner - 84}
             maxLines={1}
-            color={r().filled ? '#ffffff' : '#ffffff9e'}
+            color={r().filled ? t.onSurface : t.os(0.62)}
           >
             {r().labelText}
           </text>
         </view>
       </Show>
       <Show when={k() === 'note'}>
-        <text fontFamily={r().labelFont} fontSize={15} x={16} y={12} color="#ffffff73">
+        <text fontFamily={r().labelFont} fontSize={15} x={16} y={12} color={t.os(0.45)}>
           {r().labelText}
         </text>
       </Show>

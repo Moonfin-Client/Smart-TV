@@ -14,7 +14,6 @@ import * as settings from '../../../state/settings.js'
 // dimmer.
 // shortcut: the sheet's backdrop blur isn't drawn, only its 92 percent tint.
 const FOCUSABLE = { radio: 1, setting: 1 }
-const RADIO_EDGE = { width: 1, color: hex('#ffffff66') }
 const NEON = {
   accent: '#ff2e92',
   cyan: '#00e5ff',
@@ -83,10 +82,10 @@ export default function SidePanel(props) {
         return true
       }}
     >
-      <view width={1920} height={1080} color="#00000073" />
+      <view width={1920} height={1080} color={theme().scrim.slice(0, 7) + '73'} />
       <view x={shown() ? 1475 : 1920} width={445} height={1080} transition={{ x: { duration: ms, easing: 'ease-out' } }}>
-        <view width={445} height={1080} color="#141428eb" />
-        <view width={1} height={1080} color="#ffffff0f" />
+        <view width={445} height={1080} color={theme().surface.slice(0, 7) + 'eb'} />
+        <view width={1} height={1080} color={theme().os(0.06)} />
         <view>
           <For each={labelRows.keys()}>
             {(k) => {
@@ -99,7 +98,7 @@ export default function SidePanel(props) {
                   x={33}
                   y={lb().y}
                   letterSpacing={lb().isTitle ? (props.neon ? 0.4 : 0) : 1}
-                  color={lb().isTitle ? (props.neon ? NEON.accent : '#ffffff') : props.neon ? NEON.cyan : '#ffffff66'}
+                  color={lb().isTitle ? (props.neon ? NEON.accent : theme().onSurface) : props.neon ? NEON.cyan : theme().os(0.4)}
                   textShadow={lb().isTitle && props.neon ? NEON.glow : undefined}
                 >
                   {lb().text}
@@ -120,12 +119,12 @@ export default function SidePanel(props) {
                     width={380}
                     height={op().h}
                     borderRadius={8}
-                    color={props.neon ? NEON.lit : '#ffffff1a'}
+                    color={props.neon ? NEON.lit : theme().os(0.1)}
                     border={props.neon ? NEON.edge : { width: 1, color: hex(theme().accent) }}
                     alpha={lit() ? 1 : 0}
                   />
                   <Show when={op().isRadio}>
-                    <view x={17} y={(op().h - 22) / 2} width={22} height={22} borderRadius={11} color="#00000000" border={RADIO_EDGE} />
+                    <view x={17} y={(op().h - 22) / 2} width={22} height={22} borderRadius={11} color="#00000000" border={{ width: 1, color: hex(theme().os(0.4)) }} />
                     <Show when={op().selected}>
                       <view x={23} y={(op().h - 22) / 2 + 6} width={10} height={10} borderRadius={5} color={props.neon ? NEON.accent : theme().accent} />
                     </Show>
@@ -138,13 +137,13 @@ export default function SidePanel(props) {
                     maxWidth={340}
                     maxLines={1}
                     letterSpacing={props.neon && op().isSetting ? 0.4 : themeSpacing()}
-                    color={props.neon && op().isSetting ? NEON.accent : op().isRadio && !op().selected && !lit() && props.metrics ? props.metrics.restInk : '#ffffff'}
+                    color={props.neon && op().isSetting ? NEON.accent : op().isRadio && !op().selected && !lit() && props.metrics ? props.metrics.restInk : theme().onSurface}
                     textShadow={props.neon && op().isSetting ? NEON.glow : undefined}
                   >
                     {op().text}
                   </text>
                   <Show when={op().isSetting}>
-                    <text fontFamily={op().valueFont} fontSize={16} x={17} y={45} letterSpacing={themeSpacing()} color={props.neon ? NEON.cyan : '#ffffff8c'}>
+                    <text fontFamily={op().valueFont} fontSize={16} x={17} y={45} letterSpacing={themeSpacing()} color={props.neon ? NEON.cyan : theme().os(0.55)}>
                       {op().value || ''}
                     </text>
                   </Show>

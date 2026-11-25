@@ -7,6 +7,7 @@ import { layoutPanel, scrollFor } from './panelLayout.js'
 import { perfTier } from '../../tier.js'
 import { keyed } from './pageKit.js'
 import { NEON_GLOW } from './libraryChrome.js'
+import { theme } from '../../theme.js'
 
 // The library's centered dialogs (Sort & Filter, Display, Group By): a frosted card that scrolls
 // inside itself once it runs taller than 88 percent of the screen. Up and Down move between the rows
@@ -17,7 +18,6 @@ import { NEON_GLOW } from './libraryChrome.js'
 // shortcut: the card's backdrop blur isn't drawn, only its 92 percent tint. Add a blurred copy of the
 // screen behind it if the tint alone reads differently on TVs.
 const FOCUSABLE = { check: 1, radio: 1, clear: 1, more: 1, section: 1, search: 1 }
-const EDGE = { width: 1, color: hex('#ffffff2e') }
 
 export default function LibraryPanel(props) {
   const [cur, setCur] = createSignal(0)
@@ -55,7 +55,10 @@ export default function LibraryPanel(props) {
   const left = () => (1920 - width()) / 2
   // On the high tier a blur behind the 92 percent tint would settle on one even color, so that tier
   // gets that color. The lower tiers draw the plain tint.
-  const fill = () => (perfTier() === 'high' ? '#131325' : '#141428eb')
+  // The panel sits on the theme's surface, its edge and the scrim behind it in the theme's colors.
+  const t = theme()
+  const fill = () => t.surface.slice(0, 7) + (perfTier() === 'high' ? 'ff' : 'eb')
+  const EDGE = { width: 1, color: hex(t.os(0.18)) }
   const titleFont = uiFont('bold')
 
   const keepInView = () => {
@@ -121,7 +124,7 @@ export default function LibraryPanel(props) {
         return true
       }}
     >
-      <view width={1920} height={1080} color="#00000073" />
+      <view width={1920} height={1080} color={t.scrim.slice(0, 7) + '73'} />
       <view x={left()} y={top()} width={width()} height={height()} borderRadius={28} color={fill()} border={EDGE} />
       <view x={left()} y={top()} width={width()} height={height()} clipping>
         <view y={-scroll()} width={width()} height={laid().height}>
@@ -132,7 +135,7 @@ export default function LibraryPanel(props) {
             y={31}
             lineHeight={33}
             letterSpacing={props.neon ? 0.4 : 0}
-            color={props.neon ? '#ff2e92' : '#ffffff'}
+            color={props.neon ? '#ff2e92' : t.onSurface}
             textShadow={props.neon ? NEON_GLOW : undefined}
           >
             {props.title || ''}

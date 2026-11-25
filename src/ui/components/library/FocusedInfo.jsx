@@ -7,6 +7,7 @@ import * as settings from '../../../state/settings.js'
 import { isMdblistEnabled } from '../../../services/mdblistApi.js'
 import RatingsRow from '../home/RatingsRow.jsx'
 import { tx } from '../../fx.js'
+import { theme } from '../../theme.js'
 
 // The focused item's name, facts and ratings over a library grid. It keeps a fixed height, so the
 // grid holds still as focus moves. The Favorites HUD (variant 'hud') shows compact ratings once focus
@@ -30,7 +31,9 @@ const metaPieces = (item) => {
   return out
 }
 
-const PILL = { live: '#22c55e', ended: '#ef4444', rating: '#ffffff26', chip: '#ffffff26' }
+// Live and Ended keep white on their own colors. The rating and the chips take the theme's text on its tint.
+const STATUS = { live: '#22c55e', ended: '#ef4444' }
+const pillOf = (kind, t) => (STATUS[kind] ? { bg: STATUS[kind], ink: '#ffffff' } : kind === 'rating' || kind === 'chip' ? { bg: t.os(0.15), ink: t.onSurface } : { bg: '', ink: t.onSurface })
 
 // The Favorites HUD sets the same facts larger, with compact ratings under them.
 const VARIANTS = {
@@ -78,7 +81,7 @@ export default function FocusedInfo(props) {
       const textW = p.kind === 'text' ? textWidth(p.text, vv.textSize, 'medium') : textWidth(p.text, vv.pillSize, 'bold')
       const w = p.kind === 'text' ? textW : textW + vv.pillPadX * 2
       const out = {
-        x, w, text: p.text, isText: p.kind === 'text', bg: PILL[p.kind] || '',
+        x, w, text: p.text, isText: p.kind === 'text', ...pillOf(p.kind, theme()),
         font: p.kind === 'text' ? uiFont('medium') : uiFont('bold'),
         y: p.kind === 'text' ? (pill ? (vv.pillH - vv.textLh) / 2 : 0) : 0,
       }
@@ -129,7 +132,7 @@ export default function FocusedInfo(props) {
   )
   return (
     <view x={props.x || 0} y={props.y || 0} alpha={bodyAlpha()} transition={tx({ alpha: { duration: fadeMs(), easing: 'ease' } })}>
-      <text fontFamily={fontFor(name(), 'bold')} fontSize={v().nameSize} lineHeight={v().nameLh} maxWidth={(props.w || 1746) + 6} maxLines={1} color="#ffffff">
+      <text fontFamily={fontFor(name(), 'bold')} fontSize={v().nameSize} lineHeight={v().nameLh} maxWidth={(props.w || 1746) + 6} maxLines={1} color={theme().onSurface}>
         {name()}
       </text>
       <view y={v().metaY}>
@@ -137,7 +140,7 @@ export default function FocusedInfo(props) {
           <For each={meta().filter((m) => !m.isText)}>
             {(pl) => (
               <view x={pl.x} width={pl.w} height={v().pillH} borderRadius={v().pillR} color={pl.bg}>
-                <text fontFamily={pl.font} fontSize={v().pillSize} x={v().pillPadX} y={v().pillTextY} lineHeight={v().pillLh} color="#ffffff">
+                <text fontFamily={pl.font} fontSize={v().pillSize} x={v().pillPadX} y={v().pillTextY} lineHeight={v().pillLh} color={pl.ink}>
                   {pl.text}
                 </text>
               </view>
@@ -147,7 +150,7 @@ export default function FocusedInfo(props) {
         <view>
           <For each={meta().filter((m) => m.isText)}>
             {(mt) => (
-              <text fontFamily={mt.font} fontSize={v().textSize} x={mt.x} y={mt.y} lineHeight={v().textLh} color="#ffffffb3">
+              <text fontFamily={mt.font} fontSize={v().textSize} x={mt.x} y={mt.y} lineHeight={v().textLh} color={theme().os(0.7)}>
                 {mt.text}
               </text>
             )}
