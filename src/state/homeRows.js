@@ -15,7 +15,7 @@ import { isLiveTvLibrary, librariesForNav } from '../utils/liveTvLibrary.js'
 import { isGameLibrary, refreshGameLibraries, resolveGameLibraryId } from '../utils/gameLibrary.js'
 import { gameHeadline } from '../utils/gameArt.js'
 import * as gamesApi from '../services/gamesApi.js'
-import { isPickedRow, isPickedRowShown, isSameServer, isSeerrSliderRow } from '../utils/pickedRows.js'
+import { findServerSection, isPickedRow, isPickedRowShown, isSameServer, isSeerrSliderRow } from '../utils/pickedRows.js'
 import { apiSortBy, getGenresIncludeTypes, isPlaylistOrder, resolveSortOrder } from '../utils/homeRowSorting.js'
 import { collapseLatestTvItems, latestMediaFetchLimitForCollection, normalizeLatestMediaItems } from '../utils/latestMediaRowNormalizer.js'
 import { genericCollectionLabel, mergeRecentRows } from '../utils/mergeRecentRows.js'
@@ -639,12 +639,27 @@ const readPicked = async (ctx, section, limit) => {
   return readFoldedHead(async (size) => itemsOf(await readPlaylist(size)), collapseLatestTvItems, limit)
 }
 
+// A Silo row's title in the app's language, from Silo's list of rows (kept for a while, so it's read
+// once for the row and its cards). The name stored with the pick stays when the list can't be read
+// or no longer has the row.
+const serverRowTitle = async (section) => {
+  try {
+    const found = api.getServerHomeSections ? findServerSection(await api.getServerHomeSections(), section) : null
+    return (found && found.label) || section.name
+  } catch (e) {
+    return section.name
+  }
+}
+
 const loadPicked = async (ctx, section) => {
   const readHead = (limit) => readPicked(ctx, section, limit)
-  const first = await readHead(PICKED_ROW_LIMIT)
+  const [first, title] = await Promise.all([
+    readHead(PICKED_ROW_LIMIT),
+    section.source === 'server' ? serverRowTitle(section) : section.name,
+  ])
   // What the row's See All card opens.
   const collection = section.source === 'collections' ? { Id: section.itemId, Name: section.name, Type: 'BoxSet' } : undefined
-  return [pageable(row(section.id, section.name, itemsOf(first), 'poster', { isPluginRow: true, collection }), first, PICKED_ROW_LIMIT, readHead)]
+  return [pageable(row(section.id, title, itemsOf(first), 'poster', { isPluginRow: true, collection }), first, PICKED_ROW_LIMIT, readHead)]
 }
 
 // The enabled sections in the user's order, each a unit Home loads on its own, and what the loaders share.

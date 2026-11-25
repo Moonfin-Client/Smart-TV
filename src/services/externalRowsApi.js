@@ -130,7 +130,7 @@ const fetchSiloSeasonalRow = async () => {
 		const section = (await api.getServerHomeSections()).find((entry) => entry.kind === 'seasonal_themed');
 		if (!section) return null;
 		const items = shuffled((await api.getServerHomeSectionItems(section.id))?.Items || []);
-		return {holiday: 'silo', title: section.title, items, suggestions: []};
+		return {holiday: 'silo', title: section.label || section.title, items, suggestions: []};
 	} catch (err) {
 		console.warn('[ExternalRows] Silo seasonal section failed:', err);
 		return null;
