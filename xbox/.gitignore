@@ -1,0 +1,8 @@
+shell/**/www
+shell/**/bin
+shell/**/obj
+shell/**/AppPackages
+shell/**/BundleArtifacts
+shell/**/*.csproj.user
+shell/**/Package.Build.appxmanifest
+.cert

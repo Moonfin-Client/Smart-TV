@@ -1,0 +1,20 @@
+{
+    "id": "org.moonfin.webos",
+    "version": "3.1.1",
+    "vendor": "Moonfin",
+    "type": "web",
+    "main": "index.html",
+    "title": "Moonfin",
+    "appDescription": "Jellyfin media client for LG webOS TV",
+    "icon": "icon-80.png",
+    "largeIcon": "icon-130.png",
+    "bgImage": "splash.png",
+    "splashBackground": "splash.png",
+    "bgColor": "#000000",
+    "iconColor": "#000000",
+    "disableBackHistoryAPI": true,
+    "enablePigScreenSaver": false,
+    "allowVideoCapture": false,
+    "allowAudioCapture": false,
+    "handlesRelaunch": true
+}

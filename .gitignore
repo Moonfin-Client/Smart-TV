@@ -1,0 +1,35 @@
+# dependencies
+node_modules
+
+# testing
+coverage
+
+# production
+build
+dist
+out
+*.ipk
+*.wgt
+moonfin-ota-*
+*.zip
+*.vpkg
+*.msix
+*.appx
+*.msixupload
+*.cer
+*.pfx
+
+# copied out of node_modules on npm install, by scripts/reader-assets.mjs and subtitle-assets.mjs
+public/reader
+public/subtitles-octopus-worker.js
+public/subtitles-octopus-worker-legacy.js
+public/subtitles-octopus-worker.wasm
+public/ass-fallback-font.ttf
+
+# test clips for the Xbox probe, made by probe/make-clips.cjs
+xbox/probe/media
+
+# misc
+.DS_Store
+.vscode
+*.log

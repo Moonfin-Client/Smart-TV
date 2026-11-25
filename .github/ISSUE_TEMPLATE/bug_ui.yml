@@ -1,0 +1,98 @@
+name: "Bug: UI"
+description: Report a UI/UX issue (navigation, screens, layout, focus, etc.)
+title: "[UI] "
+labels: ["Bug", "UI"]
+body:
+  - type: input
+    id: app_version
+    attributes:
+      label: Moonfin version
+      description: The app version / release tag (e.g., v2.0.0)
+      placeholder: v2.0.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Tizen (Samsung)
+        - webOS (LG)
+        - Vega (Fire TV)
+        - Xbox
+    validations:
+      required: true
+
+  - type: input
+    id: platform_version
+    attributes:
+      label: Platform version
+      description: "Tizen example: Tizen 4 / 5.0 / 6.5 / 7.0 \nwebOS example: webOS 4 / 6.x / 23 / 24"
+      placeholder: e.g. Tizen 6.5 or webOS 23
+    validations:
+      required: true
+
+  - type: input
+    id: tv_model
+    attributes:
+      label: TV model
+      description: "Samsung example: UN55TU8000 \nLG example: OLED55C1PUA"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: server_type
+    attributes:
+      label: Server
+      description: The media server Moonfin is signed in to
+      options:
+        - Jellyfin
+        - Emby
+    validations:
+      required: true
+
+  - type: dropdown
+    id: screen
+    attributes:
+      label: Where does it happen?
+      options:
+        - Login
+        - Home
+        - Details page
+        - Settings
+        - Search
+        - Seerr
+        - Player UI (controls/OSD)
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: input_method
+    attributes:
+      label: Input method
+      options:
+        - Standard remote (d-pad)
+        - Magic remote pointer
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Photo or video of the problem
+      description: |
+        Point your phone at the TV, take a photo of exactly what you're seeing, and drag it into this box. A TV has no screenshot button, and UI issues are very hard to act on from a description alone.
+        If the problem is motion (a jump, a flicker, or focus landing in the wrong place), a short video is far more useful than a still.
+        If you genuinely can't capture one, say why here instead.
+    validations:
+      required: true

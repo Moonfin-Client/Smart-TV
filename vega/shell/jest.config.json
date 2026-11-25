@@ -1,0 +1,11 @@
+{
+	"preset": "@amazon-devices/react-native-kepler",
+	"testRegex": "/test/.*\\.spec\\.(ts|tsx)$",
+	"moduleNameMapper": {
+		"^react-native$": "@amazon-devices/react-native-kepler",
+		"^react-native/(.*)$": "@amazon-devices/react-native-kepler/$1"
+	},
+	"transformIgnorePatterns": [
+		"node_modules/(?!(react-native|@react-native|@amazon-devices)/)"
+	]
+}

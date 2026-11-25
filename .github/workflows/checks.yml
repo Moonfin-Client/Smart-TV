@@ -1,0 +1,175 @@
+name: Checks
+
+# The fast tier: the legacy bundle check and the *.check.mjs suite, on Ubuntu
+# only. It reports on a pull request in a few minutes, while Build is still
+# building. The PR Comment workflow reads its results from here.
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+  merge_group:
+  # Release tags, as in build.yml, so a tagged commit still gets the checks.
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+*'
+
+permissions:
+  contents: read
+
+# A new push to a pull request replaces its running checks. Every other run
+# gets a group of its own, so tags, manual runs and merge groups never queue
+# or cancel.
+concurrency:
+  group: checks-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # The app draws on a canvas, so there's no stylesheet for the oldest TV
+  # engines to drop. What breaks them is script syntax Chrome 38 can't parse,
+  # which stops the app before it draws anything. Both legacy bundles are
+  # built and parsed as ES5 here, so a failure shows as lint rather than as
+  # failed builds.
+  lint:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the legacy bundles
+        id: build
+        run: |
+          npm run build:webos
+          npm run build:tizen:legacy
+
+      - name: Check the legacy bundles against the oldest TV engines
+        id: es5
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: node scripts/check-legacy-js.mjs dist/webos-legacy dist/tizen-legacy
+
+      - name: Write lint-results.json
+        if: always()
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          ES5: ${{ steps.es5.outcome }}
+        run: |
+          node -e '
+          const {PR_NUMBER, SHA, ES5} = process.env;
+          const out = {pr_number: PR_NUMBER ? Number(PR_NUMBER) : null, sha: SHA, es5: ES5};
+          require("fs").writeFileSync("lint-results.json", JSON.stringify(out));
+          console.log(out);'
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: lint-results
+          path: lint-results.json
+          overwrite: true
+
+  # Every *.check.mjs under src and scripts. The platform builds bundle only
+  # reachable code, so a failing check is invisible to them. This job is what
+  # the PR comment reads its Tests line from.
+  tests:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run checks
+        run: |
+          status=0
+          node scripts/checks.mjs > "$RUNNER_TEMP/checks.txt" 2>&1 || status=1
+          cat "$RUNNER_TEMP/checks.txt"
+          echo "$status" > "$RUNNER_TEMP/run-status"
+
+      # scripts/checks.mjs walks src and scripts only.
+      - name: Check the Vega and Xbox build helpers
+        run: |
+          node vega/package-files.check.mjs
+          node xbox/probe.check.mjs
+
+      # The counts and failing check names, for the PR comment. Each check file
+      # counts as one test. A run with no summary line crashed before it
+      # finished, so it counts as a failure.
+      - name: Summarize results
+        if: always()
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          node - <<'EOF'
+          const fs = require('fs');
+          const path = require('path');
+          const tmp = process.env.RUNNER_TEMP;
+          const read = (file) => { try { return fs.readFileSync(path.join(tmp, file), 'utf8'); } catch (_) { return null; } };
+
+          const report = read('checks.txt') || '';
+          const status = read('run-status');
+          const runStatus = status === null ? 1 : Number(status.trim());
+          const finished = /^\d+ passed, \d+ failed$/m.test(report);
+
+          let passed = 0;
+          const failures = [];
+          for (const line of report.split('\n')) {
+            const m = /^(ok  |FAIL) (\S+\.check\.mjs)$/.exec(line);
+            if (m && m[1] === 'FAIL') failures.push(m[2]);
+            else if (m) passed++;
+          }
+
+          const out = {
+            pr_number: process.env.PR_NUMBER ? Number(process.env.PR_NUMBER) : null,
+            sha: process.env.SHA,
+            passed,
+            failed: failures.length,
+            failures: failures.slice(0, 50),
+            more_failures: Math.max(0, failures.length - 50),
+            run_status: finished ? runStatus : 1,
+          };
+          fs.writeFileSync('test-results.json', JSON.stringify(out));
+          console.log(JSON.stringify({...out, failures: undefined}));
+          EOF
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: test-results
+          path: test-results.json
+          overwrite: true
+
+      - name: Gate on failures
+        if: always()
+        run: |
+          node -e '
+          const r = require("./test-results.json");
+          process.exit(r.failed || r.run_status ? 1 : 0);'
+
+  # The one status check a ruleset needs to require, "Checks / checks". It
+  # reports even when a job above fails or is skipped, and fails if any did.
+  checks:
+    name: checks
+    if: always()
+    needs: [lint, tests]
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Fail if any job failed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          node -e '
+          const results = Object.fromEntries(Object.entries(JSON.parse(process.env.NEEDS)).map(([k, v]) => [k, v.result]));
+          console.log(results);
+          process.exit(Object.values(results).some(r => r === "failure" || r === "cancelled") ? 1 : 0);'

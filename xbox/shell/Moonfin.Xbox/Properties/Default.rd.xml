@@ -1,0 +1,12 @@
+<!--
+    Runtime directives for .NET Native, which compiles the Release build.
+    https://go.microsoft.com/fwlink/?LinkID=391919
+
+    The host reads and writes JSON through Windows.Data.Json and nothing here is
+    reached by reflection, so the defaults are all it needs.
+-->
+<Directives xmlns="http://schemas.microsoft.com/netfx/2013/01/metadata">
+  <Application>
+    <Assembly Name="*Application*" Dynamic="Required All" />
+  </Application>
+</Directives>
