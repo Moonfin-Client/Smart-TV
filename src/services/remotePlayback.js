@@ -23,8 +23,13 @@ export const playItems = async (itemIds, options = {}) => {
 	if (options.isCurrent && !options.isCurrent()) return
 	const items = itemsOf(res)
 	if (!items.length) return
-	const start = Math.min(Math.max(0, options.startIndex || 0), items.length - 1)
-	player.play(items, start)
+	// getItems does not promise the order asked for, so put the queue back in the sender's order and
+	// keep repeated ids as repeated tracks.
+	const byId = new Map(items.map((item) => [String(item.Id), item]))
+	const ordered = ids.map((id) => byId.get(id)).filter(Boolean)
+	if (!ordered.length) return
+	const start = Math.min(Math.max(0, options.startIndex || 0), ordered.length - 1)
+	player.play(ordered, start)
 	if (options.startPositionTicks > 0) player.seek(options.startPositionTicks / TICKS)
 	router.to('/nowplaying')
 }
@@ -60,6 +65,8 @@ const controls = {
 	fastForward: () => {
 		if (active()) player.seek(player.currentTime() + 10)
 	},
+	setRepeatMode: (mode) => player.setRepeat(mode),
+	setShuffle: (on) => player.setShuffle(on),
 }
 
 export const installRemotePlayback = () => setPlayerControls({current: controls})
