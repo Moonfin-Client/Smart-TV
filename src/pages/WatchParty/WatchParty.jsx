@@ -347,6 +347,30 @@ export default function WatchParty(props) {
     render()
   }
 
+  // The Magic Remote's cursor (app/pointer.js): the dialog's controls in its own coordinates, a
+  // scrolling body's cut to its window. One in full view takes focus on hover; one the body would
+  // scroll to takes it on a click.
+  const pointSpots = () => {
+    const top = HEADER_H
+    const bottom = HEADER_H + box().viewH
+    return my.focusables.map((f) => {
+      if (!f.body) return { f, it: { x: f.x, y: f.y, w: f.w, h: f.h }, whole: true }
+      const y0 = f.y - scrollY()
+      const y = Math.max(top, y0)
+      const h = Math.min(bottom, y0 + f.h) - y
+      return h > 0 ? { f, it: { x: f.x, y, w: f.w, h }, whole: h >= f.h - 1 } : null
+    })
+  }
+  const pointAt = (i, click) => {
+    const s = pointSpots()[i]
+    if (editing() || !s || (!click && (!s.whole || my.focus === s.f.id))) return false
+    if (my.focus !== s.f.id) {
+      my.focus = s.f.id
+      render()
+    }
+    return click
+  }
+
   const onKeyboardChange = (text) => {
     const id = my.editingId
     if (!id) return
@@ -645,6 +669,13 @@ export default function WatchParty(props) {
             <PartyPaint paint={body()} />
           </view>
         </view>
+        <view
+          width={b().w}
+          height={b().h}
+          pointerItems={() => (shown() ? pointSpots().map((s) => s && s.it) : [])}
+          onPointerItem={(_, i) => pointAt(i, false)}
+          onPointerItemClick={(_, i) => pointAt(i, true)}
+        />
       </view>
       <Keyboard overlay ref={(n) => (kb = n)} onKeyboardChange={onKeyboardChange} onKeyboardClose={onKeyboardClose} onKeyboardNative={openNative} />
     </view>

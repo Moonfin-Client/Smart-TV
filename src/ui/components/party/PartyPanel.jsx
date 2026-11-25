@@ -66,6 +66,19 @@ export default function PartyPanel(props) {
     const f = laid.focusables.find((x) => x.id === my.focus)
     if (f) setScrollY(scrollFor(scrollY(), f, 1080, laid.h))
   }
+  // The Magic Remote's cursor (app/pointer.js): a control in full view takes focus on hover, one the
+  // panel would scroll to on a click.
+  const pointAt = (i, click) => {
+    const f = my.focusables[i]
+    if (editing() || !f) return false
+    const y = f.y - scrollY()
+    if (!click && (y < 0 || y + f.h > 1080 || my.focus === f.id)) return false
+    if (my.focus !== f.id) {
+      my.focus = f.id
+      render()
+    }
+    return click
+  }
   const move = (dir) => {
     const onScreen = my.focusables.map((f) => ({ ...f, y: f.y - scrollY() }))
     const next = spotlightMove(onScreen, my.focus, dir)
@@ -196,6 +209,13 @@ export default function PartyPanel(props) {
       <view x={PANEL_X} width={740} height={1080} color="#1a1a1a" clipping>
         <view y={-scrollY()} width={740} height={contentH()}>
           <PartyPaint paint={paint()} />
+          <view
+            width={740}
+            height={contentH()}
+            pointerItems={() => my.focusables.map((f) => ({ x: f.x, y: f.y, w: f.w, h: f.h }))}
+            onPointerItem={(_, i) => pointAt(i, false)}
+            onPointerItemClick={(_, i) => pointAt(i, true)}
+          />
         </view>
       </view>
       <Keyboard overlay ref={(n) => (kb = n)} onKeyboardChange={onKeyboardChange} onKeyboardClose={onKeyboardClose} onKeyboardNative={openNative} />
