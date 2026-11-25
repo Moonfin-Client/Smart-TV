@@ -140,13 +140,13 @@ const maxResolution = (codecProfiles) => {
 const containerKey = (container) => ({mpegts: 'ts', m2ts: 'ts', mts: 'ts', matroska: 'mkv'}[container] || container);
 
 // The channel caps for audio in video on a delivery that can come in these containers. A cap for every codec (the Max
-// Audio Channels setting) goes as max_channels, and one for some codecs (Tizen plays PCM only in stereo) as
-// max_channels_by_codec, so not every codec drops to stereo. A cap for some containers counts where the delivery can be
-// one of them. A server without per-codec caps ignores them, so a codec capped below 5.1 is left out of what the
-// delivery plays instead, and Silo converts only that codec.
-const channelLimits = (codecProfiles, containers, byCodecSupported) => {
+// Audio Channels setting, or the delivery's own `caps`) goes as max_channels, and one for some codecs (Tizen plays PCM
+// only in stereo) as max_channels_by_codec, so not every codec drops to stereo. A cap for some containers counts where
+// the delivery can be one of them. A server without per-codec caps ignores them, so a codec capped below 5.1 is left
+// out of what the delivery plays instead, and Silo converts only that codec.
+const channelLimits = (codecProfiles, containers, byCodecSupported, caps = []) => {
 	const kinds = containers.map(containerKey);
-	const all = [];
+	const all = caps.slice();
 	const byCodec = {};
 	codecProfiles.forEach((p) => {
 		if (p.Type !== 'VideoAudio' || profiles(p.ApplyConditions).length) return;
@@ -195,8 +195,12 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 	const resolution = maxResolution(codecProfiles);
 	const byCodecSupported = Array.isArray(serverFeatures) && serverFeatures.includes('codec_channel_ceilings_v1');
 
-	const delivery = ({supported, containers: kinds, scope = kinds, video, audio, subtitles, claims = [], features = [], failureReason}) => {
-		const channels = channelLimits(codecProfiles, scope, byCodecSupported);
+	// The HLS transcoding profile's MaxAudioChannels caps what the server may copy or encode into the stream (Tizen 6,
+	// webOS without native HLS 2). Silo reads no max_channels as no cap, so it would copy 7.1 into HLS.
+	const hlsChannelCaps = hlsProfiles.map((p) => parseInt(p.MaxAudioChannels, 10)).filter((n) => n > 0 && n <= 64);
+
+	const delivery = ({supported, containers: kinds, scope = kinds, video, audio, subtitles, claims = [], features = [], failureReason, channelCaps}) => {
+		const channels = channelLimits(codecProfiles, scope, byCodecSupported, channelCaps);
 		// An empty list would read as every codec.
 		const playable = audio.filter((codec) => !channels.unplayable.includes(codec));
 		return {
@@ -268,7 +272,8 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 				video: hlsVideo,
 				audio: hlsAudio.length ? hlsAudio : ['aac'],
 				subtitles: sidecarSubtitles,
-				features: traits.playsHlsNatively ? ['native_hls_playback_v1'] : []
+				features: traits.playsHlsNatively ? ['native_hls_playback_v1'] : [],
+				channelCaps: hlsChannelCaps
 			})
 		},
 		clientFeatures: ['playback_plan_v3', ...(traits.rendersEmbeddedSubtitles ? ['embedded_subtitles_v1'] : [])]
