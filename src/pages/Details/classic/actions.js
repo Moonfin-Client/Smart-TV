@@ -45,7 +45,7 @@ export const classicActions = (p, tracks) => {
     { id: 'watchWithGroup', when: p.inSyncPlayGroup && !isBook, icon: 'group', label: $L('Watch with group') },
     { id: 'watched', when: true, icon: 'watched', label: ud.Played ? $L('Watched') : $L('Mark as Watched'), state: ud.Played ? 'watched' : '' },
     { id: 'favorite', when: true, icon: 'favorite', label: ud.IsFavorite ? $L('Favorited') : $L('Favorite'), state: ud.IsFavorite ? 'favorited' : '' },
-    { id: 'personalRating', when: p.showsPersonalRating, icon: ratingIcon(p.ratingStyle, ud), label: ratingLabel(p.ratingStyle, ud) },
+    { id: 'personalRating', when: p.showsPersonalRating, icon: ratingIcon(p.ratingStyle, ud), label: ratingLabel(p.ratingStyle, ud, p.ratingIntervals) },
     { id: 'goToSeries', when: goToSeries, icon: 'series', label: $L('Go to Series') },
     { id: 'playlist', when: true, icon: 'playlist', label: $L('Add to Playlist') },
     { id: 'collection', when: p.canAddToCollection, icon: 'collection', label: $L('Add to Collection') },

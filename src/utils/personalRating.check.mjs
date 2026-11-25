@@ -49,6 +49,9 @@ assert.equal(formatPersonalRatingBadge(7.5, 'stars', 21), '3.75/5')
 assert.equal(formatPersonalRatingBadge(8, 'numeric', 11), '8')
 assert.equal(formatPersonalRatingBadge(8.5, 'numeric', 21), '8.5')
 assert.equal(formatPersonalRatingBadge(8.25, 'numeric', 41), '8.25')
+// Read-only badge formatting preserves off-grid stored scores to configured precision
+assert.equal(formatPersonalRatingBadge(7.3, 'stars', 21), '3.65/5')
+assert.equal(formatPersonalRatingBadge(7.3, 'numeric', 21), '7.3')
 
 // Grid snapping & stepping
 assert.equal(snapPersonalRatingToGrid(7.3, 'stars', 21), 7.5)

@@ -74,15 +74,15 @@ export const formatPersonalRatingNumber = (value, maxDecimals) => {
 
 export const formatPersonalRatingBadge = (serverRating, style, intervals = DEFAULT_PERSONAL_RATING_INTERVALS) => {
 	const normalizedStyle = normalizeRatingStyle(style);
+	const clamped = clampRating(serverRating);
 	if (normalizedStyle === 'thumbs') {
-		return formatPersonalRatingNumber(clampRating(serverRating), 1);
+		return formatPersonalRatingNumber(clamped, 1);
 	}
-	const snapped = snapPersonalRatingToGrid(serverRating, normalizedStyle, intervals);
 	const maxDecimals = personalRatingMaxDecimals(normalizedStyle, intervals);
 	if (normalizedStyle === 'stars') {
-		return `${formatPersonalRatingNumber(snapped / 2, maxDecimals)}/5`;
+		return `${formatPersonalRatingNumber(clamped / 2, maxDecimals)}/5`;
 	}
-	return formatPersonalRatingNumber(snapped, maxDecimals);
+	return formatPersonalRatingNumber(clamped, maxDecimals);
 };
 
 export const stepPersonalRatingDown = (current, style, intervals) => {
