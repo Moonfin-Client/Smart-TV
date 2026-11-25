@@ -57,6 +57,8 @@ const build = (s) => {
     accent: lc(c.accent),
     accentA: (a) => lc(c.accent, a),
     onAccent: lc(c.onAccent),
+    // Ink on an accent fill: the theme's onAccent, or black or white where that reads too faintly.
+    onAccentInk: contrastRatio(c.accent, c.onAccent) >= MIN_BUTTON_CONTRAST ? lc(c.onAccent) : inkOn(c.accent, 0.92),
     buttonNormal: lc(c.buttonNormal),
     buttonFocused: lc(c.buttonFocused),
     buttonDisabled: lc(c.buttonDisabled),

@@ -4,8 +4,8 @@ import CountdownRing from './CountdownRing.jsx'
 import { fontFor, uiFont } from '../../text.js'
 import { hex } from '../../color.js'
 import * as settings from '../../../state/settings.js'
-import { ACCENT, lineCount, textWidth } from './look.js'
-import { formatRemaining, panelFill, panelShadow } from './overlayLook.js'
+import { lineCount, textWidth } from './look.js'
+import { formatRemaining, panelFill, panelShadow, promptColors } from './overlayLook.js'
 import { PILL_H } from './animePills.js'
 
 const COVER = { resizeMode: { type: 'cover' } }
@@ -25,6 +25,7 @@ export default function NextUpCard(props) {
   const bold = uiFont('bold')
   const regular = uiFont()
   const fill = panelFill()
+  const c = promptColors()
   const shadow = panelShadow()
   const airs = () => !!(props.card && props.card.airs)
 
@@ -160,12 +161,12 @@ export default function NextUpCard(props) {
         <view y={look().thumbH * 0.45} width={look().w} height={look().thumbH * 0.51} colorTop="#00000000" colorBottom="#000000de" />
         <view y={look().thumbH * 0.96} width={look().w} height={look().thumbH * 0.04} color="#000000de" />
       </view>
-      <text fontFamily={bold} fontSize={look().eyebrowSize} letterSpacing={1.7} x={26} y={look().eyebrowY + 1} lineHeight={33} color="#ffffffd9">
+      <text fontFamily={bold} fontSize={look().eyebrowSize} letterSpacing={1.7} x={26} y={look().eyebrowY + 1} lineHeight={33} color={c.os(0.85)}>
         {upNext}
       </text>
       <view x={26} y={look().pillsY} width={look().pillW} height={41} alpha={look().pill}>
-        <view width={look().pillW} height={41} borderRadius={9} color="#00a4dc38" border={{ width: 1, color: hex('#00a4dc66') }} />
-        <text fontFamily={bold} fontSize={16} x={13} y={5} lineHeight={33} color="#ffffffff">
+        <view width={look().pillW} height={41} borderRadius={9} color={c.accentA(0.22)} border={{ width: 1, color: hex(c.accentA(0.4)) }} />
+        <text fontFamily={bold} fontSize={16} x={13} y={5} lineHeight={33} color={c.text}>
           {look().pillLabel}
         </text>
       </view>
@@ -189,32 +190,32 @@ export default function NextUpCard(props) {
         lineHeight={look().titleLh}
         maxWidth={look().w - 52}
         maxLines={look().titleLines}
-        color="#ffffffff"
+        color={c.text}
       >
         {look().title}
       </text>
-      <text alpha={look().airs ? 1 : 0} fontFamily={regular} fontSize={look().airsSize} x={26} y={look().airsY + 1} lineHeight={33} color="#ffffffd9">
+      <text alpha={look().airs ? 1 : 0} fontFamily={regular} fontSize={look().airsSize} x={26} y={look().airsY + 1} lineHeight={33} color={c.os(0.85)}>
         {look().airs || ' '}
       </text>
-      <text alpha={look().timer ? 1 : 0} fontFamily={bold} fontSize={17} x={26} y={look().timerY + 1} lineHeight={33} color="#ffffffb3">
+      <text alpha={look().timer ? 1 : 0} fontFamily={bold} fontSize={17} x={26} y={look().timerY + 1} lineHeight={33} color={c.os(0.7)}>
         {look().timer || ' '}
       </text>
       <view x={26} y={look().actionsY} width={look().playW} height={66} alpha={look().play}>
-        <view width={look().playW} height={66} borderRadius={17} color={ACCENT} />
-        <view width={look().playW} height={66} borderRadius={17} color="#00000000" border={{ width: 1, color: hex('#ffffff') }} alpha={playFocused() ? 1 : 0} />
-        <view x={24} y={17} width={32} height={32} src="icons/play_arrow.webp" color="#ffffffff" alpha={1 - look().ring} />
+        <view width={look().playW} height={66} borderRadius={17} color={c.accent} />
+        <view width={look().playW} height={66} borderRadius={17} color="#00000000" border={{ width: 1, color: hex(c.accentButtonFocus) }} alpha={playFocused() ? 1 : 0} />
+        <view x={24} y={17} width={32} height={32} src="icons/play_arrow.webp" color={c.onAccent} alpha={1 - look().ring} />
         <view x={24} y={17} width={32} height={32} alpha={look().ring}>
-          <CountdownRing size={32} stroke={4} progress={look().progress} track="#ffffff3d" value="#ffffffff" />
-          <view x={7.5} y={7.5} width={17} height={17} src="icons/play_arrow.webp" color="#ffffffff" />
+          <CountdownRing size={32} stroke={4} progress={look().progress} track={c.onAccentA(0.24)} value={c.onAccent} />
+          <view x={7.5} y={7.5} width={17} height={17} src="icons/play_arrow.webp" color={c.onAccent} />
         </view>
-        <text fontFamily={bold} fontSize={22} x={69} y={21} lineHeight={26} color="#ffffffff">
+        <text fontFamily={bold} fontSize={22} x={69} y={21} lineHeight={26} color={c.onAccent}>
           {playLabel}
         </text>
       </view>
       <view x={look().dismissX} y={look().dismissY} width={64} height={64}>
-        <view width={64} height={64} borderRadius={17} color="#ffffff14" border={{ width: 1, color: hex('#ffffff2e') }} alpha={dismissFocused() ? 0 : 1} />
-        <view width={64} height={64} borderRadius={17} color="#00a4dc3d" border={{ width: 1, color: hex(ACCENT) }} alpha={dismissFocused() ? 1 : 0} />
-        <view x={17.5} y={17.5} width={29} height={29} src="icons/close.webp" color="#ffffffff" />
+        <view width={64} height={64} borderRadius={17} color={c.os(0.08)} border={{ width: 1, color: hex(c.os(0.18)) }} alpha={dismissFocused() ? 0 : 1} />
+        <view width={64} height={64} borderRadius={17} color={c.accentA(0.24)} border={{ width: 1, color: hex(c.focus) }} alpha={dismissFocused() ? 1 : 0} />
+        <view x={17.5} y={17.5} width={29} height={29} src="icons/close.webp" color={c.text} />
       </view>
     </view>
   )
