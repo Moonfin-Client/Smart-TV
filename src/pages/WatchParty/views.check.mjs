@@ -88,7 +88,9 @@ themed.forEach((m) => {
         part[list].forEach((it) => {
           const c = it.c.slice(0, 7)
           // The QR code's backing, and the white label on a red Leave or End button.
-          const white = c === '#ffffff' && (it.k === 'inv:qrbg' || ((m.kind === 'siloRoom' || m.kind === 'syncGroup') && /^(leave|end):t/.test(it.k)))
+          // White stays on the QR code, the red Leave/End buttons and the initials on the fixed avatar colors.
+          const white = c === '#ffffff' && (it.k === 'inv:qrbg' || /:avt\d+$|^chip:\d+:i$|:av:t$/.test(it.k) ||
+            ((m.kind === 'siloRoom' || m.kind === 'syncGroup') && /^(leave|end):t/.test(it.k)))
           assert.ok(own.has(c) || fixed.has(c) || white, `${m.kind} (focus ${focus}) ${list} ${it.k} keeps the fixed color ${it.c}`)
         })
       }

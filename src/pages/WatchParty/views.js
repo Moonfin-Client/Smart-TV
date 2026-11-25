@@ -28,6 +28,7 @@ const chip = (s, k, x, y, label, party, lock) => {
   const L = s.look
   const ink = party ? L.accent : L.ink
   s.box(`${k}:bg`, x, y, w, 34, L.panel.slice(0, 7) + 'e6', 17)
+  if (party) s.box(`${k}:tint`, x, y, w, 34, L.accentA(0.22), 17)
   s.ring(`${k}:ring`, x, y, w, 34, party ? L.accentA(0.6) : L.os(0.4), 1, 17)
   if (lock) s.box(`${k}:icon`, x + 15, y + 8.5, 17, 17, ink, 0, 1, 'party/lock.webp')
   s.text(`${k}:t`, x + 15 + (lock ? 23 : 0), y + 0.5, label, { size: 17, weight: 500, color: ink, lh: LINE })
@@ -461,7 +462,7 @@ const buildSyncLobby = (s, m) => {
         s.box(`${id}:avr${j}`, cx, cy - 18, 36, 36, s.look.panel.slice(0, 7) + 'ff', 18)
         s.box(`${id}:avb${j}`, cx + 2, cy - 16, 32, 32, av.color, 16)
         s.over = false
-        s.text(`${id}:avt${j}`, cx + 18, cy - normal(16) / 2, (String(name).trim().charAt(0) || '?').toUpperCase(), { size: 16, weight: 700, mx: 0.5 })
+        s.text(`${id}:avt${j}`, cx + 18, cy - normal(16) / 2, (String(name).trim().charAt(0) || '?').toUpperCase(), { size: 16, weight: 700, color: '#ffffff', mx: 0.5 })
       }
       cx += j < Math.min(names.length, 3) - 1 ? 26 : 36
     })
@@ -518,7 +519,7 @@ const buildSyncGroup = (s, m) => {
       const av = m.avatarFor(name)
       if (av.url) s.pic(`chip:${i}:pic`, tx, rowTop + 5, 36, 36, [av.url], 18)
       else s.box(`chip:${i}:av`, tx, rowTop + 5, 36, 36, av.color, 18)
-      if (!av.url) s.text(`chip:${i}:i`, tx + 18, rowTop + 5 + (36 - normal(16)) / 2, (String(name).trim().charAt(0) || '?').toUpperCase(), { size: 16, weight: 700, mx: 0.5 })
+      if (!av.url) s.text(`chip:${i}:i`, tx + 18, rowTop + 5 + (36 - normal(16)) / 2, (String(name).trim().charAt(0) || '?').toUpperCase(), { size: 16, weight: 700, color: '#ffffff', mx: 0.5 })
       tx += 36 + 8
     }
     s.text(`chip:${i}:t`, tx, rowTop + (chipH - LINE) / 2, label, { size: 18, lh: LINE })

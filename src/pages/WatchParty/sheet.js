@@ -27,7 +27,13 @@ const MOONFIN = {
 // The dialogs' colors from the theme's tokens (ui/theme.js's theme()). Text and lines are the theme's onSurface at
 // an alpha, tints its accent, and rings its Focus Color. Status colors (the room dots, state pills, the host ring,
 // avatars) and the red of Leave and errors stay fixed, and so does the QR code's white.
+// theme() hands back one object until the settings change, so each is turned into a look once.
+const looks = new WeakMap()
 export const partyLook = (t = MOONFIN) => {
+  if (!looks.has(t)) looks.set(t, makeLook(t))
+  return looks.get(t)
+}
+const makeLook = (t) => {
   const os = (a) => fade(t.onSurface, a)
   return {
     text: t.onSurface,
@@ -116,7 +122,9 @@ export const button = (s, id, x, y, w, label, kind = 'create', disabled = false,
   const f = s.is(id)
   const a = disabled ? 0.5 : 1
   s.box(`${id}:bg`, x, y, w, h, f && !disabled ? st.focus : st.bg, 12, a)
-  s.ring(`${id}:ring`, x, y, w, h, s.look.focus, 1, 12, f ? a : 0)
+  // A plain button keeps an edge at rest, since a theme's button fill can be clear (Neon Pulse).
+  const rest = kind === 'plain' ? a : 0
+  s.ring(`${id}:ring`, x, y, w, h, f ? s.look.focus : s.look.os(0.25), 1, 12, f ? a : rest)
   glow(s, `${id}:glow`, x, y, w, h, 12, f)
   s.text(`${id}:t`, x + w / 2, y + (h - normal(20)) / 2, label, { size: 20, weight: 500, color: f ? st.focusInk : st.ink, mx: 0.5, a, mw: w - 50 })
   if (focusable) s.focusable(id, x, y, w, h)
@@ -153,6 +161,7 @@ export const actionButton = (s, id, x, y, w, label, danger = false) => {
   const f = s.is(id)
   const L = s.look
   s.box(`${id}:bg`, x, y, w, 58, f ? L.buttonFocused : L.button, 12)
+  s.ring(`${id}:ring`, x, y, w, 58, L.os(0.25), 1, 12, f ? 0 : 1)
   s.text(`${id}:t`, x + w / 2, y + 29 - normal(21) / 2, label, { size: 21, weight: 500, color: f ? L.onButtonFocused : danger ? '#ff8a8a' : L.onButton, mx: 0.5, mw: w - 32 })
   s.focusable(id, x, y, w, 58)
   return 58
@@ -189,7 +198,7 @@ export const avatar = (s, k, x, y, size, name, url, fontSize = 18, a = 1) => {
     return
   }
   const initial = (String(name || '').charAt(0) || '?').toUpperCase()
-  s.text(`${k}:t`, x + size / 2, y + (size - normal(fontSize)) / 2, initial, { size: fontSize, weight: 700, mx: 0.5, a })
+  s.text(`${k}:t`, x + size / 2, y + (size - normal(fontSize)) / 2, initial, { size: fontSize, weight: 700, color: '#ffffff', mx: 0.5, a })
 }
 
 // The error banner. Returns its height.
