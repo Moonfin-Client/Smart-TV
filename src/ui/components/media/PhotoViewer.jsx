@@ -409,6 +409,14 @@ export default function PhotoViewer(props) {
         return true
       }}
       onBack={key(close)}
+      // A click with the Magic Remote's cursor (app/pointer.js) on the left or right edge steps like
+      // the arrows; anywhere else it's OK.
+      onPointerClick={(_, p) => {
+        if (p.x < 320) step(-1)
+        else if (p.x >= 1600) step(1)
+        else return true
+        return false
+      }}
       // Nothing else reaches the screen behind the viewer.
       onKeyPress={() => true}
     >
@@ -456,7 +464,21 @@ export default function PhotoViewer(props) {
         <text fontFamily={fontFor(st.meta)} fontSize={18} lineHeight={33} x={30} y={st.metaY + shiftMeta} color="#ffffff99">
           {st.meta}
         </text>
-        <view x={30} y={st.buttonY} width={st.labelW + 86} height={59} borderRadius={8} color="#00000099" border={BUTTON_EDGE} alpha={st.showButton ? 1 : 0}>
+        <view
+          x={30}
+          y={st.buttonY}
+          width={st.labelW + 86}
+          height={59}
+          borderRadius={8}
+          color="#00000099"
+          border={BUTTON_EDGE}
+          alpha={st.showButton ? 1 : 0}
+          onPointerClick={() => {
+            if (!st.info || st.playsVideo) return true
+            toggleSlideshow()
+            return false
+          }}
+        >
           <view x={24} y={18} width={24} height={24} src="icons/pv_play.webp" color="#ffffff" alpha={st.running ? 0 : 1} />
           <view x={27} y={19} width={6} height={22} color="#ffffff" alpha={st.running ? 1 : 0} />
           <view x={39} y={19} width={6} height={22} color="#ffffff" alpha={st.running ? 1 : 0} />

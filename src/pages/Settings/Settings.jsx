@@ -1171,6 +1171,7 @@ export default function Settings(props) {
           onPickScene={setScene}
           onLeaveChips={onLeaveChips}
           onChipsUp={onChipsUp}
+          onPointerChips={toChips}
         />
       </view>
 

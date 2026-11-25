@@ -103,6 +103,20 @@ export default function SubtitleSearch(props) {
     setScroll(revealScroll(scroll(), laid().focusables[next], laid().h, laid().contentH))
     return true
   }
+  // The Magic Remote's cursor (app/pointer.js): a row in full view takes focus on hover, one the list
+  // would scroll to only on a click, so the list doesn't move under the cursor.
+  const pointAt = (i) => {
+    const f = laid().focusables[i]
+    if (!f || cur() === i || f.y < scroll() || f.y + f.h > scroll() + laid().h) return
+    setCur(i)
+  }
+  const clickAt = (i) => {
+    const f = laid().focusables[i]
+    if (!f) return false
+    setCur(i)
+    setScroll(revealScroll(scroll(), f, laid().h, laid().contentH))
+    return true
+  }
   const close = () => {
     if (props.onSubtitleSearchClose) props.onSubtitleSearchClose()
     return true
@@ -161,6 +175,13 @@ export default function SubtitleSearch(props) {
             >
               {laid().footer ? laid().footer.text : ' '}
             </text>
+            <view
+              width={662}
+              height={laid().contentH}
+              pointerItems={() => laid().focusables.map((f) => ({ x: 1, y: f.y, w: 660, h: f.h }))}
+              onPointerItem={(_, i) => pointAt(i)}
+              onPointerItemClick={(_, i) => clickAt(i)}
+            />
           </view>
         </view>
       </view>
