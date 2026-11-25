@@ -8,6 +8,7 @@ import { getServerUrl } from '../../../services/jellyfinApi.js'
 import { getStore } from '../../../state/store.js'
 import * as settings from '../../../state/settings.js'
 import { router } from '../../../app/router.js'
+import { pointerFocus } from '../../../app/pointer.js'
 import { openSyncPlay } from '../../../pages/WatchParty/syncPlayNext.js'
 import { cssShift, textReady, textWidth, uiFont, fontFor } from '../../text.js'
 
@@ -134,6 +135,15 @@ export default function WatchPartyRow(props) {
     if (left < L().clipX) setScroll(scroll() - (L().clipX - left + 50))
     else if (right > 1920) setScroll(scroll() + right - 1920 + 50)
   }
+  // The Magic Remote's cursor rings a card, and a click focuses it and presses it (app/pointer.js),
+  // since the row slides to the focused card. onPointerRow lets the rows around it focus it.
+  let self
+  const pick = (i) => () => {
+    pointerFocus(self)
+    if (props.onPointerRow) props.onPointerRow()
+    move(i)
+    return true
+  }
   const join = async (room) => {
     if (busy) return
     if (room.kind === 'syncplay') {
@@ -156,6 +166,7 @@ export default function WatchPartyRow(props) {
   return (
     <view
       ref={(n) => {
+        self = n
         n.focusIndex = () => {}
         n.cur = cur
         if (props.ref) props.ref(n)
@@ -190,8 +201,8 @@ export default function WatchPartyRow(props) {
         <view y={20} x={L().pad - scroll()} width={spanW()} height={230}>
           <view width={spanW()} height={230}>
             <For each={cards()}>
-              {(c) => (
-                <view x={c.x} width={CARD_W} height={CARD_H}>
+              {(c, i) => (
+                <view x={c.x} width={CARD_W} height={CARD_H} pointerRing={12} onPointerClick={pick(i())}>
                   <view width={CARD_W} height={CARD_H} borderRadius={12} color="#222222ff" />
                   <PartyImage srcs={c.srcs} w={CARD_W} h={CARD_H} r={12} />
                   <view x={12} y={170} width={c.pillW} height={34} borderRadius={9} color="#101010d9">
@@ -216,7 +227,7 @@ export default function WatchPartyRow(props) {
               )}
             </For>
           </view>
-          <view x={startX()} width={START_W} height={START_H}>
+          <view x={startX()} width={START_W} height={START_H} pointerRing={12} onPointerClick={() => pick(rooms().length)()}>
             <view width={START_W} height={START_H} src="images/party-start-dash.webp" color="#4a4a4aff" />
             <view x={173} y={67.5} width={44} height={44} src="party/plus.webp" color="#d6d6d6ff" />
             <text
