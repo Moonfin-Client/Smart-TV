@@ -37,8 +37,9 @@ export const fetchDetailPlaybackInfo = async (api, {
 	};
 	if (deviceProfile) body.DeviceProfile = deviceProfile;
 	if (maxStreamingBitrate) body.MaxStreamingBitrate = maxStreamingBitrate;
-	// Play keeps the version shown, so the preview does too.
-	if (mediaSourceId) Object.assign(body, {MediaSourceId: mediaSourceId, PinVersion: true});
+	if (mediaSourceId) body.MediaSourceId = mediaSourceId;
+	// Silo's Play keeps the version shown, so the preview does too.
+	if (mediaSourceId && serverType === 'silo') body.PinVersion = true;
 	if (audioStreamIndex != null) body.AudioStreamIndex = audioStreamIndex;
 	if (subtitleStreamIndex != null) body.SubtitleStreamIndex = subtitleStreamIndex;
 

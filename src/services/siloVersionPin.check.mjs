@@ -1,5 +1,5 @@
-// The version that reaches Silo's start: a version picked in Details plays as that version, the default too, and
-// one nobody picked leaves Silo free to play another.
+// The version that reaches Silo's start: a pinned version (the one Details shows) plays as that version, the
+// default too, and an unpinned default (a title started without a version) leaves Silo free to play another.
 //   node --conditions=browser src/services/siloVersionPin.check.mjs
 import assert from 'node:assert/strict'
 import { registerHooks } from 'node:module'

@@ -564,7 +564,8 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 	};
 
 	// The file to play: the one asked for, else the title's default, read with its tracks when the item came without.
-	// It's explicit, so Silo plays no other version, when the viewer picked it (the default too) or it isn't the default.
+	// It's explicit, so Silo plays no other version, when it's pinned (the one Details shows, the default too) or it
+	// isn't the default.
 	const fileOf = async (itemId, mediaSourceId, item, picked = false) => {
 		const pick = (list, id) => (id ? list.find((s) => String(s.Id) === String(id)) : list[0]) || null;
 		let sources = item?.MediaSources || [];

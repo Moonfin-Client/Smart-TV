@@ -257,7 +257,7 @@ export default function Player(props) {
     // The version and tracks Details picked are the feature's, which Cinema Mode's trailers can lead.
     featureId: Array.isArray(props.queue) && Number(props.prerolls) > 0 ? props.queue[Number(props.prerolls)] : props.id,
     featurePicks: {},
-    // The version playing was picked in Details, so Silo keeps it when the player starts it again.
+    // The version playing came from Details (or the room), so Silo keeps it when the player starts it again.
     pinVersion: false,
     // Details' advanced play: a bitrate, and transcoding whatever the file.
     quality: pick(props.forceBitrate),
@@ -404,6 +404,14 @@ export default function Player(props) {
     }
   })
 
+  // Details' picks for the feature: all of them the first time it starts, then only its version, so coming back
+  // to it keeps the version but not tracks Details chose before the viewer switched in the player.
+  function featureStart(id) {
+    if (id !== my.featureId) return {}
+    const picks = my.featurePicks
+    my.featurePicks = { mediaSourceId: picks.mediaSourceId, pinVersion: picks.pinVersion }
+    return picks
+  }
   // picks are the tracks and version Details chose, for the feature only. startTicks null starts where
   // the item was left, unless the route said not to resume.
   async function start(itemId, startTicks, picks = {}) {
@@ -1823,6 +1831,7 @@ export default function Player(props) {
     const info = await apiOf(item).getPlaybackInfo(item.Id, {
       StartTimeTicks: Math.floor(my.pos * TICKS),
       MediaSourceId: sourceId,
+      PinVersion: my.pinVersion,
       AudioStreamIndex: my.audioIndex,
       SubtitleStreamIndex: my.subIndex,
       MaxStreamingBitrate: my.quality || settings.get('maxBitrate'),
@@ -1874,7 +1883,7 @@ export default function Player(props) {
     }
     my.cues = null
     s.cue = ''
-    await start(ep.Id, (ep.UserData && ep.UserData.PlaybackPositionTicks) || 0)
+    await start(ep.Id, (ep.UserData && ep.UserData.PlaybackPositionTicks) || 0, featureStart(ep.Id))
     showOsd()
   }
   // The host's audio output and the transcode are asked for each time the dialog opens, and the rows
@@ -2248,7 +2257,7 @@ export default function Player(props) {
     if (my.list.length > 1) my.listPos += step
     my.cues = null
     s.cue = ''
-    await start(item.Id, 0, item.Id === my.featureId ? my.featurePicks : {})
+    await start(item.Id, 0, featureStart(item.Id))
     if (s.osd) showOsd()
     else focusDefault()
     // A server's shuffle (Silo's) hands out one item ahead: the one starting now was it, so the server picks the next.
@@ -2758,11 +2767,11 @@ export default function Player(props) {
     if (party.isInGroup() && my.prerolls > 0 && my.list.includes(my.featureId)) {
       my.listPos = my.list.indexOf(my.featureId)
       my.prerolls = 0
-      await start(my.list[my.listPos], 0, my.featurePicks)
+      await start(my.list[my.listPos], 0, featureStart(my.featureId))
       if (!gone) focusDefault()
       return
     }
-    await start(props.id, ticks == null || party.isInGroup() ? ticks : applyResumeRewind(ticks, settings.all()), props.id === my.featureId ? routePicks : {})
+    await start(props.id, ticks == null || party.isInGroup() ? ticks : applyResumeRewind(ticks, settings.all()), featureStart(props.id))
     // The controls stay away until a key asks for them.
     if (!gone) focusDefault()
   })
