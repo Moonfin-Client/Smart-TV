@@ -28,9 +28,14 @@ const WINDOW = 400
 const GONE = { k: '', x: 0, y: 0, w: 0, h: 0, r: 0, t: '', size: 14, font: 'roboto', color: NONE, lh: 33, bw: 0, bc: NONE, src: '', idx: -2, raw: {} }
 const NO_LAID = { blocks: [], texts: [], imgs: [], cells: [], focusables: [], h: 0, scrim: null }
 
-// Everything the tab draws, at its place, and its height `h`, which the page scrolls by. `accent`
-// colors the banner's call to action.
-export const seerrTabLayout = (tab, accent = '#00a4dcff') => {
+// The banner's call to action and its chevron take the theme's accent when drawn.
+const ACCENT = 'accent'
+// The cards keep the default poster size, which the grid is laid out for.
+const cardSettings = () => ({ ...settings.all(), homeRowsPosterSize: 'default' })
+
+// Everything the tab draws, at its place, and its height `h`, which the page scrolls by. The page
+// lays it out once and hands it over as `tab.laid`.
+export const seerrTabLayout = (tab) => {
     if (!tab || !tab.seerr || !tab.seerr.details) return NO_LAID
     const out = { blocks: [], texts: [], imgs: [], cells: [], focusables: [], h: 0, scrim: null }
     const sr = tab.seerr
@@ -60,8 +65,8 @@ export const seerrTabLayout = (tab, accent = '#00a4dcff') => {
       const cta = $L('View Collection')
       const ctaW = textWidth(cta, 20, 'bold')
       text('bannerText', 75, y + 25, $L('Part of {name}').replace('{name}', c.name || ''), 24, 'bold', '#ffffffff')
-      text('bannerCta', 1162 - 31 - 24 - ctaW, y + 25, cta, 20, 'bold', accent)
-      out.imgs.push({ k: 'bannerChevron', x: 1162 - 31 - 24, y: y + 29.5, w: 24, h: 24, src: 'icons/d/chevronRight.webp', r: 0, fit: 'contain', color: '#00a4dcff' })
+      text('bannerCta', 1162 - 31 - 24 - ctaW, y + 25, cta, 20, 'bold', ACCENT)
+      out.imgs.push({ k: 'bannerChevron', x: 1162 - 31 - 24, y: y + 29.5, w: 24, h: 24, src: 'icons/d/chevronRight.webp', r: 0, fit: 'contain', color: ACCENT })
       y += 83
     }
     if (sr.pieces.facts) {
@@ -158,8 +163,9 @@ export default function SeerrTab(props) {
   const [cur, setCur] = createSignal(0)
   const [focused, setFocused] = createSignal(false)
   const t = () => props.tokens || { focus: '#00a4dcff', accent: '#00a4dcff' }
-  const look = createMemo(() => ({ ...homeLook({ ...settings.all(), homeRowsStyle: 'v1' }), plain: true }))
-  const laid = createMemo(() => seerrTabLayout(props.tab, t().accent))
+  const ink = (c) => (c === ACCENT ? t().accent : c)
+  const look = createMemo(() => ({ ...homeLook({ ...cardSettings(), homeRowsStyle: 'v1' }), plain: true }))
+  const laid = createMemo(() => (props.tab && props.tab.laid) || seerrTabLayout(props.tab))
   const blocks = byKey(() => laid().blocks, GONE)
   const texts = byKey(() => laid().texts, GONE)
   const imgs = byKey(() => laid().imgs, GONE)
@@ -294,7 +300,7 @@ export default function SeerrTab(props) {
               src={imgs.at(k).src || undefined}
               borderRadius={imgs.at(k).r}
               textureOptions={{ resizeMode: { type: imgs.at(k).fit || 'cover' } }}
-              color={imgs.at(k).color}
+              color={ink(imgs.at(k).color)}
             />
           )}
         </For>
@@ -312,7 +318,7 @@ export default function SeerrTab(props) {
       <view>
         <For each={texts.keys()}>
           {(k) => (
-            <text x={texts.at(k).x} y={texts.at(k).y} fontFamily={texts.at(k).font} fontSize={texts.at(k).size} lineHeight={texts.at(k).lh} color={texts.at(k).color}>
+            <text x={texts.at(k).x} y={texts.at(k).y} fontFamily={texts.at(k).font} fontSize={texts.at(k).size} lineHeight={texts.at(k).lh} color={ink(texts.at(k).color)}>
               {texts.at(k).t}
             </text>
           )}
@@ -322,7 +328,7 @@ export default function SeerrTab(props) {
         <For each={cells.keys()}>
           {(k) => {
             const c = () => cells.at(k)
-            const model = createMemo(() => classicCard(c().raw, c().idx, { s: settings.all(), cardType: 'portrait', imageType: 'poster', plain: true }))
+            const model = createMemo(() => classicCard(c().raw, c().idx, { s: cardSettings(), cardType: 'portrait', imageType: 'poster', plain: true }))
             return (
               <view x={c().x} y={c().y}>
                 <ClassicCard card={model()} focused={isCard(c().id)} look={look()} />

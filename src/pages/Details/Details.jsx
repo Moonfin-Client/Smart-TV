@@ -688,6 +688,9 @@ export default function Details(props) {
     const box = tc()
     if (box.kind !== 'details' || !refs.fileinfo || !refs.fileinfo.contentHeight) return
     m.contentH = box.y + Math.max(320, refs.fileinfo.contentHeight()) + PAD_BOTTOM
+    // A track list that closes can leave the page scrolled past its new end.
+    const max = Math.max(0, m.contentH - VIEW_H)
+    if (untrack(scroll) > max) setScroll(max)
   })
   const tabContent = (id, d) => {
     if (id === 'details') {
@@ -696,7 +699,8 @@ export default function Details(props) {
     }
     if (id === 'seerr') {
       const seerr = { seerr: m.seerr, w: d.contentW }
-      return { kind: 'seerr', seerr, height: seerrTabLayout(seerr).h }
+      seerr.laid = seerrTabLayout(seerr)
+      return { kind: 'seerr', seerr, height: seerr.laid.h }
     }
     const laid = layoutTab(id, d)
     return { kind: 'cells', cells: laid.cells, headings: laid.headings, height: laid.height }
