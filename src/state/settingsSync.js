@@ -386,7 +386,7 @@ const DEVICE_SYNC_PROFILE = 'tv'
 export const activeSyncProfile = (syncProfile) => (SYNC_PROFILES.includes(syncProfile) ? syncProfile : DEVICE_SYNC_PROFILE)
 
 // The active profile wins, then global, then the admin defaults.
-const resolveFromEnvelope = (envelope, adminDefaults, profile) => {
+export const resolveFromEnvelope = (envelope, adminDefaults, profile) => {
   const active = activeSyncProfile(profile)
   const sources =
     active === 'global'
