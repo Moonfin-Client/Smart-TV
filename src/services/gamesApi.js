@@ -1,0 +1,301 @@
+// Client for the Moonbase plugin's retro games (EmulatorJS) routes under /Moonfin/Games.
+// JSON calls go through platformFetch, the webOS TLS proxy for Let's Encrypt servers, so metadata
+// and the settings blob work on old webOS. BIOS files and save states always use native fetch,
+// since the proxy is text-only, so old webOS with a Let's Encrypt server can't load them.
+
+import {getServerUrl, getAuthHeader, getApiKey, getTokenParam, getServerType} from './jellyfinApi';
+import {legacyAuthHeader} from '../utils/serverRoutes';
+import {corsFreeFetch, platformFetch} from './secureFetch';
+import {fetchWithTimeout} from '../utils/fetchTimeout';
+import {findPlexMoonbase, plexMoonbaseBase} from './plexMoonbase';
+
+// A stable per-user id for the global settings blob, since settings aren't per game.
+const SETTINGS_ID = 'moonfin-global';
+
+// Plex can't run plugins, so its games come from Moonbase for Plex beside it, which takes the Plex token the same ways.
+// Its JSON calls go the way every Plex request does, through the shell on Fire TV. The ROM, saves, settings and player
+// page keep the page's own requests, which the companion lets any origin make.
+const base = () => {
+	const server = (getServerUrl() || '').replace(/\/+$/, '');
+	return getServerType() === 'plex' ? plexMoonbaseBase(server) : server;
+};
+const authHeaders = () => {
+	const h = getAuthHeader();
+	return {Authorization: h, ...legacyAuthHeader(getServerType(), h)};
+};
+const enc = encodeURIComponent;
+
+const jsonRequest = async (path, {method = 'GET', body, timeout = 20000} = {}) => {
+	const headers = {...authHeaders(), Accept: 'application/json'};
+	if (body !== undefined) headers['Content-Type'] = 'application/json';
+	const res = await (getServerType() === 'plex' ? corsFreeFetch : platformFetch)(`${base()}/Moonfin/Games/${path}`, {
+		method,
+		headers,
+		body: body === undefined ? undefined : JSON.stringify(body)
+	}, timeout);
+	if (!res.ok) {
+		const err = new Error(`Games API error: ${res.status}`);
+		err.status = res.status;
+		throw err;
+	}
+	if (res.status === 204) return null;
+	const text = await res.text();
+	return text ? JSON.parse(text) : null;
+};
+
+// Moonbase for Silo has no games, and Silo answers an unknown path with its web app. On Plex the companion is found first,
+// so every address built after this uses it.
+export const getLibraries = async () => {
+	if (getServerType() === 'silo') return [];
+	if (getServerType() === 'plex' && !(await findPlexMoonbase(getServerUrl(), getApiKey()))) return [];
+	return jsonRequest('Libraries');
+};
+export const getSystems = (libraryId) => jsonRequest(`${enc(libraryId)}/Systems`);
+export const getGames = (libraryId, system) =>
+	jsonRequest(`${enc(libraryId)}/Games${system ? `?system=${enc(system)}` : ''}`);
+// A library's newest games, by date added or, when released is true, by release year. A server
+// without the route answers with an error.
+export const getRecentGames = (libraryId, released = false, limit = 16) =>
+	jsonRequest(`${enc(libraryId)}/Recent?sort=${released ? 'released' : 'added'}&limit=${limit}`);
+export const getGame = (libraryId, gameId) =>
+	jsonRequest(`${enc(libraryId)}/Games/${enc(gameId)}`);
+// Pins the current user's core for an arcade game and returns the game as it now plays.
+export const setGameCoreOverride = (libraryId, gameId, core) =>
+	jsonRequest(`${enc(libraryId)}/Games/${enc(gameId)}/Core`, {method: 'PUT', body: {core}});
+
+// Image tags can't send auth headers, so the token rides in the query.
+// kind defaults to boxart but also accepts snap or title.
+export const gameThumbUrl = (libraryId, gameId, kind = 'boxart') => {
+	if (!libraryId || !gameId) return null;
+	const token = getApiKey();
+	const auth = token ? `&${getTokenParam()}=${enc(token)}` : '';
+	return `${base()}/Moonfin/Games/${enc(libraryId)}/Thumb/${enc(gameId)}?type=${enc(kind)}${auth}`;
+};
+
+// Whether the server sends box art sizes, asked once per server and sign-in. A failed answer
+// counts as no.
+let artworkSizesLookup = null;
+
+const reportsArtworkSizes = () => {
+	const key = `${base()}|${getApiKey()}`;
+	if (!artworkSizesLookup || artworkSizesLookup.key !== key) {
+		const supported = jsonRequest('ArtworkCapabilities').then(
+			(caps) => caps?.protocolVersion >= 3 && caps.manifest === true && caps.versionedAssets === true && caps.dimensions === true,
+			() => false
+		);
+		artworkSizesLookup = {key, supported};
+	}
+	return artworkSizesLookup.supported;
+};
+
+// Box art width over height by game id, or null when the server doesn't send sizes. A manifest
+// that can't be read gives an empty map.
+export const getBoxArtAspects = async (libraryId, system) => {
+	if (!libraryId || !system || !(await reportsArtworkSizes())) return null;
+	const aspects = new Map();
+	try {
+		const manifest = await jsonRequest(`${enc(libraryId)}/ArtworkManifest?system=${enc(system)}`);
+		(manifest?.entries || []).forEach((entry) => {
+			const boxart = entry?.artwork?.boxart;
+			if (boxart?.width > 0 && boxart?.height > 0) aspects.set(entry.gameId, boxart.width / boxart.height);
+		});
+	} catch (e) { /* no sizes this time */ }
+	return aspects;
+};
+
+// The largest ROM a TV will take. Buffering is what kills it, since the response, the Blob and
+// the copy EmulatorJS keeps all sit in the WebView heap at once and past this the app is killed
+// part-way through loading, so the limit stays on the safe side.
+const MAX_ROM_BYTES = 48 * 1024 * 1024;
+
+const romTooLarge = (bytes) => {
+	const err = new Error('rom-too-large');
+	err.romTooLarge = true;
+	err.totalBytes = bytes;
+	return err;
+};
+
+// Drops a response once its headers have been read, so nothing is left streaming a body that
+// will never be used. Older WebViews have no res.body, hence the guard.
+const discardBody = (res) => {
+	try {
+		if (res.body && res.body.cancel) res.body.cancel();
+	} catch (e) { /* already closed */ }
+};
+
+// ROM / BIOS as a same-origin Blob URL, which avoids CORS since EmulatorJS fetches the blob
+// directly. maxBytes refuses an oversized file before it's buffered, because the failure
+// happens inside res.blob(), where the TV can take the whole app down with it.
+const blobUrl = async (path, maxBytes) => {
+	const res = await fetchWithTimeout(`${base()}/Moonfin/Games/${path}`, {
+		headers: authHeaders()
+	}, 60000);
+	if (!res.ok) {
+		const err = new Error(`ROM fetch error: ${res.status}`);
+		err.status = res.status;
+		throw err;
+	}
+	const expected = Number(res.headers.get('content-length')) || null;
+	if (maxBytes && expected && expected > maxBytes) {
+		discardBody(res);
+		throw romTooLarge(expected);
+	}
+	const blob = await res.blob();
+	return URL.createObjectURL(blob);
+};
+
+const getRomBlobUrl = (libraryId, gameId) =>
+	blobUrl(`${enc(libraryId)}/Rom/${enc(gameId)}`, MAX_ROM_BYTES);
+// A BIOS is a few hundred kilobytes at most, so there is nothing to refuse on size.
+export const getBiosBlobUrl = (libraryId, biosId) =>
+	blobUrl(`${enc(libraryId)}/Bios/${enc(biosId)}`);
+
+// The ROM endpoint takes the token in the query, which is how EmulatorJS's own XHR
+// authenticates. Null when there is no token to put there.
+const romDirectUrl = (libraryId, gameId, fileName) => {
+	const token = getApiKey();
+	if (!token) return null;
+	const name = fileName ? `/${enc(fileName)}` : '';
+	return `${base()}/Moonfin/Games/${enc(libraryId)}/Rom/${enc(gameId)}${name}?${getTokenParam()}=${enc(token)}`;
+};
+
+// Asks for the first byte only. The endpoint streams with range processing on, so a 206 comes
+// back carrying the full size in Content-Range and this costs one byte instead of the ROM.
+const probeRom = async (url) => {
+	try {
+		const res = await fetchWithTimeout(url, {headers: {Range: 'bytes=0-0'}}, 15000);
+		discardBody(res);
+		if (res.status !== 206 && !res.ok) return {ok: false, totalBytes: null};
+		const range = res.headers.get('content-range');
+		const total = range && range.split('/')[1];
+		// Content-Length on a 206 describes the one byte asked for, so it only stands in for the
+		// size when the server ignored the range and answered with the whole file.
+		const whole = res.status === 206 ? null : Number(res.headers.get('content-length'));
+		return {ok: true, totalBytes: Number(total) || whole || null};
+	} catch (e) {
+		return {ok: false, totalBytes: null};
+	}
+};
+
+// Returns {url, isBlob} for a game's ROM. The direct URL is preferred, because EmulatorJS then
+// streams the file itself and no second copy passes through the app. The Blob URL covers the
+// platforms where a plain fetch to the server doesn't get through, such as old webOS behind
+// Let's Encrypt, and isBlob tells the caller whether it has a URL to revoke afterwards.
+export const getRomUrl = async (libraryId, gameId, fileName) => {
+	const direct = romDirectUrl(libraryId, gameId, fileName);
+	const probe = direct ? await probeRom(direct) : {ok: false, totalBytes: null};
+	if (probe.totalBytes && probe.totalBytes > MAX_ROM_BYTES) throw romTooLarge(probe.totalBytes);
+	if (probe.ok) return {url: direct, isBlob: false};
+	// A failed probe leaves the size unknown, so getRomBlobUrl applies the same ceiling from
+	// Content-Length. Falling back must not mean skipping the check.
+	return {url: await getRomBlobUrl(libraryId, gameId), isBlob: true};
+};
+
+// Where the server has EmulatorJS load its runtime and cores from: an admin's URL, its own copy,
+// or the CDN. The anonymous player page carries the path it resolved, so it's read from there. A
+// TV that can't reach that path directly, like old webOS behind Let's Encrypt, gets null and
+// stays on the CDN. Resolved once per server.
+let dataPathLookup = null;
+
+const resolveDataPath = async (server) => {
+	try {
+		const page = `${server}/Moonfin/EmulatorJS/player.html`;
+		const res = await platformFetch(page, {}, 10000);
+		if (!res.ok) return null;
+		const match = (await res.text()).match(/EJS_pathtodata\s*=\s*'([^']+)'/);
+		if (!match) return null;
+		const path = new URL(match[1], page).href;
+		const probe = await fetchWithTimeout(`${path}loader.js`, {}, 10000);
+		discardBody(probe);
+		return probe.ok ? path : null;
+	} catch (e) {
+		return null;
+	}
+};
+
+export const getEmulatorDataPath = () => {
+	const server = base();
+	if (!dataPathLookup || dataPathLookup.server !== server) {
+		dataPathLookup = {server, path: resolveDataPath(server)};
+	}
+	return dataPathLookup.path;
+};
+
+// Null when there's no save (404). Any other failure throws, so a failed read is never
+// mistaken for a missing save.
+const getSaveBytes = async (saveId, kind) => {
+	const res = await fetchWithTimeout(
+		`${base()}/Moonfin/Games/Saves/${enc(saveId)}?kind=${kind}`,
+		{headers: authHeaders()},
+		30000
+	);
+	if (res.status === 404) return null;
+	if (!res.ok) {
+		const err = new Error(`Save fetch error: ${res.status}`);
+		err.status = res.status;
+		throw err;
+	}
+	const buf = await res.arrayBuffer();
+	return buf && buf.byteLength ? new Uint8Array(buf) : null;
+};
+
+const putSaveBytes = async (saveId, kind, bytes) => {
+	const res = await fetchWithTimeout(`${base()}/Moonfin/Games/Saves/${enc(saveId)}?kind=${kind}`, {
+		method: 'PUT',
+		headers: {...authHeaders(), 'Content-Type': 'application/octet-stream'},
+		body: bytes
+	}, 30000);
+	if (!res.ok) {
+		const err = new Error(`Save upload error: ${res.status}`);
+		err.status = res.status;
+		throw err;
+	}
+};
+
+export const getStateBytes = (saveId) => getSaveBytes(saveId, 'state');
+export const putStateBytes = (saveId, bytes) => putSaveBytes(saveId, 'state', bytes);
+
+// Every core and backend shares one battery save per game, so it's keyed by the bare game id.
+export const getSram = (gameId) => getSaveBytes(gameId, 'sram');
+export const putSram = (gameId, bytes) => putSaveBytes(gameId, 'sram', bytes);
+
+// A server without RomM support answers 404, which is the same as having no RomM library.
+export const getRommAccount = async () => {
+	try {
+		return await jsonRequest('Romm/Account');
+	} catch (e) {
+		if (e.status === 404) return {available: false, linked: false};
+		throw e;
+	}
+};
+export const startRommLink = () => jsonRequest('Romm/Account', {method: 'POST'});
+export const unlinkRomm = () => jsonRequest('Romm/Account', {method: 'DELETE'});
+
+// Settings blob (the EmulatorJS `ejs-settings` JSON, text) synced per user via the proxy.
+export const getSettingsBlob = async () => {
+	try {
+		const res = await platformFetch(
+			`${base()}/Moonfin/Games/Saves/${enc(SETTINGS_ID)}?kind=settings`,
+			{headers: authHeaders()},
+			20000
+		);
+		if (!res.ok) return null;
+		const text = await res.text();
+		return text || null;
+	} catch (e) {
+		return null;
+	}
+};
+
+export const putSettingsBlob = async (json) => {
+	try {
+		// Settings are text, so they go through the proxy like getSettingsBlob, which works on old webOS.
+		await platformFetch(`${base()}/Moonfin/Games/Saves/${enc(SETTINGS_ID)}?kind=settings`, {
+			method: 'PUT',
+			headers: {...authHeaders(), 'Content-Type': 'application/octet-stream'},
+			body: json
+		}, 20000);
+	} catch (e) {
+		// Best effort.
+	}
+};

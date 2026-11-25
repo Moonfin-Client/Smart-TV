@@ -1,0 +1,5 @@
+node_modules
+build
+buildinfo.json
+# written by build.mjs from the SolidTV build
+assets
