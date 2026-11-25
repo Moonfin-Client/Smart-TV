@@ -143,8 +143,8 @@ const titleId = (itemId, action) => {
 	return encodeURIComponent(id);
 };
 
-// The app's ratings are out of 10, and Silo's are 1 to 5 stars.
-const siloStarsFromRating = (rating) => Math.min(Math.max(Math.round(rating / 2), 1), 5);
+// The app's ratings are out of 10, and Silo's are whole numbers from 1 to 10 (shown as half stars).
+export const toSiloRating = (rating) => Math.min(Math.max(Math.round(rating), 1), 10);
 
 export const createSiloItems = ({call, images, getConfiguration, mediaSources, getUserId, publishUserData}) => {
 	const pager = createSiloPager();
@@ -679,9 +679,9 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources, g
 		if (patch) publishUserData(itemId, patch);
 	};
 
-	const setStars = async (itemId, stars, patch) => {
-		await call(`/api/v2/ratings/${titleId(itemId, 'rating')}`, {method: 'PUT', body: {rating: stars}});
-		changed(itemId, patch);
+	const setScore = async (itemId, score, patch) => {
+		await call(`/api/v2/ratings/${titleId(itemId, 'rating')}`, {method: 'PUT', body: {rating: score}});
+		changed(itemId, {...patch, Rating: score});
 	};
 
 	// Only manual collections the profile made itself can be changed. A library's belong to the library.
@@ -1022,15 +1022,15 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources, g
 		setPlaybackPosition: async (itemId) => {
 			throw Object.assign(new Error(`Silo saves positions only during playback, not for ${itemId}`), {status: 501});
 		},
-		// Silo has stars and no likes: a like is five stars and a dislike one, read back as 10 and 2.
-		setRating: (itemId, likes) => setStars(itemId, likes ? 5 : 1, {Likes: likes, Rating: likes ? 10 : 2}),
-		setNumericRating: (itemId, rating) => setStars(itemId, siloStarsFromRating(rating), {Rating: siloStarsFromRating(rating) * 2}),
+		// Silo has ratings and no likes: a like is 10 and a dislike 2 (one star).
+		setRating: (itemId, likes) => setScore(itemId, likes ? 10 : 2, {Likes: likes}),
+		setNumericRating: (itemId, rating) => setScore(itemId, toSiloRating(rating)),
 		clearRating: async (itemId) => {
 			await call(`/api/v2/ratings/${titleId(itemId, 'rating')}`, {method: 'DELETE'});
 			changed(itemId, {Rating: null, Likes: null});
 		},
 
-		// The profile's star ratings, as the plugin's {ItemId, Rating} list out of 10, for the My Rating sort.
+		// The profile's ratings, 1 to 10, as the plugin's {ItemId, Rating} list, for the My Rating sort.
 		getMyUserRatings: async () => {
 			const out = [];
 			let cursor = null;
@@ -1039,7 +1039,7 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources, g
 				const answer = siloPage(await call('/api/v2/ratings', {query: {limit: 200, cursor: cursor || undefined}}));
 				answer.items.forEach((entry) => {
 					const id = siloIdOf(entry.item_id);
-					if (id && typeof entry.rating === 'number') out.push({ItemId: id, Rating: entry.rating * 2});
+					if (id && typeof entry.rating === 'number') out.push({ItemId: id, Rating: entry.rating});
 				});
 				cursor = answer.nextCursor;
 			} while (cursor);
