@@ -1,6 +1,7 @@
 import { Show } from 'solid-js'
 import { highMs } from '../../tier.js'
 import { hex } from '../../color.js'
+import { theme } from '../../theme.js'
 import { tx } from '../../fx.js'
 
 // One row of the issues list, 1644 by 168: the title's art, its type, scope and reply count beside
@@ -8,8 +9,6 @@ import { tx } from '../../fx.js'
 // reporter. Purely visual. `focusAt` is the index of the focused row and `subAt` is 1 when its
 // button has focus. The art is a 360 by 240 image the row cuts off, and there's no title line.
 const COVER = { resizeMode: { type: 'cover' } }
-const RING = { width: 4, color: hex('#ffffffff') }
-const THIN = { width: 1, color: hex('#ffffffff') }
 
 export default function RequestsIssueRow(props) {
   const r = () => props.row
@@ -26,7 +25,7 @@ export default function RequestsIssueRow(props) {
       transition={tx({ scale: { duration: highMs(200), easing: 'ease' } })}
       scale={on() ? 1.02 : 1}
     >
-      <view x={-4} y={-4} width={1652} height={176} borderRadius={12} color="#00000000" border={RING} alpha={on() ? 1 : 0} />
+      <view x={-4} y={-4} width={1652} height={176} borderRadius={12} color="#00000000" border={{ width: 4, color: hex(theme().focus) }} alpha={on() ? 1 : 0} />
       <view width={1644} height={168} borderRadius={8} color={on() ? '#ffffff26' : '#ffffff0d'} />
       <view width={1644} height={168} clipping>
         <Show when={r().image}>
@@ -57,7 +56,7 @@ export default function RequestsIssueRow(props) {
               scale={btnOn() ? 1.05 : 1}
             >
               <view width={tg().w} height={59} borderRadius={8} color={tg().fill} />
-              <view width={tg().w} height={59} borderRadius={8} color="#00000000" border={THIN} alpha={btnOn() ? 1 : 0} />
+              <view width={tg().w} height={59} borderRadius={8} color="#00000000" border={{ width: 3, color: hex(theme().focus) }} alpha={btnOn() ? 1 : 0} />
               <text x={25} y={15} fontFamily={r().btnFont} fontSize={22.8} lineHeight={33} color={tg().ink}>
                 {tg().label}
               </text>

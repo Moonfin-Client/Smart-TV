@@ -5,6 +5,7 @@ import { OverNav } from '../../layers.jsx'
 import { usesNativeKeyboard, openNativeInput } from '../account/nativeInput.js'
 import { fontFor, uiFont } from '../../text.js'
 import { hex } from '../../color.js'
+import { theme } from '../../theme.js'
 import { textWidth } from './look.js'
 import { issueScope, statusChip, threadComments } from './RequestsModels.js'
 import * as seerrApi from '../../../services/seerrApi.js'
@@ -19,7 +20,6 @@ import { issueActions } from '../../../pages/Seerr/requestActions.js'
 // The comment field opens the on-screen keyboard, or the TV's own keyboard when Keyboard Style is
 // Native. The thread covers the nav, focuses itself as it mounts, and its node has setFocus().
 // The dialog is 1100 wide at x 410, its content 43 in (a 1px border and 42 of padding), 1014 wide.
-const THIN = { width: 1, color: hex('#ffffffff') }
 const EDGE = { width: 1, color: hex('#ffffff24') }
 
 export default function SeerrIssueThread(props) {
@@ -280,7 +280,7 @@ export default function SeerrIssueThread(props) {
               </For>
             </view>
             <view x={1014 - m().closeW} width={m().closeW} height={50} borderRadius={10} color="#ffffff14">
-              <view width={m().closeW} height={50} borderRadius={10} color="#00000000" border={THIN} alpha={ringAt() === 'close' ? 1 : 0} />
+              <view width={m().closeW} height={50} borderRadius={10} color="#00000000" border={{ width: 3, color: hex(theme().focus) }} alpha={ringAt() === 'close' ? 1 : 0} />
               <text x={27} y={17} fontFamily={btnFont} fontSize={20} lineHeight={1} color="#ffffffff">
                 {closeLabel}
               </text>
@@ -315,7 +315,7 @@ export default function SeerrIssueThread(props) {
                 </text>
                 <view y={10.5} x={caretX()} width={2} height={33} color="#00a4dcff" alpha={caretOn() ? 1 : 0} />
                 <view x={1014 - m().sendW} width={m().sendW} height={54} borderRadius={10} color={canSend() ? '#00a4dcff' : '#00a4dc73'}>
-                  <view width={m().sendW} height={54} borderRadius={10} color="#00000000" border={THIN} alpha={ringAt() === 'send' ? 1 : 0} />
+                  <view width={m().sendW} height={54} borderRadius={10} color="#00000000" border={{ width: 3, color: hex(theme().focus) }} alpha={ringAt() === 'send' ? 1 : 0} />
                   <text x={31} y={19} fontFamily={boldFont} fontSize={20} lineHeight={1} color={canSend() ? '#ffffffff' : '#ffffff73'}>
                     {sendLabel}
                   </text>
@@ -326,7 +326,7 @@ export default function SeerrIssueThread(props) {
           <view>
             <Show when={m().canAct}>
               <view x={43} y={m().actionsY} width={m().toggleW} height={58} borderRadius={10} color={m().toggleFill} alpha={busy() ? 0.45 : 1}>
-                <view width={m().toggleW} height={58} borderRadius={10} color="#00000000" border={THIN} alpha={ringAt() === 'toggle' ? 1 : 0} />
+                <view width={m().toggleW} height={58} borderRadius={10} color="#00000000" border={{ width: 3, color: hex(theme().focus) }} alpha={ringAt() === 'toggle' ? 1 : 0} />
                 <text x={m().toggleW / 2} y={20.25} mountX={0.5} fontFamily={boldFont} fontSize={21} lineHeight={1} color={m().toggleInk}>
                   {m().toggleLabel}
                 </text>
@@ -336,7 +336,7 @@ export default function SeerrIssueThread(props) {
           <view>
             <Show when={m().canDelete}>
               <view x={m().deleteX} y={m().actionsY} width={m().deleteW} height={58} borderRadius={10} color="#ef444424" alpha={busy() ? 0.45 : 1}>
-                <view width={m().deleteW} height={58} borderRadius={10} color="#00000000" border={THIN} alpha={ringAt() === 'delete' ? 1 : 0} />
+                <view width={m().deleteW} height={58} borderRadius={10} color="#00000000" border={{ width: 3, color: hex(theme().focus) }} alpha={ringAt() === 'delete' ? 1 : 0} />
                 <text x={31} y={20.25} fontFamily={boldFont} fontSize={21} lineHeight={1} color="#ef4444ff">
                   {m().deleteLabel}
                 </text>

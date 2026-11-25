@@ -1,6 +1,7 @@
 import { For, Index, Show } from 'solid-js'
 import { highMs } from '../../tier.js'
 import { hex } from '../../color.js'
+import { theme } from '../../theme.js'
 import LoopMarquee from '../home/LoopMarquee.jsx'
 import { tx } from '../../fx.js'
 
@@ -11,7 +12,6 @@ import { tx } from '../../fx.js'
 // tile: a RequestsModels.requestTile model. The numbers are RequestsModels.GRID's: a 262 wide
 // tile, its 246 by 369 poster 8 in, and the caption from 389.
 const COVER = { resizeMode: { type: 'cover' } }
-const RING = { width: 4, color: hex('#ffffffff') }
 
 export default function RequestsTile(props) {
   const t = () => props.tile
@@ -41,7 +41,7 @@ export default function RequestsTile(props) {
         </text>
       </view>
       <view x={8} y={370} width={246} height={7} borderRadius={[0, 0, 8, 8]} color={t().stripe} />
-      <view x={4} y={4} width={254} height={377} borderRadius={12} color="#00000000" border={RING} alpha={on() ? 1 : 0} />
+      <view x={4} y={4} width={254} height={377} borderRadius={12} color="#00000000" border={{ width: 4, color: hex(theme().focus) }} alpha={on() ? 1 : 0} />
       <view>
         <Index each={t().actions}>
           {(b, i) => {
