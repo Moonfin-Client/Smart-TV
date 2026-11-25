@@ -63,8 +63,8 @@ jobs:
             if (!issue || issue.pull_request) return;
             if (['OWNER', 'MEMBER', 'COLLABORATOR'].includes(issue.author_association)) return;
 
-            // The templates prefill "[UI] ", "[Playback] ", "[Seerr] ", "[Feature] " and
-            // so split the leading tags off and judge the two halves apart.
+            // The templates prefill "[UI] ", "[Playback] ", "[Seerr] " and "[Feature] ", so the
+            // leading tags are split off and the two halves judged apart.
             const title = issue.title || '';
             const prefix = (title.match(/^\s*(?:\[[^\]]*\]\s*)+/) || [''])[0];
             const rest = title.slice(prefix.length).replace(/[\s.!?-]+$/, '').trim();
@@ -216,7 +216,7 @@ jobs:
               '',
               'It was opened without one of the forms, so the fields that say which version, platform and setup this involves are all missing.',
               '',
-              'The forms also decide how an issue gets labelled, and those labels are what tell this bot whether to ask you for a screenshot or a diagnostic log. Skipping the form means nobody was prompted for the one thing the report actually needs.',
+              'The forms also decide how an issue gets labeled, and those labels are what tell this bot whether to ask you for a screenshot or a diagnostic log. Skipping the form means nobody was prompted for the one thing the report actually needs.',
               '',
               `Please open a fresh one from [New issue](https://github.com/${context.repo.owner}/${context.repo.repo}/issues/new/choose) and pick the form that fits, then this can be closed as a duplicate. If you would rather not start over, answer the form's fields in a comment below, each under a heading named after the field, such as \`### Moonfin version\`, \`### Platform\` and \`### TV model\`, and they will be picked up.`,
               '',
@@ -259,9 +259,9 @@ jobs:
               '',
               "Diagnostic logging is **off by default** and is kept in memory only, so it has to be turned on *before* you reproduce the problem. There's no log file on the TV to go looking for.",
               '',
-              '1. Go to **Settings > About > Debugging** and turn on **Diagnostic Logging**.',
+              '1. Go to **Settings > About > About > Diagnostics & Logging** and turn on **Diagnostic Logging**.',
               "2. Reproduce the problem. Don't close the app afterwards, closing it clears the buffer, and only the last 500 entries are kept.",
-              '3. Go to **Settings > About > Debugging > View Logs** and press **Send Report**.',
+              '3. Go to **Settings > About > About > Diagnostics & Logging > View Logs** and press **Send Report**.',
               '',
               "**Send Report** uploads to *your own* Jellyfin server, not to us, so pressing it isn't the last step. Fetch it from that server under **Administration > Logs**, where it is the newest file whose name starts with `upload_Moonfin for Tizen_`, `upload_Moonfin for webOS_`, `upload_Moonfin for Fire TV_` or `upload_Moonfin for Xbox_`, and attach that file here.",
               '',
@@ -278,7 +278,7 @@ jobs:
             };
 
             // Each ask opens with its own heading, so a later run can see which ones
-            // already went out and raise only what is new. That way an issue labelled
+            // already went out and raise only what is new. That way an issue labeled
             // during triage still gets its evidence request, rather than the whole
             // comment being skipped because the bot spoke once already.
             const spoken = comments.filter(c => (c.body || '').includes(MARKER));
@@ -296,7 +296,7 @@ jobs:
               MARKER,
               `Thanks for the report, @${issue.user.login}.`,
               '',
-              `Before anyone can pick this up it needs a little more from you, so it has been labelled ${listed}.`,
+              `Before anyone can pick this up it needs a little more from you, so it has been labeled ${listed}.`,
               '',
             ];
             for (const kind of pending) parts.push(ASKS[kind], '');
