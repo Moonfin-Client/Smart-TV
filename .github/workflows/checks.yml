@@ -1,6 +1,6 @@
 name: Checks
 
-# The fast tier: lint, the legacy CSS check and the Jest suite, on Ubuntu
+# The fast tier: the legacy bundle check and the *.check.mjs suite, on Ubuntu
 # only. It reports on a pull request in a few minutes, while Build is still
 # building. The PR Comment workflow reads its results from here.
 on:
@@ -8,8 +8,7 @@ on:
   pull_request:
     branches: [main]
   merge_group:
-  # Release tags, as in build.yml, so a tagged commit still gets the tests
-  # like it did when they were a job in Build.
+  # Release tags, as in build.yml, so a tagged commit still gets the checks.
   push:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+*'
@@ -25,10 +24,11 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # The same lint gate and CSS check every platform build runs before it
-  # packs, run once here so a lint failure shows as lint rather than as four
-  # failed builds. setup-node's ESLint problem matcher marks each warning on
-  # its line in Files changed.
+  # The app draws on a canvas, so there's no stylesheet for the oldest TV
+  # engines to drop. What breaks them is script syntax Chrome 38 can't parse,
+  # which stops the app before it draws anything. Both legacy bundles are
+  # built and parsed as ES5 here, so a failure shows as lint rather than as
+  # failed builds.
   lint:
     runs-on: ubuntu-26.04
     steps:
@@ -39,37 +39,30 @@ jobs:
           node-version: lts/*
           cache: npm
 
-      # Without --ignore-scripts, so the postinstall puts the enact CLI in tools/.
       - name: Install dependencies
-        run: npm ci --force
+        run: npm ci
 
-      # enact lint exits zero on warnings, and the gate fails on them, as in
-      # the builds.
-      - name: Lint
-        id: eslint
+      - name: Build the legacy bundles
+        id: build
         run: |
-          node -e '
-          const {LINT_DIRS, runLintGate} = require("./scripts/lint-gate.js");
-          let ok = true;
-          for (const dir of LINT_DIRS) ok = runLintGate(dir) && ok;
-          process.exit(ok ? 0 : 1);'
+          npm run build:webos
+          npm run build:tizen:legacy
 
-      - name: Check CSS against the oldest TV engines
-        id: css
-        if: ${{ !cancelled() && steps.eslint.outcome != 'skipped' }}
-        run: npm run lint:css
+      - name: Check the legacy bundles against the oldest TV engines
+        id: es5
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: node scripts/check-legacy-js.mjs dist/webos-legacy dist/tizen-legacy
 
       - name: Write lint-results.json
         if: always()
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          ESLINT: ${{ steps.eslint.outcome }}
-          CSS: ${{ steps.css.outcome }}
+          ES5: ${{ steps.es5.outcome }}
         run: |
           node -e '
-          const {PR_NUMBER, SHA, ESLINT, CSS} = process.env;
-          const out = {pr_number: PR_NUMBER ? Number(PR_NUMBER) : null, sha: SHA, eslint: ESLINT, css: CSS};
+          const {PR_NUMBER, SHA, ES5} = process.env;
+          const out = {pr_number: PR_NUMBER ? Number(PR_NUMBER) : null, sha: SHA, es5: ES5};
           require("fs").writeFileSync("lint-results.json", JSON.stringify(out));
           console.log(out);'
 
@@ -80,9 +73,9 @@ jobs:
           path: lint-results.json
           overwrite: true
 
-  # The Jest suite. The platform builds bundle only reachable code, so a
-  # failing test is invisible to them. This job is what the PR comment reads
-  # its Tests line from.
+  # Every *.check.mjs under src and scripts. The platform builds bundle only
+  # reachable code, so a failing check is invisible to them. This job is what
+  # the PR comment reads its Tests line from.
   tests:
     runs-on: ubuntu-26.04
     steps:
@@ -94,20 +87,24 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci --force
+        run: npm ci
 
-      - name: Run tests
-        working-directory: packages/app
+      - name: Run checks
         run: |
           status=0
-          npx enact test --json --outputFile="$RUNNER_TEMP/jest.json" || status=1
+          node scripts/checks.mjs > "$RUNNER_TEMP/checks.txt" 2>&1 || status=1
+          cat "$RUNNER_TEMP/checks.txt"
           echo "$status" > "$RUNNER_TEMP/run-status"
 
-      - name: Test the in-app update build helper
-        run: node --test scripts/ota/index.test.js
+      # scripts/checks.mjs walks src and scripts only.
+      - name: Check the Vega and Xbox build helpers
+        run: |
+          node vega/package-files.check.mjs
+          node xbox/probe.check.mjs
 
-      # The counts and failing test names, for the PR comment. A suite that
-      # couldn't run has no tests in it, so it counts as one failure.
+      # The counts and failing check names, for the PR comment. Each check file
+      # counts as one test. A run with no summary line crashed before it
+      # finished, so it counts as a failure.
       - name: Summarize results
         if: always()
         env:
@@ -120,20 +117,17 @@ jobs:
           const tmp = process.env.RUNNER_TEMP;
           const read = (file) => { try { return fs.readFileSync(path.join(tmp, file), 'utf8'); } catch (_) { return null; } };
 
-          let report = null;
-          try { report = JSON.parse(read('jest.json')); } catch (_) {}
+          const report = read('checks.txt') || '';
           const status = read('run-status');
           const runStatus = status === null ? 1 : Number(status.trim());
+          const finished = /^\d+ passed, \d+ failed$/m.test(report);
 
           let passed = 0;
           const failures = [];
-          for (const suite of report?.testResults || []) {
-            const file = path.relative(process.cwd(), suite.name);
-            const tests = suite.assertionResults || [];
-            passed += tests.filter(t => t.status === 'passed').length;
-            const failed = tests.filter(t => t.status === 'failed');
-            failed.forEach(t => failures.push(`${file}: ${t.fullName}`));
-            if (suite.status === 'failed' && failed.length === 0) failures.push(`${file} (did not run)`);
+          for (const line of report.split('\n')) {
+            const m = /^(ok  |FAIL) (\S+\.check\.mjs)$/.exec(line);
+            if (m && m[1] === 'FAIL') failures.push(m[2]);
+            else if (m) passed++;
           }
 
           const out = {
@@ -143,8 +137,7 @@ jobs:
             failed: failures.length,
             failures: failures.slice(0, 50),
             more_failures: Math.max(0, failures.length - 50),
-            // No report means the run crashed before Jest wrote one.
-            run_status: report ? runStatus : 1,
+            run_status: finished ? runStatus : 1,
           };
           fs.writeFileSync('test-results.json', JSON.stringify(out));
           console.log(JSON.stringify({...out, failures: undefined}));

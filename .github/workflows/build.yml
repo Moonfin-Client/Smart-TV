@@ -21,12 +21,11 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # ───────────────────────────────────────────────
-  # webOS IPK
-  # ───────────────────────────────────────────────
   build-webos:
     name: Build webOS
     runs-on: ubuntu-26.04
+    # Installed TVs download updates from this repo's releases, /<tag>/moonfin-ota-webos.json
+    # and .bin, and trust only the key their package was built with, so public.pem never changes.
     env:
       MOONFIN_OTA_URL: https://github.com/${{ github.repository }}/releases/download
       MOONFIN_OTA_PUBLIC_KEY: scripts/ota/public.pem
@@ -38,8 +37,17 @@ jobs:
           node-version: lts/*
           cache: npm
 
+      # The webOS CLI, pinned to the version earlier releases were packaged with.
       - name: Install dependencies
-        run: npm ci --force
+        run: |
+          npm ci
+          npm install -g @webos-tools/cli@3.2.5
+
+      # The update manifest carries package.json's version, and the loader only takes a
+      # manifest whose version is the tag it asked for.
+      - name: Check the tag matches the version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: test "$GITHUB_REF_NAME" = "$(node -p "require('./package.json').version")"
 
       # Tagged builds sign the in-app update with a key only CI holds. Without the
       # secret the packages still build, just without update files to attach.
@@ -54,20 +62,17 @@ jobs:
           fi
       - name: Build webOS
         id: build
-        run: npm run build:webos
+        run: npm run package:webos
 
       - uses: actions/upload-artifact@v6
         if: success()
         with:
           name: webos
           path: |
-            Moonfin_webOS_*.ipk
-            moonfin-ota-webos.*
-            packages/build-webos/org.moonfin.webos.manifest.json
+            out/Moonfin_webOS_*.ipk
+            out/moonfin-ota-webos.*
+            out/org.moonfin.webos.manifest.json
 
-  # ───────────────────────────────────────────────
-  # Tizen WGTs (Regular, Oblong, Legacy)
-  # ───────────────────────────────────────────────
   build-tizen:
     name: Build Tizen
     runs-on: ubuntu-26.04
@@ -83,7 +88,11 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci --force
+        run: npm ci
+
+      - name: Check the tag matches the version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: test "$GITHUB_REF_NAME" = "$(node -p "require('./package.json').version")"
 
       - name: Load the update signing key
         if: startsWith(github.ref, 'refs/tags/')
@@ -94,21 +103,30 @@ jobs:
             printf '%s\n' "$KEY" > "$RUNNER_TEMP/ota-signing.pem"
             echo "MOONFIN_OTA_SIGNING_KEY=$RUNNER_TEMP/ota-signing.pem" >> "$GITHUB_ENV"
           fi
+
+      # Releases go out unsigned, as they always have. A Samsung certificate only
+      # covers the TVs registered on it, so Apps2Samsung or the user's own Tizen tooling
+      # signs the wgt for each TV. Oblong is the same package with the 1920x1080 launcher
+      # icon. Icons aren't part of the update's shell hash, so both take the same update files.
       - name: Build Tizen (all variants)
         id: build
-        run: npm run build:tizen:all
+        run: |
+          npm run package:tizen -- --unsigned
+          version=$(node -p "require('./package.json').version")
+          mv "out/Moonfin_Tizen_Regular_v$version.wgt" "$RUNNER_TEMP/regular.wgt"
+          cp packaging/tizen/icon-oblong.png packaging/tizen/icon.png
+          node scripts/package.mjs tizen --unsigned
+          mv "out/Moonfin_Tizen_Regular_v$version.wgt" "out/Moonfin_Tizen_Oblong_v$version.wgt"
+          mv "$RUNNER_TEMP/regular.wgt" "out/Moonfin_Tizen_Regular_v$version.wgt"
 
       - uses: actions/upload-artifact@v6
         if: success()
         with:
           name: tizen
           path: |
-            Moonfin_Tizen_*.wgt
-            moonfin-ota-tizen.*
+            out/Moonfin_Tizen_*.wgt
+            out/moonfin-ota-tizen.*
 
-  # ───────────────────────────────────────────────
-  # Vega VPKG and shell checks
-  # ───────────────────────────────────────────────
   build-vega:
     name: Build Vega
     # Deadsnakes doesn't build Python 3.8 for the amd64v3 packages the 26.04 runners install from.
@@ -122,7 +140,7 @@ jobs:
           cache: npm
 
       # Amazon lists libpython3.8 as an SDK prerequisite, and this Ubuntu only gets it
-      # from deadsnakes. The virtual device is skipped since it cant run WebView apps.
+      # from deadsnakes. The virtual device is skipped since it can't run WebView apps.
       - name: Install the Vega SDK
         run: |
           sudo add-apt-repository -y ppa:deadsnakes/ppa
@@ -132,31 +150,30 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm ci --force
-          npm ci --no-audit --no-fund --prefix packages/build-vega/shell
+          npm ci
+          npm ci --no-audit --no-fund --prefix vega/shell
 
-      - name: Build Vega
-        id: build
-        run: |
-          source ~/vega/env
-          npm run build:vega
-
+      # Before the build, since the shell's tsconfig takes in every file under it, and the
+      # app copy and build output the build leaves there run tsc and ESLint out of memory.
       - name: Check the shell
-        working-directory: packages/build-vega/shell
+        working-directory: vega/shell
         run: |
           npm run typecheck
           npm run lint
           npm test
 
+      - name: Build Vega
+        id: build
+        run: |
+          source ~/vega/env
+          npm run package:vega
+
       - uses: actions/upload-artifact@v6
         if: success()
         with:
           name: vega
-          path: Moonfin_Vega_*.vpkg
+          path: out/Moonfin_Vega_*.vpkg
 
-  # ───────────────────────────────────────────────
-  # Xbox MSIX, zipped with the dependencies a console needs
-  # ───────────────────────────────────────────────
   build-xbox:
     name: Build Xbox
     runs-on: windows-latest
@@ -169,44 +186,41 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci --force
+        run: npm ci
 
       - name: Build Xbox
         id: build
-        run: npm run build:xbox
+        run: npm run package:xbox
 
       - name: Zip the package and its dependencies
         shell: pwsh
         run: |
-          $msix = Get-Item Moonfin_Xbox_v*.msix
+          $msix = Get-Item out/Moonfin_Xbox_v*.msix
           New-Item -ItemType Directory xbox-zip/Dependencies | Out-Null
           Copy-Item $msix xbox-zip/
-          Copy-Item packages/build-xbox/shell/Moonfin.Xbox/AppPackages/*/Dependencies/x64/*.appx xbox-zip/Dependencies/
+          Copy-Item xbox/shell/Moonfin.Xbox/AppPackages/*/Dependencies/x64/*.appx xbox-zip/Dependencies/
           if (-not (Get-ChildItem xbox-zip/Dependencies)) { throw 'MSBuild left no dependencies to zip' }
-          Compress-Archive xbox-zip/* "$($msix.BaseName).zip"
+          Compress-Archive xbox-zip/* "out/$($msix.BaseName).zip"
 
       - uses: actions/upload-artifact@v6
         if: success()
         with:
           name: xbox
-          path: Moonfin_Xbox_*.zip
+          path: out/Moonfin_Xbox_*.zip
 
-      # Partner Center re-signs what it publishes, so the throwaway certificate build.js
+      # Partner Center re-signs what it publishes, so the throwaway certificate build.mjs
       # makes for the Store publisher is all the upload needs. It runs after the zip
       # since each build clears AppPackages.
       - name: Build the Store upload
         if: startsWith(github.ref, 'refs/tags/')
-        run: npm run build:xbox -- --store --no-web
+        run: npm run package:xbox -- --store --no-web
 
       - uses: actions/upload-artifact@v6
         if: startsWith(github.ref, 'refs/tags/')
         with:
           name: xbox-store
-          path: Moonfin_Xbox_Store_*.msixupload
+          path: out/Moonfin_Xbox_Store_*.msixupload
 
-  # ───────────────────────────────────────────────
-  # Save PR build outcomes for pr-comment workflow
-  # ───────────────────────────────────────────────
   save-pr-results:
     name: Save PR Build Results
     # Without always() a failed build skips this job, no artifact is uploaded, and
@@ -216,8 +230,8 @@ jobs:
     needs: [build-webos, build-tizen, build-vega, build-xbox]
     runs-on: ubuntu-26.04
     steps:
-      # The job's result, not its build step's, so a check after the build that
-      # fails (the Vega shell's) doesn't show as a passing platform.
+      # The job's result, not its build step's, so a check in the job that fails
+      # (the Vega shell's) doesn't show as a passing platform.
       - name: Write outcomes.json
         run: |
           cat > outcomes.json <<EOF
@@ -236,9 +250,9 @@ jobs:
           name: build-results
           path: outcomes.json
 
-  # ───────────────────────────────────────────────
-  # GitHub Draft Release (tags only)
-  # ───────────────────────────────────────────────
+  # Drafts don't reach TVs, since the app's version check (services/versionChecker.js)
+  # reads this repo's releases and skips drafts and prereleases. Publishing the draft is
+  # what offers the update.
   release:
     name: Create Draft Release
     if: startsWith(github.ref, 'refs/tags/')
@@ -253,8 +267,8 @@ jobs:
         with:
           draft: true
           generate_release_notes: true
-          # The webOS artifact keeps the manifest in its folder. The asset is still named after
-          # the file, and it carries the hash of the package uploaded next to it.
+          # Every artifact holds files from out/ only, so they land at the top of the
+          # download. The manifest carries the hash of the ipk uploaded next to it.
           files: |
             Moonfin_webOS_*.ipk
             Moonfin_Tizen_*.wgt
@@ -262,4 +276,4 @@ jobs:
             Moonfin_Xbox_*.zip
             moonfin-ota-*.json
             moonfin-ota-*.bin
-            packages/build-webos/org.moonfin.webos.manifest.json
+            org.moonfin.webos.manifest.json

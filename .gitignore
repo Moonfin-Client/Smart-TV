@@ -1,15 +1,13 @@
 # dependencies
 node_modules
 
-# keeps the build CLIs' pinned dependencies out of the repo, see tools/package.json
-tools/package-lock.json
-
 # testing
 coverage
 
 # production
 build
 dist
+out
 *.ipk
 *.wgt
 moonfin-ota-*
@@ -21,18 +19,15 @@ moonfin-ota-*
 *.cer
 *.pfx
 
-# the Xbox host's build output and the web bundle copied into it
-packages/build-xbox/shell/**/www
-packages/build-xbox/shell/**/bin
-packages/build-xbox/shell/**/obj
-packages/build-xbox/shell/**/AppPackages
-packages/build-xbox/shell/**/BundleArtifacts
-packages/build-xbox/shell/**/*.csproj.user
-packages/build-xbox/.cert
-packages/build-xbox/shell/**/Package.Build.appxmanifest
+# copied out of node_modules on npm install, by scripts/reader-assets.mjs and subtitle-assets.mjs
+public/reader
+public/subtitles-octopus-worker.js
+public/subtitles-octopus-worker-legacy.js
+public/subtitles-octopus-worker.wasm
+public/ass-fallback-font.ttf
 
-# test clips for the Xbox probe, made by probe/make-clips.js
-packages/build-xbox/probe/media
+# test clips for the Xbox probe, made by probe/make-clips.cjs
+xbox/probe/media
 
 # misc
 .DS_Store
