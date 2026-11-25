@@ -17,6 +17,7 @@
 	// Worker file name to the files that worker reads by relative URL.
 	const WORKERS = {
 		'subtitles-octopus-worker.js': ['subtitles-octopus-worker.wasm', 'ass-fallback-font.ttf'],
+		'jassub-worker.js': ['jassub-worker.wasm', 'jassub-worker-modern.wasm', 'jassub-default.woff2', 'ass-fallback-font.ttf'],
 		'libarchive-worker.js': ['libarchive.wasm'],
 		'pdf.worker.min.js': []
 	};
@@ -66,18 +67,21 @@
 		'self.addEventListener("message", queue);',
 		'const assetName = function (url) {',
 		'	const name = String(url).split("?")[0].split("#")[0].split("/").pop();',
-		'	return Object.prototype.hasOwnProperty.call(assets, name) ? name : null;',
+\t	'\treturn Object.prototype.hasOwnProperty.call(assets, name) ? name : null;',
 		'};',
-		'const dataUrl = function (name) { return "data:application/octet-stream;base64," + assets[name]; };',
+		'const dataUrl = function (name) {',
+		'\tconst type = /\\.wasm$/.test(name) ? "application/wasm" : "application/octet-stream";',
+		'\treturn "data:" + type + ";base64," + assets[name];',
+\t	'};',
 		'const open = XMLHttpRequest.prototype.open;',
 		'XMLHttpRequest.prototype.open = function (method, url, ...rest) {',
 		'	const name = assetName(url);',
-		'	return open.call(this, method, name ? dataUrl(name) : url, ...rest);',
+\t	'\treturn open.call(this, method, name ? dataUrl(name) : url, ...rest);',
 		'};',
 		'const nativeFetch = self.fetch;',
 		'self.fetch = function (url, init) {',
 		'	const name = assetName(url);',
-		'	return nativeFetch.call(self, name ? dataUrl(name) : url, init);',
+\t	'\treturn nativeFetch.call(self, name ? dataUrl(name) : url, init);',
 		'};',
 		'self.addEventListener("message", function start(e) {',
 		'	const d = e.data;',

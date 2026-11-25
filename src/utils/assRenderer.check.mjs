@@ -24,4 +24,19 @@ assert.match(boot, /locateFile:function\(p\)\{return p==="subtitles-octopus-work
 assert.match(boot, /importScripts\("blob:worker"\)$/)
 const legacy = await made.get(updated.legacyWorkerUrl).text()
 assert.match(legacy, /importScripts\("file:\/\/\/media\/apps\/moonfin\/subtitles-octopus-worker-legacy\.js"\)$/, 'a file the update kept comes from the package')
+
+const { scaleAssFontSizes } = await import('./assRenderer.js?scaling')
+const script = `[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, Outline
+Style: Default,Roboto,20,&H00FFFFFF,1
+Style: Sign,Roboto,33.5,&H00FFFFFF,1
+[Events]
+Format: Layer, Start, End, Style, Text
+Dialogue: 0,0,1,Default,{\\fs18\\pos(20,20)}sized {\\fs}reset
+`
+const scaled = scaleAssFontSizes(script, 1.5)
+assert.match(scaled, /Style: Default,Roboto,30,&H00FFFFFF,1/)
+assert.match(scaled, /Style: Sign,Roboto,50.25,&H00FFFFFF,1/)
+assert.match(scaled, /\{\\fs27\\pos\(20,20\)\}sized \{\\fs\}reset/, 'only a number follows fs')
+assert.equal(scaleAssFontSizes(script, 1), script)
 console.log('subtitle engine files ok')

@@ -1,4 +1,4 @@
-// ASS tracks (libass-wasm) and PGS tracks (libpgs) drawn on the DOM canvas between the video and
+// ASS tracks (Jassub, with libass-wasm for older engines) and PGS tracks (libpgs) drawn on the DOM canvas between the video and
 // the app. Both run in canvas mode and follow the player's clock, so webOS and Tizen draw them the
 // same way. One track at a time.
 import {
@@ -15,7 +15,7 @@ import { waitForAssReady } from '../../utils/assRendererReady.js'
 import { createInBandPgsSource } from '../../utils/mkvPgsSource.js'
 import { createSupWindowRenderer } from './supWindow.js'
 import * as playback from '../../services/playback.js'
-import { subtitleCanvas, subtitleRect, on as onEngine } from '../../state/videoEngine.js'
+import { subtitleCanvas, resetSubtitleCanvas, subtitleRect, on as onEngine } from '../../state/videoEngine.js'
 
 let ass = null
 let pgs = null
@@ -27,7 +27,10 @@ export const stop = () => {
   gen++
   if (ass) disposeAssRenderer(ass)
   if (pgs) disposePgsRenderer(pgs)
-  if (ass || pgs) clearAssCanvas(subtitleCanvas())
+  if (ass || pgs) {
+    clearAssCanvas(subtitleCanvas())
+    resetSubtitleCanvas()
+  }
   ass = null
   pgs = null
 }

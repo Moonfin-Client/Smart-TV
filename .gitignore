@@ -25,6 +25,10 @@ public/subtitles-octopus-worker.js
 public/subtitles-octopus-worker-legacy.js
 public/subtitles-octopus-worker.wasm
 public/ass-fallback-font.ttf
+public/jassub-worker.js
+public/jassub-worker.wasm
+public/jassub-worker-modern.wasm
+public/jassub-default.woff2
 
 # test clips for the Xbox probe, made by probe/make-clips.cjs
 xbox/probe/media

@@ -47,6 +47,10 @@ const TEXT = /\.json$/i
 const WORKER_ASSETS = [
   'subtitles-octopus-worker.js',
   'subtitles-octopus-worker.wasm',
+  'jassub-worker.js',
+  'jassub-worker.wasm',
+  'jassub-worker-modern.wasm',
+  'jassub-default.woff2',
   'ass-fallback-font.ttf',
   'reader/libarchive-worker.js',
   'reader/wasm-gen/libarchive.wasm',

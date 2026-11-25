@@ -172,6 +172,13 @@ const removeSubtitleCanvas = () => {
   if (subCanvas && subCanvas.parentNode) subCanvas.parentNode.removeChild(subCanvas)
 }
 
+// Jassub transfers a canvas's control to its worker, which can happen only once for an element.
+// Ending a bitmap track therefore retires the element; the next track gets a fresh canvas.
+export const resetSubtitleCanvas = () => {
+  removeSubtitleCanvas()
+  subCanvas = null
+}
+
 // The picture's box on the page for each zoom mode, from the declared aspect when the stream has one.
 let contentRect = null
 const videoRects = () => {
@@ -1085,7 +1092,7 @@ export const stop = async () => {
   nativeSub = null
   unmuteTv()
   screen(false)
-  removeSubtitleCanvas()
+  resetSubtitleCanvas()
   window.removeEventListener('resize', onResize)
   if (mode === 'avplay' && tz) {
     tz.avplaySetPostSeekHook(null)

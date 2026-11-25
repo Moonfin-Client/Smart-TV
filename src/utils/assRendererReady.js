@@ -1,7 +1,6 @@
 // True once the renderer can draw, false when it errors, runs out of time or keepWaiting says
-// the caller moved on. The worker holds every message until the track and its fonts are loaded,
-// so the first answer to a request is the sign. The library's own request gives up after five
-// seconds, so a timed out one is asked again until the deadline.
+// the caller moved on. Jassub exposes that directly; the compatibility worker holds every message
+// until the track and its fonts are loaded, so its first answer to a request is the sign.
 export const waitForAssReady = (renderer, timeoutMs, keepWaiting = () => true) => new Promise((resolve) => {
 	let done = false;
 	let poll = null;
@@ -15,6 +14,12 @@ export const waitForAssReady = (renderer, timeoutMs, keepWaiting = () => true) =
 	poll = setInterval(() => {
 		if (!keepWaiting() || Date.now() >= deadline) finish(false);
 	}, 250);
+
+	if (renderer?.ready?.then) {
+		renderer.ready.then(() => finish(true), () => finish(false));
+		return;
+	}
+
 	const ask = () => {
 		try {
 			renderer.getEvents(() => finish(true), (err) => {
