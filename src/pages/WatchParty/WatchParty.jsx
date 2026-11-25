@@ -13,11 +13,12 @@ import { router } from '../../app/router.js'
 import { openNativeInput, usesNativeKeyboard } from '../../ui/components/account/nativeInput.js'
 import { qrDataUrl } from '../../ui/components/account/qr.js'
 import { hex } from '../../ui/color.js'
-import { shadowColor } from '../../ui/theme.js'
+import { shadowColor, theme } from '../../ui/theme.js'
 import { perfTier } from '../../ui/tier.js'
 import { statusLabel, endedText, partyErrorText, subtitleChoices, choiceMatches, resumeHint, resumeLabel } from './partyText.js'
 import { loadParticipantUsers, participantAvatar } from './participantAvatars.js'
 import { layoutDialog } from './views.js'
+import { partyLook } from './sheet.js'
 import { takeSyncPlayNext } from './syncPlayNext.js'
 import { scrollFor } from '../../ui/components/party/sheetMath.js'
 import { spotlightMove } from '../../ui/components/party/spotlight.js'
@@ -38,7 +39,6 @@ const INPUT_MAX = { code: 512, pin: 8, search: 512, name: 64, roomPin: 8 }
 const DIGITS = { pin: true, roomPin: true }
 const REPEAT_CYCLE = ['RepeatNone', 'RepeatOne', 'RepeatAll']
 const EMPTY = { boxes: [], rings: [], pics: [], boxes2: [], rings2: [], texts: [] }
-const EDGE = { width: 1, color: hex('#ffffff1f') }
 const SHADOW = { color: shadowColor('#00000066'), x: 0, y: 8, blur: 32, spread: 0 }
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
@@ -60,7 +60,9 @@ export default function WatchParty(props) {
   const [bodyH, setBodyH] = createSignal(0)
   const [editing, setEditing] = createSignal(false)
   // 85% opaque on the high tier, which would sit over a blur, and 97% on the low and mid tiers, which drop it.
-  const frame = perfTier() === 'high' ? '#1e1e28d9' : '#1e1e28f7'
+  // The theme's surface, a little see-through where the TV can afford it.
+  const frame = () => theme().surface.slice(0, 7) + (perfTier() === 'high' ? 'd9' : 'f7')
+  const edge = () => ({ width: 1, color: hex(theme().os(0.12)) })
   const my = {
     gone: false,
     available: null,
@@ -326,13 +328,14 @@ export default function WatchParty(props) {
     if (my.gone) return
     const m = model()
     my.model = m
-    let laid = layoutDialog(m, my.focus)
+    const look = partyLook(theme())
+    let laid = layoutDialog(m, my.focus, look)
     let focusables = focusablesOf(laid)
     if (m.kind !== my.kind || !focusables.some((f) => f.id === my.focus)) {
       my.kind = m.kind
       my.focus = defaultFocus(m.kind, focusables)
       setScrollY(0)
-      laid = layoutDialog(m, my.focus)
+      laid = layoutDialog(m, my.focus, look)
       focusables = focusablesOf(laid)
     }
     my.focusables = focusables
@@ -637,8 +640,8 @@ export default function WatchParty(props) {
         scale={shown() ? 1 : 0.95}
       >
         <view x={-1} y={-1} width={b().w + 2} height={b().h + 2} borderRadius={24} color="#00000000" shadow={SHADOW} />
-        <view x={-1} y={-1} width={b().w + 2} height={b().h + 2} borderRadius={24} color={frame} border={EDGE} />
-        <view x={23} width={Math.max(0, b().w - 46)} height={1} color="#ffffff14" />
+        <view x={-1} y={-1} width={b().w + 2} height={b().h + 2} borderRadius={24} color={frame()} border={edge()} />
+        <view x={23} width={Math.max(0, b().w - 46)} height={1} color={theme().os(0.08)} />
         <PartyPaint paint={head()} />
         <view y={HEADER_H} width={b().w} height={b().viewH} clipping>
           <view y={-scrollY()} width={b().w} height={Math.max(b().viewH, bodyH())}>
