@@ -75,6 +75,17 @@ export default function GameGrid(props) {
     return true
   }
 
+  // The Magic Remote's cursor (app/pointer.js): a game in full view takes focus on hover, one the grid
+  // would scroll to on a click. onPointerGrid() gives the grid focus first.
+  const pointAt = (i, click) => {
+    const { stride, viewH } = geo()
+    const top = Math.floor(i / geo().cols) * stride
+    const whole = top >= scrollY() && top + stride <= scrollY() + viewH
+    if (!click && (!whole || (focused() && cur() === i))) return false
+    if (!focused() && props.onPointerGrid) props.onPointerGrid()
+    if (cur() !== i) moveTo(i)
+    return click
+  }
   const attach = (n) => {
     n.page = (direction) => {
       const g = geo()
@@ -138,6 +149,8 @@ export default function GameGrid(props) {
               coverH={geo().coverH}
               neon={props.neon}
               focused={isCur(card.idx)}
+              onPointerOver={() => pointAt(card.idx, false)}
+              onPointerClick={() => pointAt(card.idx, true)}
             />
           )}
         </For>

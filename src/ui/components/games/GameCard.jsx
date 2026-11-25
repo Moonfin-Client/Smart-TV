@@ -20,6 +20,8 @@ export default function GameCard(props) {
       pivot={0.5}
       scale={props.focused ? 1.06 : 1}
       transition={{ scale: { duration: 120, easing: 'ease' } }}
+      onPointerOver={props.onPointerOver}
+      onPointerClick={props.onPointerClick}
     >
       <view x={-4} y={c().top - 4} width={c().w + 8} height={c().posterH + 8} borderRadius={16} color={props.ring || '#00a4dcff'} alpha={props.focused ? 1 : 0} />
       <view y={c().top} width={c().w} height={c().posterH} borderRadius={12} color={art() ? '#1c1c1cff' : c().bg} />

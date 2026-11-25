@@ -96,6 +96,16 @@ export default function Games(props) {
     if (top < st.scrollY) st.scrollY = top
     else if (top + CELL_H > st.scrollY + VIEW_H) st.scrollY = top + CELL_H - VIEW_H
   }
+  // The Magic Remote's cursor (app/pointer.js): Back and a system in full view take focus on hover; one
+  // the grid would scroll to takes it on a click.
+  const pointTile = (i, click) => {
+    const top = Math.floor(i / COLS) * CELL_H
+    const whole = top >= st.scrollY && top + CELL_H <= st.scrollY + VIEW_H
+    if (!click && (!whole || (st.zone === 'grid' && st.cur === i))) return false
+    st.zone = 'grid'
+    move(i)
+    return click
+  }
   const handle = (fn) => () => {
     fn()
     return true
@@ -149,12 +159,24 @@ export default function Games(props) {
       <view alpha={!st.loading && !st.message ? 1 : 0}>
         <view x={70} y={29} width={44} height={44} borderRadius={9} color="#ffffff" alpha={backOn() ? 1 : 0} />
         <view x={77.5} y={36.5} width={29} height={29} src="icons/game_back.webp" color={backOn() ? '#101010' : '#ffffff80'} />
+        <view x={70} y={29} width={44} height={44} onPointerOver={() => st.zone !== 'back' && (st.zone = 'back')} />
         <text x={134} y={36.5} fontFamily={fontFor(st.title)} fontSize={32} lineHeight={33} color="#ffffff">
           {st.title}
         </text>
         <view y={85} width={1920} height={VIEW_H} clipping>
           <view width={1920} height={13 + rows() * CELL_H} y={-st.scrollY} transition={{ y: { duration: 250, easing: 'ease-out' } }}>
-            <For each={placed()}>{(t, i) => <GameSystemCard x={t.x} y={t.y} tile={t} focused={isCur(i())} />}</For>
+            <For each={placed()}>
+              {(t, i) => (
+                <GameSystemCard
+                  x={t.x}
+                  y={t.y}
+                  tile={t}
+                  focused={isCur(i())}
+                  onPointerOver={() => pointTile(i(), false)}
+                  onPointerClick={() => pointTile(i(), true)}
+                />
+              )}
+            </For>
           </view>
         </view>
       </view>
