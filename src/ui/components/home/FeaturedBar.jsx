@@ -16,7 +16,7 @@ import { trailerHost } from './trailerHost.js'
 import { createBarContext } from './barContext.js'
 import { backdropOf, breakable, frostOf, glowOf, logoOf, shade, loadReleases, releaseOf, restartCarousel, stopCarousel } from './barKit.js'
 import { tx } from '../../fx.js'
-import { localPoint, pointerFocus } from '../../../app/pointer.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // The default Moonfin media bar: the slide's backdrop over the whole screen, its logo or title in
 // the corner and a frosted info box along the bottom. While a trailer shows, the backdrop and the
@@ -291,8 +291,8 @@ export default function FeaturedBar(props) {
       // A click on the banner opens its title, and the arrows and dots page it (app/pointer.js). The
       // bar spans the screen under Home's rows, so hovering it doesn't take focus from them, and a click
       // below the banner (between the peek row's cards) isn't the banner's.
-      onPointerClick={(n, p) => {
-        if (localPoint(n, p).y >= bannerH()) return false
+      pointerItems={() => [{ x: 0, y: 0, w: 1920, h: bannerH() }]}
+      onPointerItemClick={() => {
         pointerFocus(bar.root)
         return true
       }}

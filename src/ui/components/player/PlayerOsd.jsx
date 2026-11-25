@@ -390,8 +390,6 @@ export default function PlayerOsd(props) {
           onPointerOver={() => point('progress')}
           onPointerClick={(n, p) => {
             point('progress')
-            // Live's bar is a picture of the window, not a seek bar.
-            if (isLive()) return
             if (props.onSeekAt) props.onSeekAt(Math.max(0, Math.min(1, localPoint(n, p).x / BAR.W)))
           }}
         />

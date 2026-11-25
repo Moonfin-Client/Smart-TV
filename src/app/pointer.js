@@ -243,8 +243,21 @@ const press = (t) => {
   return enter
 }
 
+// The cursor left the canvas or hid: the next move counts even at the same spot.
+const forgetCursor = () => {
+  cursorAt = null
+  lastX = -1
+  lastY = -1
+}
+
 const onMove = (e) => {
-  if (!onCanvas(e)) return
+  if (!onCanvas(e)) {
+    if (cursorAt) {
+      forgetCursor()
+      clear()
+    }
+    return
+  }
   if (e.clientX === lastX && e.clientY === lastY) return
   lastX = e.clientX
   lastY = e.clientY
@@ -293,7 +306,8 @@ const onKey = (e) => {
     return
   }
   if (!enter) {
-    cursorAt = null
+    // The d-pad hides the cursor; other keys (Back, media) leave it where it is.
+    if (e.keyCode >= 37 && e.keyCode <= 40) forgetCursor()
     if (hovered) clear()
     return
   }
@@ -302,12 +316,19 @@ const onKey = (e) => {
   if (e.repeat) return
   // What's under the cursor now: a dialog may have opened or the screen changed since it last moved,
   // and a press clears the hover until it moves again.
+  const was = hovered
   if (cursorAt) hover(targetAt(cursorAt.x, cursorAt.y))
   else if (hovered) clear()
   if (!hovered) return
   enterAt = Date.now()
-  // Hover already focused it, so Enter goes on as it is.
-  if (!hovered.click) return
+  if (!hovered.click) {
+    // Hover already focused it, so Enter goes on as it is. Focus this hover only just asked for
+    // settles later, so the press goes out after it, as a click's does.
+    if (same(was, hovered)) return
+    sendEnter()
+    enterTaken = true
+    return swallow(e)
+  }
   // The control focused itself for this press, which reaches it once that focus has settled.
   if (press(hovered)) sendEnter()
   enterTaken = true
@@ -317,7 +338,7 @@ const onKey = (e) => {
 // webOS hides the cursor a few seconds after the remote stops moving, and when a d-pad key is pressed.
 const onCursor = (e) => {
   if (!e.detail || e.detail.visibility !== false) return
-  cursorAt = null
+  forgetCursor()
   clear()
 }
 
@@ -342,8 +363,13 @@ const onWheel = (e) => {
   const up = e.deltaY < 0
   const key = up ? 'ArrowUp' : 'ArrowDown'
   const code = up ? 38 : 40
-  document.dispatchEvent(keyEvent(key, code, 'keydown'))
-  setTimeout(() => document.dispatchEvent(keyEvent(key, code, 'keyup')), 30)
+  // The cursor stays up while the wheel turns, so these steps don't count as the d-pad.
+  const stepDown = keyEvent(key, code, 'keydown')
+  const stepUp = keyEvent(key, code, 'keyup')
+  synthetic.add(stepDown)
+  synthetic.add(stepUp)
+  document.dispatchEvent(stepDown)
+  setTimeout(() => document.dispatchEvent(stepUp), 30)
 }
 
 export const startPointer = () => {
@@ -360,6 +386,8 @@ export const startPointer = () => {
     window.removeEventListener('keydown', onKey, true)
     window.removeEventListener('keyup', onKey, true)
     document.removeEventListener('cursorStateChange', onCursor)
+    forgetCursor()
+    enterTaken = false
     clear()
   }
 }
