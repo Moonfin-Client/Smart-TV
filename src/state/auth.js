@@ -252,17 +252,22 @@ export const leaveSession = () => {
 
 // Ends a Silo login on the server, which retires its refresh token. The stored sessions are read
 // first, since a start on another server type never needed them. Sign-out doesn't wait more than a
-// few seconds on a server it can't reach.
+// few seconds on a server it can't reach (a refresh before the logout can take longer).
 const endSiloLogin = async (entry) => {
-  try {
+  let timer
+  const ending = (async () => {
     await loadSiloSessions()
-    const ending = jellyfinApi.createApiForServer(entry.url, entry.accessToken, entry.userId, 'silo').logout()
-    await Promise.race([ending, new Promise((resolve) => setTimeout(resolve, SILO_LOGOUT_WAIT_MS))])
+    await jellyfinApi.createApiForServer(entry.url, entry.accessToken, entry.userId, 'silo').logout()
+  })()
+  try {
+    await Promise.race([ending, new Promise((resolve) => { timer = setTimeout(resolve, SILO_LOGOUT_WAIT_MS) })])
   } catch (e) {
     console.warn('[auth] Ending the Silo login failed:', e)
+  } finally {
+    clearTimeout(timer)
   }
 }
-const SILO_LOGOUT_WAIT_MS = 3000
+const SILO_LOGOUT_WAIT_MS = 5000
 
 // A Silo login is the account's, shared by its household profiles, so it ends only with the last
 // of them saved here.
@@ -301,8 +306,17 @@ export const logout = async () => {
 }
 
 // Every saved server goes, including ones kept after their last user signed out, and every Silo
-// login with them. Then Sign Out finds nobody left and signs out.
-export const signOutAll = async () => {
+// login with them. Then Sign Out finds nobody left and signs out. A second call while one runs
+// waits on that one.
+let signingOutAll = null
+export const signOutAll = () => {
+  if (!signingOutAll) signingOutAll = runSignOutAll().finally(() => { signingOutAll = null })
+  return signingOutAll
+}
+const runSignOutAll = async () => {
+  // Playback reports its stop while the logins still work.
+  await remoteControl.runPlayerCommand('stop')
+  stopMusic()
   const saved = await multiServerManager.getAllServersArray().catch(() => [])
   const unique = await multiServerManager.getUniqueServers().catch(() => [])
   for (const server of unique) await multiServerManager.removeServer(server.serverId)

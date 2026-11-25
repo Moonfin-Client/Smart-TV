@@ -206,6 +206,7 @@ const Shell = (props) => {
         if (store.authenticated) return resumeAs()
       } else if (action === 'signOutAll') {
         await auth.signOutAll()
+        if (store.authenticated) return resumeAs()
       }
       router.to('/login', {}, { inHistory: false })
     },

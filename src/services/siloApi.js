@@ -24,6 +24,8 @@ import {
 } from './siloMapper';
 
 const SYSTEM_INFO_PATH = '/api/v2/system/info';
+// Sign-out doesn't wait longer than this on a Silo server it can't reach.
+const LOGOUT_TIMEOUT_MS = 3000;
 
 // The profile last reported locked to the app, until its PIN is proved again. Shared by every api instance, since the
 // PIN gate proves it through one of its own.
@@ -408,17 +410,20 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 			return openLogin(pair);
 		},
 
-		// Ends the login on Silo too, so its refresh token dies with it. Signed out here whatever Silo answers. No refresh
-		// first: a 401 there would end the session mid sign-out and send the app to sign-in.
+		// Ends the login on Silo too, so its refresh token dies with it. Signed out here whatever Silo answers. An expired
+		// token is refreshed first, marked as signing out so a refused refresh doesn't send the app to sign-in. A login
+		// opened again while this was out is left alone.
 		logout: async () => {
 			const current = session();
 			if (!current) return;
+			const identity = current.identity;
+			current.signingOut = identity;
 			try {
-				await call('/api/v2/auth/logout', {method: 'POST', profile: false, refresh: false});
+				await call('/api/v2/auth/logout', {method: 'POST', profile: false, timeoutMs: LOGOUT_TIMEOUT_MS});
 			} catch (err) {
 				if (err.status !== 401) console.warn('[Silo] Sign-out failed on the server:', err);
 			} finally {
-				closeSiloSession(current);
+				if (current.identity === identity) closeSiloSession(current);
 			}
 		},
 
