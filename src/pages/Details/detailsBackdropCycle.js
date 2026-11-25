@@ -39,6 +39,16 @@ export const getDetailBackdropUrls = (serverUrl, item, options = { maxWidth: 192
   return urls
 }
 
+// Derives the 640px server-blurred glass URL from an active Jellyfin/Emby backdrop URL,
+// preserving the exact item ID, Backdrop/N index, and tag across cycle ticks.
+export const toGlassBackdropUrl = (backdropUrl) => {
+  if (!backdropUrl) return ''
+  const resized = /[?&]maxWidth=\d+/.test(backdropUrl)
+    ? backdropUrl.replace(/([?&]maxWidth=)\d+/, '$1640')
+    : `${backdropUrl}${backdropUrl.includes('?') ? '&' : '?'}maxWidth=640`
+  return /[?&]blur=/.test(resized) ? resized : `${resized}&blur=3`
+}
+
 // Fisher-Yates shuffle without replacement so every backdrop is shown once
 // before the set repeats. When reshuffling across a cycle boundary, avoid
 // repeating `avoidFirst` back-to-back.
@@ -62,30 +72,78 @@ export const buildBackdropCycleOrder = (source, shuffle, avoidFirst = null, rand
 
 // Timer-driven backdrop cycler for Details.jsx. Call sync() on every paint with
 // the current URL list and settings; only restarts the timer when the list or
-// settings change, and invokes onChange(url) on each tick.
+// settings change, and supports pause()/resume() when the page is hidden behind
+// playback or backgrounded.
 export const createBackdropCycler = (onChange, { setIntervalFn = setInterval, clearIntervalFn = clearInterval } = {}) => {
   let key = ''
+  let sourceList = []
   let order = []
   let index = 0
   let current = ''
+  let shouldCycle = false
+  let shuffleEnabled = true
+  let durationMs = DEFAULT_DETAILS_BACKDROP_INTERVAL_MS
+  let paused = false
   let timer = null
 
-  const stop = () => {
+  const clearTimer = () => {
     if (timer != null) {
       clearIntervalFn(timer)
       timer = null
     }
   }
 
-  const sync = (urls, { enabled = true, shuffle = true, intervalMs = DEFAULT_DETAILS_BACKDROP_INTERVAL_MS } = {}) => {
-    const list = Array.isArray(urls) ? urls : []
-    const durationMs = normalizeBackdropIntervalMs(intervalMs)
-    const shouldCycle = Boolean(enabled) && list.length > 1
-    const nextKey = `${list.join('\n')}|${shouldCycle ? 1 : 0}|${shuffle ? 1 : 0}|${durationMs}`
-    if (nextKey === key) return current
+  const startTimer = () => {
+    if (timer != null || !shouldCycle || paused || sourceList.length <= 1) return
+    timer = setIntervalFn(() => {
+      const nextIndex = index + 1
+      if (nextIndex >= order.length) {
+        const lastShown = order[order.length - 1] || null
+        order = buildBackdropCycleOrder(sourceList, shuffleEnabled, lastShown)
+        index = 0
+      } else {
+        index = nextIndex
+      }
+      current = order[index]
+      if (onChange) onChange(current)
+    }, durationMs)
+  }
 
-    stop()
+  const stop = () => {
+    clearTimer()
+    key = ''
+  }
+
+  const pause = () => {
+    paused = true
+    clearTimer()
+  }
+
+  const resume = () => {
+    paused = false
+    startTimer()
+  }
+
+  const sync = (urls, { enabled = true, shuffle = true, intervalMs = DEFAULT_DETAILS_BACKDROP_INTERVAL_MS, isPaused = paused } = {}) => {
+    const list = Array.isArray(urls) ? urls : []
+    const nextDurationMs = normalizeBackdropIntervalMs(intervalMs)
+    const nextShouldCycle = Boolean(enabled) && list.length > 1
+    const nextKey = `${list.join('\n')}|${nextShouldCycle ? 1 : 0}|${shuffle ? 1 : 0}|${nextDurationMs}`
+    paused = Boolean(isPaused)
+
+    if (nextKey === key) {
+      if (paused) clearTimer()
+      else startTimer()
+      return current
+    }
+
+    clearTimer()
     key = nextKey
+    sourceList = list
+    shouldCycle = nextShouldCycle
+    shuffleEnabled = Boolean(shuffle)
+    durationMs = nextDurationMs
+
     if (!list.length) {
       order = []
       index = 0
@@ -99,23 +157,12 @@ export const createBackdropCycler = (onChange, { setIntervalFn = setInterval, cl
       return current
     }
 
-    order = buildBackdropCycleOrder(list, shuffle)
+    order = buildBackdropCycleOrder(list, shuffleEnabled)
     index = 0
     current = order[0]
-    timer = setIntervalFn(() => {
-      const nextIndex = index + 1
-      if (nextIndex >= order.length) {
-        const lastShown = order[order.length - 1] || null
-        order = buildBackdropCycleOrder(list, shuffle, lastShown)
-        index = 0
-      } else {
-        index = nextIndex
-      }
-      current = order[index]
-      if (onChange) onChange(current)
-    }, durationMs)
+    startTimer()
     return current
   }
 
-  return { sync, stop }
+  return { sync, pause, resume, stop }
 }

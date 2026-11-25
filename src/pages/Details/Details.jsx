@@ -42,7 +42,7 @@ import { router } from '../../app/router.js'
 import { focusNav } from '../../app/focus.js'
 import { usePage } from '../../app/PageStack.jsx'
 import { COLLECTION_ITEM_TYPES, IDENTIFIABLE_TYPES, getMediaBadges, hidesMediaDescription, splitCastAndCrew } from './detailsMedia.js'
-import { createBackdropCycler, getDetailBackdropUrls } from './detailsBackdropCycle.js'
+import { createBackdropCycler, getDetailBackdropUrls, toGlassBackdropUrl } from './detailsBackdropCycle.js'
 import { shuffled } from '../../utils/shuffled.js'
 import { orderItemsByIds } from './collectionPlaylist.js'
 import { collectionTitles, mergeCollectionWithMissing } from './seerrMissingCollectionItems.js'
@@ -438,6 +438,7 @@ export default function Details(props) {
       enabled: shouldCycle,
       shuffle: s.detailsBackdropShuffle !== false,
       intervalMs: s.detailsBackdropIntervalMs,
+      isPaused: (page && !page.active()) || appHidden(),
     })
     const backId = getBackdropId(it)
     let back = cycled || (enabled && backId ? getImageUrl(m.srv, backId, 'Backdrop', { maxWidth: 1920, quality: 90, tag: backdropTag(it) }) : '')
@@ -923,7 +924,7 @@ export default function Details(props) {
     const type = getServerType()
     const backId = getBackdropId(it)
     if (!back || it._externalBackdropUrl || !backId || (type !== 'jellyfin' && type !== 'emby')) return null
-    return { src: `${getImageUrl(m.srv, backId, 'Backdrop', { maxWidth: 640, quality: 90, tag: backdropTag(it) })}&blur=3`, shade, scrim: scrimUrl }
+    return { src: toGlassBackdropUrl(back), shade, scrim: scrimUrl }
   }
   // A playlist's page has no nav.
   const showNav = () => {
@@ -1302,6 +1303,11 @@ export default function Details(props) {
       }),
     )
   }
+  createEffect(() => {
+    const hidden = (page && !page.active()) || appHidden()
+    if (hidden) backdropCycler.pause()
+    else backdropCycler.resume()
+  })
   onCleanup(() => {
     if (m.item && m.item.Type === 'Playlist') store.navVisible = true
     m.gen++
