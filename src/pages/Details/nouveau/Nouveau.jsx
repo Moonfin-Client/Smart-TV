@@ -383,7 +383,7 @@ export default function Nouveau(props) {
         seerrPills: d.seerr && d.seerr.statusPills,
         meta: nouveauMetaPieces({
           item: it,
-          year: formatDetailReleaseDate(it, { showFullDate: Boolean(s.detailShowFullDate), dateFormat: s.dateFormat }),
+          year: isPerson ? '' : formatDetailReleaseDate(it, { showFullDate: Boolean(s.detailShowFullDate), dateFormat: s.dateFormat }),
           officialRating: it.OfficialRating || '',
           runtime: d.runtime,
           seasonCount: it.ChildCount || L.seasons.length || 0,

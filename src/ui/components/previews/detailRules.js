@@ -4,7 +4,7 @@
 import $L from '../../../services/i18n.js'
 import { arrange, countSplit, applyButtonLimit, DETAIL_BUTTONS, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY } from '../../../utils/buttonLayout.js'
 import { DETAIL_METADATA, DETAIL_METADATA_ORDER_KEY, DETAIL_METADATA_HIDDEN_KEY } from '../../../utils/detailMetadataLayout.js'
-import { formatMediumDate } from '../../../utils/dateFormat.js'
+import { formatDetailReleaseDate } from '../../../utils/dateFormat.js'
 import { formatFileSize } from '../../../utils/formatFileSize.js'
 import { normalizeRatingStyle } from '../../../utils/personalRating.js'
 import { getMediaBadges } from '../../../pages/Details/detailsMedia.js'
@@ -16,12 +16,10 @@ import { ratingIcon, ratingLabel } from '../../../pages/Details/modern/actions.j
 import { SAMPLE_USER_DATA } from './sampleRatings.js'
 import { runtimeText } from './kit.js'
 
-export const detailPreviewYear = (item, s) => {
-  if (!item.year) return ''
-  return s.detailShowFullDate
-    ? formatMediumDate(new Date(Date.UTC(item.year, 2, 15)), s.dateFormat, { utc: true })
-    : String(item.year)
-}
+export const detailPreviewYear = (item, s) => formatDetailReleaseDate(
+  { PremiereDate: item.premiereDate, ProductionYear: item.year },
+  { showFullDate: Boolean(s.detailShowFullDate), dateFormat: s.dateFormat },
+)
 
 // The facts under a details title, in the Metadata Row order with the hidden ones left out. The
 // sample is a film, so a series' status, upcoming episodes and Seerr availability add nothing.

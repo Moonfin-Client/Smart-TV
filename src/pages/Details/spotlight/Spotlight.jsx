@@ -194,7 +194,7 @@ export default function Spotlight(props) {
     const multipleVersions = bag.supportsSelection && (it.MediaSources || []).length > 1
     const version = multipleVersions && ms && bag.showsSection('versionBadge') ? `[ ${ms.Name || 'Default'} ]` : ''
     const meta = spotlightMetaPieces({
-      item: it, year: formatDetailReleaseDate(it, { showFullDate: Boolean(s.detailShowFullDate), dateFormat: s.dateFormat }), officialRating: it.OfficialRating || '', seasonCount: it.ChildCount || L.seasons.length || 0,
+      item: it, year: isPerson ? '' : formatDetailReleaseDate(it, { showFullDate: Boolean(s.detailShowFullDate), dateFormat: s.dateFormat }), officialRating: it.OfficialRating || '', seasonCount: it.ChildCount || L.seasons.length || 0,
       episodeCount: L.episodes.length || it.ChildCount || 0, genres: it.Genres || [], upcomingEpisodeText: bag.upcoming,
       hasSeerrPills: Boolean(bag.seerr.statusPills && bag.seerr.statusPills.length), settings: s,
     })
