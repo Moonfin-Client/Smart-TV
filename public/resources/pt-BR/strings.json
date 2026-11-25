@@ -2613,5 +2613,6 @@
     "Anything new added to the server library": "Receba notificações quando novas mídias solicitadas estiverem disponíveis",
     "Text Stroke Color": "Cor do traço do texto",
     "Dolby Vision": "Dolby Vision",
-    "Unavailable": "Indisponível"
+    "Unavailable": "Indisponível",
+    "{count} in progress": "{count} em andamento"
 }
