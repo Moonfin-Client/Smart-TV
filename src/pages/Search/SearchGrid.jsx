@@ -2,6 +2,7 @@ import { For, createSignal } from 'solid-js'
 import SearchCard from './SearchCard.jsx'
 import GameCard from '../../ui/components/games/GameCard.jsx'
 import { keyed } from '../../ui/components/library/pageKit.js'
+import { pointerFocus } from '../../app/pointer.js'
 
 // A tab's results wrapped into lines. It moves focus in four directions and lets the edges bubble
 // to the page, and tells it onGridFocus(index) and onGridSelect(index). Lines far from focus aren't
@@ -22,6 +23,7 @@ export default function SearchGrid(props) {
   }
   const cards = keyed(shown, (c) => c.key)
   const report = () => props.onGridFocus && props.onGridFocus(cur())
+  let self
   const go = (next) => {
     setCur(next)
     report()
@@ -29,7 +31,10 @@ export default function SearchGrid(props) {
   }
   return (
     <view
-      ref={props.ref}
+      ref={(n) => {
+        self = n
+        if (props.ref) props.ref(n)
+      }}
       onFocusChanged={(has) => {
         setOn(has)
         if (has) report()
@@ -56,10 +61,16 @@ export default function SearchGrid(props) {
       <For each={cards.keys()}>
         {(k) => {
           const c = cards.item(k)
-          return c().kind === 'game' ? (
-            <GameCard x={c().x} y={c().y} card={c()} focused={c().idx === focusAt()} />
-          ) : (
-            <SearchCard x={c().x} y={c().y} card={c()} focused={c().idx === focusAt()} />
+          // The Magic Remote's cursor rings the card under it, and a click focuses it and opens it
+          // (app/pointer.js). The grid scrolls to its focused line, so hover doesn't move focus.
+          return (
+            <view x={c().x} y={c().y} width={c().w} height={c().h || c().imgH} pointerRing={c().circle ? c().w / 2 : 12} onPointerClick={() => (pointerFocus(self), go(c().idx))}>
+              {c().kind === 'game' ? (
+                <GameCard x={0} y={0} card={c()} focused={c().idx === focusAt()} />
+              ) : (
+                <SearchCard x={0} y={0} card={c()} focused={c().idx === focusAt()} />
+              )}
+            </view>
           )
         }}
       </For>

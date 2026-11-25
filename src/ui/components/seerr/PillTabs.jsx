@@ -4,6 +4,7 @@ import { theme, shadowColor } from '../../theme.js'
 import { hex } from '../../color.js'
 import { textWidth } from './look.js'
 import { cssShadow } from '../account/gradient.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // The pill track Search and the Seerr requests screen pick a tab from. It owns Left, Right and
 // Enter and lets the rest bubble. With `expanded` on, focus picks the tab as it lands, otherwise
@@ -67,9 +68,21 @@ export default function PillTabs(props) {
     if (props.expanded !== false && props.onTabSelect) props.onTabSelect(id)
     return true
   }
+  // The Magic Remote's cursor focuses the tab under it, and OK then opens it (app/pointer.js).
+  let self
+  const point = (id) => {
+    pointerFocus(self)
+    const at = tabs().findIndex((tab) => tab.id === id)
+    if (at >= 0 && at !== cur()) {
+      setCur(at)
+      entered = true
+      reveal()
+    }
+  }
   return (
     <view
       ref={(n) => {
+        self = n
         // Focus lands on this tab the next time the bar takes focus.
         n.select = (id) => {
           const at = tabs().findIndex((tab) => tab.id === id)
@@ -115,7 +128,7 @@ export default function PillTabs(props) {
         <view width={fullW()} height={63}>
           <For each={placed()}>
             {(tab) => (
-              <view x={tab.x} y={4} width={tab.w} height={55}>
+              <view x={tab.x} y={4} width={tab.w} height={55} onPointerOver={() => point(tab.id)}>
                 <Show when={tab.active}>
                   <view width={tab.w} height={55} borderRadius={27.5} color={t().accent} />
                 </Show>

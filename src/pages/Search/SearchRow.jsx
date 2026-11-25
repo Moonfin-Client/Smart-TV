@@ -3,6 +3,7 @@ import SearchCard from './SearchCard.jsx'
 import GameCard from '../../ui/components/games/GameCard.jsx'
 import { keyed } from '../../ui/components/library/pageKit.js'
 import { initialCardCount, expandedCardCount } from '../../utils/rowWindow.js'
+import { pointerFocus } from '../../app/pointer.js'
 
 // One row of Search's All tab, with a scroller that keeps the focused card 50px inside either edge.
 // It owns Left, Right and Enter, and tells the page onRowFocus(rowIndex, cardIndex) and
@@ -39,6 +40,12 @@ export default function SearchRow(props) {
     else if (right > clipW() - EDGE) next += right - (clipW() - EDGE)
     setScrollX(Math.max(0, Math.min(max, next)))
   }
+  let self
+  const point = (i) => {
+    pointerFocus(self)
+    if (i !== cur()) move(i - cur())
+    return true
+  }
   const move = (delta) => {
     const next = cur() + delta
     if (!row() || next < 0 || next >= row().cards.length) return false
@@ -53,7 +60,10 @@ export default function SearchRow(props) {
   }
   return (
     <view
-      ref={props.ref}
+      ref={(n) => {
+        self = n
+        if (props.ref) props.ref(n)
+      }}
       y={props.y || 0}
       width={1920}
       height={row().h}
@@ -85,10 +95,16 @@ export default function SearchRow(props) {
           <For each={cards.keys()}>
             {(k) => {
               const c = cards.item(k)
-              return c().kind === 'game' ? (
-                <GameCard x={c().x} y={12} card={c()} focused={c().idx === focusAt()} />
-              ) : (
-                <SearchCard x={c().x} card={c()} focused={c().idx === focusAt()} />
+              // The Magic Remote's cursor rings the card under it, and a click focuses it and opens it
+              // (app/pointer.js). The row scrolls to its focused card, so hover doesn't move focus.
+              return (
+                <view x={c().x} width={c().w} height={c().h || c().imgH} pointerRing={c().circle ? c().w / 2 : 12} onPointerClick={() => point(c().idx)}>
+                  {c().kind === 'game' ? (
+                    <GameCard x={0} y={12} card={c()} focused={c().idx === focusAt()} />
+                  ) : (
+                    <SearchCard x={0} card={c()} focused={c().idx === focusAt()} />
+                  )}
+                </view>
               )
             }}
           </For>

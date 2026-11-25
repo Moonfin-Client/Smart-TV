@@ -38,8 +38,6 @@ let lastY = -1
 let enterAt = 0
 // Whether the Enter keydown in progress went to the pointer, so its keyup goes there too.
 let enterTaken = false
-// Whether it went on to the focused control after the pointer's control focused itself.
-let enterPassed = false
 
 const takes = (n) => !!(n.onPointerOver || n.onPointerClick || n.pointerRing || n.pointerItems)
 
@@ -185,13 +183,17 @@ const hover = (t) => {
 
 const synthetic = new WeakSet()
 
+// On the next tick, once the focus the click moved has settled, or the press would go to what had
+// focus before.
 const sendEnter = () => {
   const down = keyEvent('Enter', 13, 'keydown')
   const up = keyEvent('Enter', 13, 'keyup')
   synthetic.add(down)
   synthetic.add(up)
-  document.dispatchEvent(down)
-  document.dispatchEvent(up)
+  setTimeout(() => {
+    document.dispatchEvent(down)
+    document.dispatchEvent(up)
+  }, 0)
 }
 
 // The press moves focus, which can move the screen, so the ring goes until the cursor moves.
@@ -241,8 +243,7 @@ const onKey = (e) => {
   if (e.type === 'keyup') {
     if (!enter) return
     // The click that follows this press is the same press.
-    if (hovered || enterTaken || enterPassed) enterAt = Date.now()
-    enterPassed = false
+    if (hovered || enterTaken) enterAt = Date.now()
     if (enterTaken) {
       enterTaken = false
       swallow(e)
@@ -259,11 +260,8 @@ const onKey = (e) => {
   enterAt = Date.now()
   // Hover already focused it, so Enter goes on as it is.
   if (!hovered.click) return
-  if (press(hovered)) {
-    // The control focused itself, and this Enter goes on to press it.
-    enterPassed = true
-    return
-  }
+  // The control focused itself for this press, which reaches it once that focus has settled.
+  if (press(hovered)) sendEnter()
   enterTaken = true
   swallow(e)
 }
