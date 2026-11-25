@@ -21,7 +21,7 @@ export default function FavoriteTile(props) {
   const ease = () => ({ duration: o().ms || 0, easing: 'ease' })
   return (
     <view
-      x={10}
+      x={4}
       y={10}
       width={o().cardW}
       height={bh() + (o().textH || 6)}
@@ -75,8 +75,8 @@ export default function FavoriteTile(props) {
           </Show>
         </Show>
       </view>
-      {/* The pointer's hit area and hover ring, the size of the focus ring; the title under it still
-      takes the click through the card (Grid passes the click). */}
+      {/* The pointer's hit area and hover ring, the size of the focus ring (Grid passes the click).
+      Like the library grid's cards, the text under it takes no click. */}
       <view width={bw()} height={bh()} pointerRing={c().image ? r() : undefined} onPointerClick={props.onPointerClick} />
     </view>
   )

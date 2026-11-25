@@ -363,12 +363,12 @@ export default function Favorites(props) {
       const type = cardType()
       const m = cardMetrics(type, my.size)
       const g = virtualGridLayout(1880, m.itemSize.minWidth, m.itemSize.minHeight, 20)
-      const s = settings.all()
+      const s = untrack(() => settings.all())
       const showText = s.libraryCardTitles !== false
       const detailed = s.useDetailedSubHeadings !== false
-      // The card fills its column, 20px from the next as rows are, and a square or round picture is
-      // as tall as it is wide.
-      const cardW = g.itemWidth - 6
+      // The card's box sits 4px in from each side of its column, room for the focus zoom at the
+      // grid's edges, so cards are 28px apart. A square or round picture is as tall as it is wide.
+      const cardW = g.itemWidth - 14
       const posterH = type === 'square' || type === 'circle' ? cardW : m.posterHeight
       st.horizontal = my.direction === 'horizontal'
       // The grid's content starts under its own 10px padding: 404 in the Home view, and 157 in the
