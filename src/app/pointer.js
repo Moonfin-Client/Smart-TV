@@ -15,6 +15,9 @@
 //                         onPointerItem(item, i) on hover, onPointerItemClick(item, i) on a click
 //                         (true for Enter after it, as above; without one a click is Enter after
 //                         the hover), and pointerItemRing (true or a radius) to ring the item.
+//   onPointerChildOver(i, child), onPointerChildClick(i, child)
+//                         on a node whose children are a list's items in order (a <For>): the
+//                         cursor on child i. pointerChildRing (true or a radius) rings the child.
 // A node that draws but takes no pointer (a dialog's backdrop) still stops what's under it, unless it
 // has pointerSkip (the hover ring itself). While focus is inside a node with pointerModal (the
 // on-screen keyboard, a dialog that doesn't cover the screen), only controls inside it take the pointer.
@@ -79,9 +82,11 @@ const topmost = (node, x, y, found) => {
     if (!c.rendered || !l || typeof l.absX !== 'number' || c.pointerSkip) continue
     if (l.worldAlpha === 0) continue
     if (l.clipping && !inside(l, x, y)) continue
-    // A control counts where it is even where it draws nothing (a pill's transparent fill), and a
-    // clear box that only draws a border or a shadow over the rest (a window's rim) doesn't count.
-    if ((takes(c) || (l.isRenderable && !outline(c))) && inside(l, x, y)) found = c
+    // A hit area (a control with nothing inside it) counts where it is though it draws nothing. A
+    // wrapper counts through what its children draw, since a view without a size takes its parent's.
+    // A clear box that only draws a border or a shadow over the rest (a window's rim) doesn't count.
+    const area = takes(c) && !(c.children && c.children.length)
+    if ((area || (l.isRenderable && !outline(c))) && inside(l, x, y)) found = c
     found = topmost(c, x, y, found)
   }
   return found
@@ -135,10 +140,30 @@ const targetOf = (n, x, y) => {
   }
 }
 
+const childTarget = (list, child, x, y) => {
+  const i = list.children.indexOf(child)
+  if (i < 0) return null
+  const l = child.lng
+  const f = frame(l)
+  const r = list.pointerChildRing
+  return {
+    node: list,
+    i,
+    over: list.onPointerChildOver ? () => list.onPointerChildOver(i, child) : null,
+    click: list.onPointerChildClick ? () => list.onPointerChildClick(i, child, { x, y }) : null,
+    ring: r && l.width ? { x: f.x, y: f.y, w: l.width * f.kx, h: (l.height || 0) * f.ky, radius: (r === true ? child.borderRadius || 0 : r) * f.kx } : null,
+  }
+}
+
+const listOf = (n) => n.parent && (n.parent.onPointerChildClick || n.parent.onPointerChildOver) ? n.parent : null
+
 const targetAt = (x, y) => {
   let n = topmost(rootNode, x, y, null)
   let t = null
-  for (; n && !t; n = n.parent) if (takes(n)) t = targetOf(n, x, y)
+  for (; n && !t; n = n.parent) {
+    if (takes(n)) t = targetOf(n, x, y)
+    if (!t && listOf(n)) t = childTarget(n.parent, n, x, y)
+  }
   if (!t) return null
   const modal = modalOf()
   return modal && !within(t.node, modal) ? null : t

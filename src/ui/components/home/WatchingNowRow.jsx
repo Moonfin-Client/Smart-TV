@@ -6,6 +6,7 @@ import { laneWindow } from './rowLayout.js'
 import { shadowColor } from '../../theme.js'
 import { hex } from '../../color.js'
 import { cssShift, fontFor, textWidth, uiFont } from '../../text.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // MDBList's Watching Now row on Home: a globe beside the title, a live dot beside the summary, and
 // landscape cards on their backdrops without captions, each with its rank, its type, its logo (or
@@ -135,6 +136,16 @@ export default function WatchingNowRow(props) {
     const at = cur()
     noteTimer = setTimeout(() => props.onRowFocus && props.onRowFocus(c, props.row.key, at), FOCUS_ITEM_MS)
   }
+  // The Magic Remote's cursor rings a card, and a click focuses it and opens it (app/pointer.js). The
+  // row slides to its focused card, so hover doesn't move focus.
+  let self
+  const pick = (c) => {
+    if (!c) return false
+    pointerFocus(self)
+    if (props.onPointerRow) props.onPointerRow()
+    if (c.idx !== cur()) move(c.idx)
+    return true
+  }
   const move = (to) => {
     if (to === cur() || to < 0 || to >= cards().length) return
     setCur(to)
@@ -150,6 +161,7 @@ export default function WatchingNowRow(props) {
   return (
     <view
       ref={(n) => {
+        self = n
         n.focusIndex = (i) => setCur(Math.max(0, Math.min(i, cards().length - 1)))
         n.cur = cur
         if (props.ref) props.ref(n)
@@ -198,10 +210,10 @@ export default function WatchingNowRow(props) {
       </Show>
       <view x={L().clipX} y={props.box.scrollerY} width={L().viewW} height={props.box.laneH} clipping>
         <view y={20} x={L().pad - scroll()} width={spanW()} height={props.box.laneH} transition={{ x: { duration: 220, easing: 'cubic-bezier(0.33, 1, 0.68, 1)' } }}>
-          <view width={spanW()} height={props.box.laneH}>
+          <view width={spanW()} height={props.box.laneH} pointerChildRing onPointerChildClick={(i) => pick(shown()[i])}>
             <For each={shown()}>{(c) => <ClassicCard card={c} x={c.x} look={L()} focused={isCur(c.idx) && focused()} />}</For>
           </view>
-          <view width={spanW()} height={props.box.laneH}>
+          <view width={spanW()} height={props.box.laneH} onPointerChildClick={(i) => pick(shown()[i])}>
             <For each={shown()}>{(c) => <Overlay card={c} look={L()} focused={isCur(c.idx) && focused()} />}</For>
           </view>
         </view>
