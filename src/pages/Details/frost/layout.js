@@ -6,7 +6,7 @@ import $L from '../../../services/i18n.js'
 import { textWidth, wrapLines } from '../../../ui/components/details/measure.js'
 import { cssShift, fontFor, themeSpacing } from '../../../ui/text.js'
 import { formatDuration, getImageUrl } from '../../../utils/helpers.js'
-import { castPhotoUrl } from '../detailsMedia.js'
+import { castPhotoUrl, hidesMediaDescription } from '../detailsMedia.js'
 import { spotlightItemImageUrl } from '../spotlight/spotlightImages.js'
 import { ratingEntries } from '../modern/hero.js'
 import { ratingValues } from '../modern/meta.js'
@@ -252,7 +252,7 @@ const gridOf = (name, list, areaW, spec, tile) => {
   return { list: out, zoom, keys, h: y - spec.rowGap + 6 }
 }
 
-export const episodesTab = (episodes, areaW, server, c) => {
+export const episodesTab = (episodes, areaW, server, c, settings) => {
   const out = emptyList()
   const zoom = []
   const keys = {}
@@ -265,7 +265,7 @@ export const episodesTab = (episodes, areaW, server, c) => {
     const textX = 330
     const textW = areaW - textX - 33 - 210
     const caps = ep.IndexNumber != null ? $L('Episode {number}').replace('{number}', ep.IndexNumber).toUpperCase() : ''
-    const wrapped = ep.Overview ? wrapLines(ep.Overview, 22.5, 'regular', textW) : []
+    const wrapped = ep.Overview && !hidesMediaDescription(ep, settings) ? wrapLines(ep.Overview, 22.5, 'regular', textW) : []
     const overview = wrapped.slice(0, 2)
     if (wrapped.length > 2) overview[1] = `${overview[1]}…`
     const blockH = (caps ? 24 + 4.5 : 0) + 39 + (overview.length ? 4.5 + overview.length * 30 : 0)

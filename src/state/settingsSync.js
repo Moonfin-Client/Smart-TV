@@ -263,7 +263,9 @@ export const SYNCABLE_KEYS = [
   'mediaBarOverlayColor', 'mediaBarOverlayOpacity',
   'homeRows', 'homeRowsStyle', 'modernCardsOnMyMediaRow', 'detailScreenStyle', 'detailExpandedTabs', 'fullScreenRows', 'homeRowsPosterSize', 'useSeriesThumbnails',
   'episodePreviewEnabled', 'mediaPreviewMode', 'previewAudioEnabled', 'previewVolume',
-  'hideDetailsMediaDescription', 'detailUseSeriesThumbnails', 'hideHomeMediaDescription',
+  'hideDetailsMediaDescription',
+  'hideDetailsMediaDescriptionMovie', 'hideDetailsMediaDescriptionShow', 'hideDetailsMediaDescriptionSeason', 'hideDetailsMediaDescriptionEpisode', 'hideDetailsMediaDescriptionBoxSet',
+  'detailUseSeriesThumbnails', 'hideHomeMediaDescription',
   'hideHomeWatchProgress', 'hideHomeUnwatchedCount',
   'personPageSortOption', 'personPageGroupItems',
   'personalRatingStyle', 'recentlyReleasedSeriesType', 'mergeRecentRowsByType', 'hideWatchedInRecentRows', 'playlistsGroupByType', 'groupItemsIntoCollections',
@@ -334,6 +336,11 @@ export const profileToLocal = (serverProfile) => {
       if (converted === undefined) continue
       local[localKey] = converted
     }
+  }
+  // Legacy single-toggle profiles carry over to the granular Movie and Episode keys until set.
+  if (local.hideDetailsMediaDescription === true) {
+    if (local.hideDetailsMediaDescriptionMovie === undefined) local.hideDetailsMediaDescriptionMovie = true
+    if (local.hideDetailsMediaDescriptionEpisode === undefined) local.hideDetailsMediaDescriptionEpisode = true
   }
   // Continue Watching syncs on its own server key, while this app keeps it with the other rows.
   const continueWatching = rowImageTypeFromServer(serverProfile.homeImageTypeContinueWatching)

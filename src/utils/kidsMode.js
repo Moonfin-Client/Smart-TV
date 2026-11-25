@@ -16,8 +16,13 @@ const KIDS_MODE_DETAILS = {
 	detailScreenStyle: 'v5',
 	detailExpandedTabs: false,
 	detailShowTechnicalDetails: false,
-	// Named for hiding, so the mode turns it on to leave the description out.
+	// Named for hiding, so the mode turns them on to leave the description out.
 	hideDetailsMediaDescription: true,
+	hideDetailsMediaDescriptionMovie: true,
+	hideDetailsMediaDescriptionShow: true,
+	hideDetailsMediaDescriptionSeason: true,
+	hideDetailsMediaDescriptionEpisode: true,
+	hideDetailsMediaDescriptionBoxSet: true,
 	detailUseSeriesThumbnails: false,
 	// The online source is an outside catalog no parental rating reaches, so recommendations stay
 	// inside the server's own library.

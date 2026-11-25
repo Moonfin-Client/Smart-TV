@@ -3199,5 +3199,17 @@
     "A panel of tiles with library artwork": "A panel of tiles with library artwork",
     "Browse all": "Browse all",
     "Continue in {section}": "Continue in {section}",
-    "Featured: {title}": "Featured: {title}"
-}
+    "Featured: {title}": "Featured: {title}",
+    "Toggle Media Description Visibility": "Toggle Media Description Visibility",
+    "Hide media descriptions from various detail pages.": "Hide media descriptions from various detail pages.",
+    "Media Description Visibility": "Media Description Visibility",
+    "Movie Pages": "Movie Pages",
+    "Hide descriptions on movie detail pages": "Hide descriptions on movie detail pages",
+    "Show Pages": "Show Pages",
+    "Hide descriptions on TV show detail pages": "Hide descriptions on TV show detail pages",
+    "Season Pages": "Season Pages",
+    "Hide descriptions on season detail pages": "Hide descriptions on season detail pages",
+    "Episode Pages": "Episode Pages",
+    "Hide descriptions on episode detail pages, season episode lists, and player drawer": "Hide descriptions on episode detail pages, season episode lists, and player drawer",
+    "Collection Pages": "Collection Pages",
+    "Hide descriptions on collection and box set pages": "Hide descriptions on collection and box set pages"}

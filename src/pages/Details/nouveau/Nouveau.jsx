@@ -454,7 +454,7 @@ export default function Nouveau(props) {
         seasonTabs,
         activeSeason,
         seasonEpisodes: groups.get(activeSeason) || [],
-        hasOverview: Boolean(it.Overview) && (!isPerson || d.showsSection('biography')),
+        hasOverview: showsOverview,
         bookSeriesItem: d.bookSeriesItem || null,
       },
       geo,

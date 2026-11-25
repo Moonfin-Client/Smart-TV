@@ -6,7 +6,7 @@ import { fontFor } from '../../../ui/text.js'
 import { textWidth, wrapLines } from '../../../ui/components/details/measure.js'
 import { getImageUrl } from '../../../utils/helpers.js'
 import { reviewInitial, reviewMeta, reviewPreview } from '../../../utils/tmdbReviews.js'
-import { castPhotoUrl, seriesThumbUrl } from '../detailsMedia.js'
+import { castPhotoUrl, hidesMediaDescription, seriesThumbUrl } from '../detailsMedia.js'
 import { splitAdditionalParts } from '../extraCategories.js'
 import { spotlightItemImageUrl } from '../spotlight/spotlightImages'
 import { nouveauCardImageUrl } from './nouveauCardImage'
@@ -43,8 +43,8 @@ const stillCard = (key, i, w, artH, image, title, subtitle, placeholder, extra) 
 })
 
 // The summary keeps the two lines it wraps to in its fixed box and clips the rest, with no ellipsis.
-const landscapeCard = (entry, i, w, artH, image, nextUpId) => {
-  const overview = entry.Overview ? wrapLines(entry.Overview.replace(/\s+/g, ' '), 15, 'regular', w - 34).slice(0, 2).join('\n') : ''
+const landscapeCard = (entry, i, w, artH, image, nextUpId, settings) => {
+  const overview = entry.Overview && !hidesMediaDescription(entry, settings) ? wrapLines(entry.Overview.replace(/\s+/g, ' '), 15, 'regular', w - 34).slice(0, 2).join('\n') : ''
   return {
     k: `l${i}-${entry.Id}`, idx: i, kind: 'landscape', item: entry, w, artW: w, artH, image: image || '', title: entry.Name || '',
     titleFont: fontFor(entry.Name || '', 'bold'), overview, overviewFont: fontFor(overview), nextUp: Boolean(nextUpId) && entry.Id === nextUpId,
@@ -146,7 +146,7 @@ export const layoutSections = (d, geo, top) => {
   const posters = (list) => list.map((e, i) => posterCard(e, i, posterW, posterH, spotlightItemImageUrl(server, e), e.Name,
     e.Subtitle || (e.ProductionYear ? String(e.ProductionYear) : null)))
   const collectionCards = (list) => list.map((e, i) => posterCard(e, i, collectionW, collectionH, spotlightItemImageUrl(server, e), e.Name, collectionSubtitle(e)))
-  const landscapes = (list) => list.map((e, i) => landscapeCard(e, i, episodeW, episodeH, nouveauCardImageUrl(server, e, { fallbackUrl: d.backdropUrl }), d.nextUpId))
+  const landscapes = (list) => list.map((e, i) => landscapeCard(e, i, episodeW, episodeH, nouveauCardImageUrl(server, e, { fallbackUrl: d.backdropUrl }), d.nextUpId, s))
 
   const out = { sections: [], rails: [], seasonBar: null, playlistHeader: null, footerY: 0 }
   let y = top
