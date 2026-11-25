@@ -63,16 +63,18 @@ export default function ShuffleOverlay(props) {
     return {
       isPixel: th.isPixel,
       r: (v) => (th.isPixel ? 0 : v),
-      scrim: fade(th.scrim, 0.7),
-      dim: fade(th.scrim, 0.45),
+      // The scrims keep the old dimming, in the theme's scrim color.
+      scrim: rgba(th.scrim, 0.7),
+      dim: rgba(th.scrim, 0.45),
       tl: fade(th.background, 0.96),
       tr: fade(th.surface, 0.95),
       bl: fade(th.surface, 0.96),
-      br: fade(th.surfaceVariant, 0.93),
+      // Glass's surfaceVariant is a faint white, which would leave the corner almost clear.
+      br: th.isGlass ? fade(th.surface, 0.93) : fade(th.surfaceVariant, 0.93),
       boxEdge: edge(0.18),
       pickerFill: fade(th.surface, 0.95),
       pickerEdge: edge(0.2),
-      infoFill: fade(th.scrim, 0.34),
+      infoFill: rgba(th.scrim, 0.34),
       infoEdge: { width: 1, color: hex(th.os(0.12)) },
       badge: th.accentA(0.2),
       primary: th.accentA(0.28),
@@ -505,7 +507,7 @@ export default function ShuffleOverlay(props) {
                   alpha={lit(a.i) ? 1 : 0}
                   transition={{ alpha: { duration: 120 } }}
                 />
-                <text fontFamily={bold} fontSize={23} lineHeight={1} x={266} y={17 + sh.n23} mountX={0.5} color={lit(a.i) ? look().focusInk : look().ink}>
+                <text fontFamily={bold} fontSize={23} lineHeight={1} x={266} y={17 + sh.n23} mountX={0.5} color={lit(a.i) ? look().focusInk : look().ink} transition={{ color: { duration: 120 } }}>
                   {a.label}
                 </text>
               </view>
