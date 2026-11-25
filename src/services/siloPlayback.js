@@ -167,7 +167,7 @@ const channelLimits = (codecProfiles, containers, byCodecSupported) => {
 	const capped = Object.keys(byCodec).length > 0;
 	return {
 		limits: {
-			...(lowest != null && lowest < 6 ? {max_channels: lowest} : null),
+			...(lowest != null ? {max_channels: lowest} : null),
 			...(capped && byCodecSupported ? {max_channels_by_codec: byCodec} : null)
 		},
 		unplayable: capped && !byCodecSupported ? Object.keys(byCodec).filter((codec) => byCodec[codec] < 6) : []
@@ -177,7 +177,7 @@ const channelLimits = (codecProfiles, containers, byCodecSupported) => {
 const HLS_VIDEO_CODECS = ['h264', 'hevc'];
 
 // The source container, when known, narrows the original file's container-scoped caps to the file being played.
-const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = TRAITS, serverFeatures = [], sourceContainer = null) => {
+export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = TRAITS, serverFeatures = [], sourceContainer = null) => {
 	const directPlay = profiles(deviceProfile.DirectPlayProfiles);
 	const codecProfiles = profiles(deviceProfile.CodecProfiles);
 	const transcoding = profiles(deviceProfile.TranscodingProfiles);
