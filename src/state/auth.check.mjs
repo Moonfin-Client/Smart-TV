@@ -1,7 +1,8 @@
 // Self-check for auth.js's Sign Out with the saved servers in memory and the server APIs stubbed:
 //   node --conditions=browser src/state/auth.check.mjs
 // Signing out of any profile of a Silo account takes the account's other profiles with it and ends
-// the login on Silo once, while other accounts and servers stay saved.
+// the login on Silo once, while other accounts and servers stay saved. Sign Out All Users ends every
+// Silo login.
 import assert from 'node:assert/strict'
 import { registerHooks } from 'node:module'
 import { fileURLToPath } from 'node:url'
@@ -42,7 +43,9 @@ const STUBS = {
   'services/userDataSync.js': noop(['bindTo', 'reset']),
   'services/remoteControl.js': noop(['bindTo', 'reset']) + '\nexport const runPlayerCommand = async () => {}',
   'services/plexTv.js': `export const bestPlexAddress = async (e) => e.url`,
-  'services/siloSession.js': noop(['onSiloSessionEnded', 'onSiloTokensRotated']) + '\nexport const siloServerKey = (u) => u',
+  'services/siloSession.js': noop(['onSiloSessionEnded', 'onSiloTokensRotated']) + `
+    export const siloServerKey = (u) => u
+    export const loadSiloSessions = async () => { globalThis.__sessionsLoaded = true }`,
   'services/notificationPrefs.js': `export const syncNotificationPrefs = async () => {}`,
   'utils/signInPin.js': noop(['noteProvedSignIn']),
   'state/store.js': `const s = (globalThis.__store = {}); export const getStore = () => s`,
@@ -126,7 +129,19 @@ await test('A profile saved before its account, sharing only the token, still go
   assert.deepEqual(await savedUsers(), ['jf', 'other'])
 })
 
+await test('Sign Out All Users removes everything and ends each Silo login once, after reading the stored sessions', async () => {
+  const ids = await seed()
+  await signInAs(ids.jf, 'jf')
+  globalThis.__sessionsLoaded = false
+  await auth.signOutAll()
+  assert.deepEqual(await savedUsers(), [])
+  assert.deepEqual(logouts.map((l) => l.token).sort(), ['tok-a', 'tok-b'])
+  assert.equal(globalThis.__sessionsLoaded, true)
+  assert.equal(globalThis.__store.authenticated, false)
+})
+
 await test('The Silo login is not ended while another saved entry still holds its token', async () => {
+  await seed()
   await auth.endSiloLoginIfLast({ serverType: 'silo', url: SILO, accessToken: 'tok-b', userId: 'x' })
   assert.equal(logouts.filter((l) => l.token === 'tok-b').length, 0)
   await auth.endSiloLoginIfLast({ serverType: 'silo', url: SILO, accessToken: 'tok-gone', userId: 'x' })

@@ -8,7 +8,7 @@ import { rowFont, rowUiFont } from '../settings/rowFont.js'
 import { getUserImageUrl } from '../../../services/jellyfinApi.js'
 import * as multiServerManager from '../../../services/multiServerManager.js'
 import * as settings from '../../../state/settings.js'
-import { endSiloLoginIfLast, loadServers } from '../../../state/auth.js'
+import { loadServers } from '../../../state/auth.js'
 import { getStore } from '../../../state/store.js'
 
 const BRAND_NAMES = { jellyfin: 'Jellyfin', emby: 'Emby', plex: 'Plex', silo: 'Silo' }
@@ -94,18 +94,7 @@ export default function AccountMenu(props) {
     if (items().length) carousel.setFocus()
     else focusPills('addUser')
   })
-  const onPill = async (id) => {
-    if (id !== 'signOutAll') return tell(id)
-    // Every saved server goes, including ones kept after their last user signed out, and then
-    // App's Sign Out finds nobody left and goes to sign-in.
-    // Silo logins end on the server too, once nobody holding their token is left.
-    const saved = await multiServerManager.getAllServersArray().catch(() => [])
-    const unique = await multiServerManager.getUniqueServers().catch(() => [])
-    for (let i = 0; i < unique.length; i++) await multiServerManager.removeServer(unique[i].serverId)
-    const logins = saved.filter((e, i) => e.serverType === 'silo' && saved.findIndex((o) => o.accessToken === e.accessToken) === i)
-    for (const entry of logins) await endSiloLoginIfLast(entry)
-    tell('signOut')
-  }
+  const onPill = (id) => tell(id)
   return (
     <view
       ref={props.ref}
