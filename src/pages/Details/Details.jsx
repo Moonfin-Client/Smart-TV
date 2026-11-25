@@ -588,6 +588,7 @@ export default function Details(props) {
       inSyncPlayGroup: false,
       showsPersonalRating: isRatableItemType(t) && getServerType() !== 'plex',
       ratingStyle,
+      ratingIntervals: s.personalRatingIntervals,
       canAddToCollection: COLLECTION_ITEM_TYPES.indexOf(t) >= 0,
       canChangeArtwork: admin && ARTWORK_TYPES.indexOf(t) >= 0,
       canIdentify: admin && IDENTIFIABLE_TYPES.indexOf(t) >= 0,
@@ -872,7 +873,7 @@ export default function Details(props) {
       modal('openTracks', id, { item: it, tracks: m.tracks, preferExternal: settings().preferExternalSubtitles === true })
     else if (id === 'trailer') modal('openTrailer', it)
     else if (id === 'watched' || id === 'favorite') toggle(id)
-    else if (id === 'personalRating') modal('openRating', it, normalizeRatingStyle(settings().personalRatingStyle))
+    else if (id === 'personalRating') modal('openRating', it, normalizeRatingStyle(settings().personalRatingStyle), settings().personalRatingIntervals)
     else if (id === 'playlist') modal('openAddTo', 'playlist', it)
     else if (id === 'collection') modal('openAddTo', 'collection', it)
     else if (id === 'deleteFiles') modal('openDelete', it)

@@ -4,7 +4,7 @@ import { arrange } from '../../../utils/buttonLayout.js'
 import { DETAIL_METADATA } from '../../../utils/detailMetadataLayout.js'
 import { formatDuration } from '../../../utils/helpers.js'
 import { isRatingSourceAllowed, isRatingSourceEnabled } from '../../../services/mdblistApi.js'
-import { normalizeRatingStyle, personalRatingOf } from '../../../utils/personalRating.js'
+import { formatPersonalRatingBadge, personalRatingOf } from '../../../utils/personalRating.js'
 
 // Seerr's status pill colors: fill at 80%, a border of the hue, light ink.
 export const SEERR_PILL = {
@@ -68,7 +68,7 @@ export const metaPieces = ({ item, settings: s, year, officialRating, runtime, e
 export const ratingValues = (item, s, pluginRatings) => {
   const personalValue = isRatingSourceEnabled(s, 'personal') ? personalRatingOf(item.UserData) : null
   const personal = personalValue === null ? null
-    : normalizeRatingStyle(s.personalRatingStyle) === 'stars' ? `${(personalValue / 2).toFixed(1)}/5` : personalValue.toFixed(1)
+    : formatPersonalRatingBadge(personalValue, s.personalRatingStyle, s.personalRatingIntervals)
   const community = isRatingSourceEnabled(s, 'stars') && item.CommunityRating ? item.CommunityRating.toFixed(1) : null
   const critic = pluginRatings.length === 0 && item.CriticRating != null ? item.CriticRating : null
   const enabled = s.mdblistRatingSources

@@ -5,6 +5,7 @@ import {mediaPreviewMode, mediaPreviewSettings} from '../../utils/mediaPreviewMo
 import {homeBackdropStyle, homeBackdropSettings} from '../../utils/homeBackdropStyle.js';
 import {studioRowSortBy} from '../../utils/studioRowSort.js';
 import {ratingKey} from '../../utils/ratingSources.js';
+import {effectivePersonalRatingIntervals, normalizeRatingStyle} from '../../utils/personalRating.js';
 import {retrySubtitleFont, subtitleFontFailed} from '../../services/subtitleFonts.js';
 import {toggleHideWatched} from '../../utils/hideWatchedRecentRows.js';
 import {newReleaseKindsOf} from '../../utils/mediaBarNewRelease.js';
@@ -70,6 +71,8 @@ import {
 	getPassthroughModeOptions,
 	getPerformanceModeOptions,
 	getPersonalRatingStyleOptions,
+	getPersonalRatingStarsIntervalOptions,
+	getPersonalRatingNumericIntervalOptions,
 	getPlaybackTimeDisplayOptions,
 	getPlaybackTimeSlotOptions,
 	getPosterSizeOptions,
@@ -772,7 +775,35 @@ export const SETTINGS_SCHEMA = [
 				rows: [
 					{kind: KIND.SECTION, id: 'detailsDisplay', label: () => $L('Display')},
 					{kind: KIND.OPTION, key: 'detailScreenStyle', label: () => $L('Details Screen Style'), desc: () => $L('How a movie or show looks when you open it.'), options: getDetailScreenStyleOptions, fallback: () => $L('Modern'), icon: 'movie_outlined'},
-					{kind: KIND.OPTION, key: 'personalRatingStyle', label: () => $L('Personal Rating Style'), options: getPersonalRatingStyleOptions, fallback: () => $L('Like / dislike'), icon: 'rate_review'},
+					{
+						kind: KIND.OPTION,
+						key: 'personalRatingStyle',
+						label: () => $L('Personal Rating Style'),
+						options: getPersonalRatingStyleOptions,
+						fallback: () => $L('Like / dislike'),
+						icon: 'rate_review',
+						onSelect: (ctx, style) => {
+							const next = {personalRatingStyle: style};
+							const normalized = normalizeRatingStyle(style);
+							if (normalized === 'stars' || normalized === 'numeric') {
+								const effective = effectivePersonalRatingIntervals(normalized, ctx.settings.personalRatingIntervals);
+								if (effective !== ctx.settings.personalRatingIntervals) {
+									next.personalRatingIntervals = effective;
+								}
+							}
+							ctx.actions.setSettings(next);
+						}
+					},
+					{
+						kind: KIND.OPTION,
+						key: 'personalRatingIntervals',
+						value: (ctx) => effectivePersonalRatingIntervals(ctx.settings.personalRatingStyle, ctx.settings.personalRatingIntervals),
+						label: () => $L('Rating Intervals'),
+						options: (ctx) => (normalizeRatingStyle(ctx.settings.personalRatingStyle) === 'stars' ? getPersonalRatingStarsIntervalOptions() : getPersonalRatingNumericIntervalOptions()),
+						fallback: (ctx) => (normalizeRatingStyle(ctx.settings.personalRatingStyle) === 'stars' ? $L('Half stars (0.5 steps)') : $L('Whole numbers (0–10)')),
+						icon: 'tune',
+						when: (ctx) => ctx.serverType !== 'plex' && normalizeRatingStyle(ctx.settings.personalRatingStyle) !== 'thumbs'
+					},
 					{kind: KIND.TOGGLE, key: 'detailsBackdropEnabled', label: () => $L('Details Screen Backdrop'), icon: 'photo'},
 					{
 						kind: KIND.OPTION,

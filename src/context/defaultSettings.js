@@ -333,6 +333,7 @@ export const defaultSettings = {
 	detailScreenStyle: 'v9',
 	detailButtonsMaxVisible: 0,
 	personalRatingStyle: 'thumbs',
+	personalRatingIntervals: 11,
 	detailExpandedTabs: true,
 	hideDetailsMediaDescription: false,
 	detailUseSeriesThumbnails: false,

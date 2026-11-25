@@ -266,7 +266,7 @@ export const SYNCABLE_KEYS = [
   'hideDetailsMediaDescription', 'detailUseSeriesThumbnails', 'hideHomeMediaDescription',
   'hideHomeWatchProgress', 'hideHomeUnwatchedCount',
   'personPageSortOption', 'personPageGroupItems',
-  'personalRatingStyle', 'recentlyReleasedSeriesType', 'mergeRecentRowsByType', 'hideWatchedInRecentRows', 'playlistsGroupByType', 'groupItemsIntoCollections',
+  'personalRatingStyle', 'personalRatingIntervals', 'recentlyReleasedSeriesType', 'mergeRecentRowsByType', 'hideWatchedInRecentRows', 'playlistsGroupByType', 'groupItemsIntoCollections',
   'useDetailedSubHeadings', 'showMediaDetailsOnLibraryPage', 'libraryCardTitles', 'hideBackdropsInLibraries', 'hideLibraryWatchProgress', 'hideLibraryUnwatchedCount', 'libraryStyle', 'bookLibraryStyle', 'showBookDiscoverTab', 'bookFoldersAsSeries', 'musicLibraryStyle',
   'libraryPosterSize', 'playlistPosterSize',
   'keyboardStyle',

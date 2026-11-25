@@ -50,7 +50,7 @@ const SAMPLE_ACTION_LOOKS = {
   favorite: () => ({ icon: 'icons/d/favorite.webp', label: $L('Favorite') }),
   personalRating: (s) => {
     const style = normalizeRatingStyle(s.personalRatingStyle)
-    return { icon: `icons/d/${ratingIcon(style, SAMPLE_USER_DATA)}.webp`, label: ratingLabel(style, SAMPLE_USER_DATA) }
+    return { icon: `icons/d/${ratingIcon(style, SAMPLE_USER_DATA)}.webp`, label: ratingLabel(style, SAMPLE_USER_DATA, s.personalRatingIntervals) }
   },
   playlist: () => ({ icon: 'icons/d/playlist.webp', label: $L('Add to Playlist') }),
 }

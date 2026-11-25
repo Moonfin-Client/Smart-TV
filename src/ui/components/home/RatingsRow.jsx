@@ -10,7 +10,7 @@ import {
   isRatingSourceEnabled,
   ratingSettingsFor,
 } from '../../../services/mdblistApi.js'
-import { normalizeRatingStyle, personalRatingOf } from '../../../utils/personalRating.js'
+import { formatPersonalRatingBadge, personalRatingOf } from '../../../utils/personalRating.js'
 import * as settings from '../../../state/settings.js'
 import { theme, rgba } from '../../theme.js'
 import { cssShift, themeSpacing } from '../../text.js'
@@ -159,7 +159,7 @@ export default function RatingsRow(props) {
     const out = []
     const mine = isRatingSourceEnabled(s, 'personal') ? personalRatingOf(it.UserData) : null
     if (mine !== null) {
-      const value = normalizeRatingStyle(s.personalRatingStyle) === 'stars' ? `${(mine / 2).toFixed(1)}/5` : mine.toFixed(1)
+      const value = formatPersonalRatingBadge(mine, s.personalRatingStyle, s.personalRatingIntervals)
       out.push({ k: 'personal', star: '#00a4dc', value, name: $L('My Rating') })
     }
     if (isRatingSourceEnabled(s, 'stars') && it.CommunityRating) {

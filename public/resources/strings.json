@@ -3199,5 +3199,11 @@
     "A panel of tiles with library artwork": "A panel of tiles with library artwork",
     "Browse all": "Browse all",
     "Continue in {section}": "Continue in {section}",
-    "Featured: {title}": "Featured: {title}"
-}
+    "Featured: {title}": "Featured: {title}",
+    "Rating Intervals": "Rating Intervals",
+    "Whole stars (0–5)": "Whole stars (0–5)",
+    "Half stars (0.5 steps)": "Half stars (0.5 steps)",
+    "Quarter stars (0.25 steps)": "Quarter stars (0.25 steps)",
+    "Whole numbers (0–10)": "Whole numbers (0–10)",
+    "Half points (0.5 steps)": "Half points (0.5 steps)",
+    "Quarter points (0.25 steps)": "Quarter points (0.25 steps)"}

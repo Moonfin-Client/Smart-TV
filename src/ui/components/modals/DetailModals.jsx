@@ -32,7 +32,11 @@ import {
 import { saveAudioPref, saveSubtitlePref } from '../../../services/subtitlePrefs.js'
 import { fromServerStream } from '../../../utils/seriesTrackPrefs.js'
 import { audioTrackDetail, isExternalSubtitleStream, numberedTrackName, subtitleTrackDetail } from '../../../utils/trackLabels.js'
-import { clampRating, clearedRatingPatch, displayRatingLikes, numericRatingPatch, personalRatingOf, starsFromRating, thumbRatingPatch } from '../../../utils/personalRating.js'
+import {
+  DEFAULT_PERSONAL_RATING_INTERVALS, clearedRatingPatch, displayRatingLikes, effectivePersonalRatingIntervals,
+  formatPersonalRatingNumber, numericRatingPatch, personalRatingMaxDecimals, personalRatingOf, snapPersonalRatingToGrid,
+  starsFromRating, stepPersonalRatingDown, stepPersonalRatingUp, thumbRatingPatch,
+} from '../../../utils/personalRating.js'
 import { playedFilterOptions, playlistSortOptions, PLAYLIST_SORT_RANDOM, SORT_DIR_ASC, SORT_DIR_DESC } from '../../../utils/playlistSortFilter.js'
 import { getStore, toast } from '../../../state/store.js'
 import * as settings from '../../../state/settings.js'
@@ -459,14 +463,18 @@ export default function DetailModals(props) {
     raise('trailers', { choices, item })
   }
 
-  // Rate: thumbs, half stars or a score out of ten, all saved to the same score.
-  h.openRating = (item, style) => {
+  // Rate: thumbs, stars or a score out of ten at the configured interval, all saved to the same score.
+  h.openRating = (item, style, intervals = DEFAULT_PERSONAL_RATING_INTERVALS) => {
     const ud = item.UserData || {}
-    const draft = { v: clampRating(personalRatingOf(ud) == null ? 0 : personalRatingOf(ud)) }
+    const effective = effectivePersonalRatingIntervals(style, intervals)
+    const maxDecimals = personalRatingMaxDecimals(style, effective)
+    const initial = personalRatingOf(ud)
+    const draft = { v: initial == null ? 0 : snapPersonalRatingToGrid(initial, style, effective) }
     const spec = () => {
       const base = {
         kind: 'rating', title: $L('Rate'), style, likes: displayRatingLikes(ud), stars: starsFromRating(draft.v),
-        scoreLabel: $L('{rating} / 10').replace('{rating}', draft.v), hint: $L('{rating} / 5').replace('{rating}', starsFromRating(draft.v)),
+        scoreLabel: $L('{rating} / 10').replace('{rating}', formatPersonalRatingNumber(draft.v, maxDecimals)),
+        hint: $L('{rating} / 5').replace('{rating}', formatPersonalRatingNumber(starsFromRating(draft.v), maxDecimals)),
       }
       const buttons = [{ id: 'cancel', label: $L('Cancel') }]
       if (style !== 'thumbs') buttons.push({ id: 'save', label: $L('Save') })
@@ -486,7 +494,7 @@ export default function DetailModals(props) {
     show('dialog', {
       dialog: spec(),
       onAdjust: (d) => {
-        draft.v = clampRating(draft.v + d * 0.5)
+        draft.v = d > 0 ? stepPersonalRatingUp(draft.v, style, effective) : stepPersonalRatingDown(draft.v, style, effective)
         setDialog({ ...spec(), initial: 'stars' })
       },
       onPick: (id) => {
@@ -494,7 +502,7 @@ export default function DetailModals(props) {
         if (id === 'like' || id === 'dislike') return save(thumbRatingPatch(id === 'like'), () => api.setRating(item.Id, id === 'like'))
         if (id === 'clear') return save(clearedRatingPatch(), () => api.clearRating(item.Id))
         if (id === 'down' || id === 'up') {
-          draft.v = clampRating(id === 'up' ? Math.floor(draft.v) + 1 : Math.ceil(draft.v) - 1)
+          draft.v = id === 'up' ? stepPersonalRatingUp(draft.v, style, effective) : stepPersonalRatingDown(draft.v, style, effective)
           setDialog({ ...spec(), initial: id })
           return
         }

@@ -12,7 +12,7 @@ export const ratingIcon = (style, ud) => {
   return displayRatingLikes(ud) === false ? 'rating_thumbDown' : 'rating_thumbUp'
 }
 
-export const ratingLabel = (style, ud) => {
+export const ratingLabel = (style, ud, intervals) => {
   const rating = personalRatingOf(ud)
   if (style === 'thumbs') {
     const likes = displayRatingLikes(ud)
@@ -20,7 +20,7 @@ export const ratingLabel = (style, ud) => {
     return likes ? $L('Like') : $L('Dislike')
   }
   if (rating === null) return $L('Rate')
-  if (style === 'stars') return starRatingLabel(rating) || $L('Rate')
+  if (style === 'stars') return starRatingLabel(rating, intervals) || $L('Rate')
   return $L('Rated')
 }
 
@@ -58,7 +58,7 @@ export const catalogue = (p) => {
     { id: 'watched', icon: 'watched', label: ud.Played ? $L('Watched') : $L('Mark as Watched'), active: !!ud.Played, when: !isPerson },
     { id: 'favorite', icon: 'favorite', label: ud.IsFavorite ? $L('Favorited') : $L('Favorite'), active: !!ud.IsFavorite, when: offersFavorite(isPerson, p.serverUrl) },
     { id: 'personDisplay', icon: 'tune', label: $L('Display'), when: isPerson },
-    { id: 'personalRating', icon: ratingIcon(p.ratingStyle, ud), label: ratingLabel(p.ratingStyle, ud), when: p.showsPersonalRating },
+    { id: 'personalRating', icon: ratingIcon(p.ratingStyle, ud), label: ratingLabel(p.ratingStyle, ud, p.ratingIntervals), when: p.showsPersonalRating },
     { id: 'goToSeries', icon: 'series', label: $L('Go to Series'), when: offersGoToSeries(p) },
     { id: 'playlist', icon: 'playlist', label: $L('Add to Playlist'), when: !isPerson },
     { id: 'collection', icon: 'collection', label: $L('Add to Collection'), when: p.canAddToCollection },
