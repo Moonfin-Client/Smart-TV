@@ -2,6 +2,7 @@ import * as jellyfinApi from './jellyfinApi';
 import {getDeviceProfile, getDeviceCapabilities} from './deviceProfile';
 import {getPlayMethod, getMimeType, isAudioStreamPlayable, canRenderEmbeddedPgsInBand, rendersSubtitleInHost} from './video';
 import {getFromStorage} from './storage';
+import {siloServerKey} from './siloSession';
 import {selectCompatibleAlternateAudio} from '../utils/alternateAudio';
 import {serverLogger} from './serverLogger';
 import {TEXT_SUBTITLE_CODECS, isAssSubtitleCodec, isPgsSubtitleCodec, isBurnInSubtitleCodec, isInBandSubtitleTrack, isEmbedDeliveredText, isMatroskaContainer} from '../utils/subtitleCodecs';
@@ -89,7 +90,7 @@ const heldEndedOnServer = (itemId) => {
 	return false;
 };
 
-const tellEndedOnServer = (itemId) => endedListeners.forEach((listener) => listener(itemId));
+const tellEndedOnServer = (itemId, reason = null) => endedListeners.forEach((listener) => listener(itemId, reason));
 
 const holdEndedOnServer = (itemId, generation) => {
 	if (generation !== endedHoldGeneration) return false;
@@ -116,7 +117,8 @@ const heardEndedOnServer = (err, generation = endedHoldGeneration) => {
 	if (isEndedOnServer(err) && holdEndedOnServer(err.itemId, generation)) tellEndedOnServer(err.itemId);
 };
 
-// `listener(itemId)` hears each time the end of an item's session reaches the app (the player acts on the first).
+// `listener(itemId, reason)` hears each time the end of an item's session reaches the app (the player acts on the
+// first). `reason` is an admin's, when Silo's playback control lane said why.
 // Returns the unsubscribe.
 export const onEndedOnServer = (listener) => {
 	endedListeners.add(listener);
@@ -1005,6 +1007,7 @@ const siloPlaybackResult = async ({
 		storedSettings.enablePgsRendering === false);
 	const selectedAudio = options.audioStreamIndex ?? mediaSource.DefaultAudioStreamIndex;
 
+	const replaced = currentSession;
 	replaceSession({
 		itemId,
 		playSessionId: playbackInfo.PlaySessionId,
@@ -1022,6 +1025,11 @@ const siloPlaybackResult = async ({
 		allowDirectStream,
 		serverCredentials: creds
 	});
+	// Silo retired the playing session (it expired, or the server was reset) and this plan started a new one. A seek on
+	// webOS reports no start for it, so the new session's control lane opens here (a second start only refreshes it).
+	if (replaced?.itemId === itemId && replaced.playSessionId !== playbackInfo.PlaySessionId) {
+		api.reportPlaybackStart({ItemId: itemId, PlaySessionId: playbackInfo.PlaySessionId}).catch(() => {});
+	}
 
 	let mimeType;
 	if (isHls) mimeType = 'application/x-mpegURL';
@@ -1443,6 +1451,25 @@ export const reportProgress = async (positionTicks, options = {}) => {
 		stopProgressReporting(); // eslint-disable-line no-use-before-define
 		tellEndedOnServer(e.itemId);
 	}
+};
+
+const sessionServerKey = (session) => siloServerKey(session.serverCredentials?.serverUrl || jellyfinApi.getServerUrl());
+
+// Whether the player plays this Silo session on this server. A replan keeps the session id, so it holds through one.
+export const playsSiloSession = (baseUrl, playSessionId) => Boolean(currentSession && playSessionId &&
+	currentSession.playSessionId === playSessionId && sessionServerKey(currentSession) === siloServerKey(baseUrl));
+
+// An admin terminated the playing session from Silo's dashboard: Silo has already ended it, so the player stops at
+// once, as it does on a progress report refused with 410, and says why. Any other session is left alone.
+export const endSessionByServer = (playSessionId, reason = null, retire = null) => {
+	if (!currentSession || currentSession.playSessionId !== playSessionId) return false;
+	const itemId = currentSession.itemId;
+	if (!holdEndedOnServer(itemId, endedHoldGeneration)) return false;
+	// The session is already over on Silo, so the player's stop doesn't ask Silo again and wait on the answer.
+	retire?.();
+	stopProgressReporting(); // eslint-disable-line no-use-before-define
+	tellEndedOnServer(itemId, reason);
+	return true;
 };
 
 const sendStopRequest = ({endpoint, json}) => {

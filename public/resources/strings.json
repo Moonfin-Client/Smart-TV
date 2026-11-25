@@ -2897,6 +2897,7 @@
 	"Playback isn't available on this Silo server.": "Playback isn't available on this Silo server.",
 	"This Silo server needs a newer version of Moonfin to play.": "This Silo server needs a newer version of Moonfin to play.",
 	"Playback was ended on the Silo server.": "Playback was ended on the Silo server.",
+	"Playback was stopped on the Silo server.": "Playback was stopped on the Silo server.",
 	"The connection to the server was lost.": "The connection to the server was lost.",
 	"Watching on MDBList": "Watching on MDBList",
 	"{users} watching now · {movies} movies · {shows} shows": "{users} watching now · {movies} movies · {shows} shows",
