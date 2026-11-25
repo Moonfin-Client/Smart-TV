@@ -1,0 +1,173 @@
+// How a row of buttons is arranged. The details action row and the player controls each get
+// their own arrangement, and both follow the user between devices through the plugin, so the
+// ids and the storage shape here have to match what Moonfin Core writes. Renaming an id drops
+// whatever the user had arranged for it.
+//
+// Labels are plain English and get translated where they're shown, with $L(button.label).
+
+// Only the TV variants are read and written here. Moonfin Core keeps a separate arrangement per
+// kind of device, because a phone and a TV want very different rows.
+export const DETAIL_ORDER_KEY = 'detailButtonOrderTv';
+export const DETAIL_HIDDEN_KEY = 'hiddenDetailButtonsTv';
+export const OSD_ORDER_KEY = 'osdButtonOrderTv';
+export const OSD_HIDDEN_KEY = 'hiddenOsdButtonsTv';
+
+// Play, Resume and Restart are absent on purpose. They're one button wearing different
+// labels, it always leads the row, and it anchors the focus the screen hands out.
+//
+// The two request buttons lead the list, so for anyone who arranged this row before Seerr was
+// offered here they land right after the primary button. HD and 4K get a slot each because
+// they're tracked separately, and on a title already in the library the HD one is filled and
+// only 4K is left to ask for.
+export const DETAIL_BUTTONS = [
+	{id: 'seerrRequest', label: 'Request'},
+	{id: 'seerrRequest4k', label: 'Request 4K'},
+	{id: 'shuffle', label: 'Shuffle'},
+	{id: 'version', label: 'Version'},
+	{id: 'audio', label: 'Audio'},
+	{id: 'subtitles', label: 'Subtitle'},
+	{id: 'trailer', label: 'Trailer'},
+	{id: 'watchWithGroup', label: 'Watch with group', subtitle: "Only shows while you're in a SyncPlay group"},
+	{id: 'watched', label: 'Mark Watched'},
+	{id: 'favorite', label: 'Favorite'},
+	{id: 'personalRating', label: 'Rate'},
+	{id: 'goToSeries', label: 'Series'},
+	{id: 'playlist', label: 'Add to Playlist'},
+	{id: 'collection', label: 'Add to Collection'},
+	{id: 'deleteFiles', label: 'Delete'},
+	{id: 'artwork', label: 'Change Artwork'},
+	{id: 'seerrWatchlist', label: 'Watchlist'},
+	{id: 'seerrReportIssue', label: 'Report Issue'},
+	{id: 'seerrManage', label: 'Manage Requests'},
+	{id: 'keepAsComplete', label: 'Keep as Complete'},
+	{id: 'admin', label: 'Admin Controls'}
+];
+
+// Play, pause, seek and track skip are absent on purpose, the player always keeps those.
+// Playback speed is absent because these TVs hand the rate to their own media pipeline,
+// which drops the audio rather than stretching it, so anything but 1x plays silent.
+export const OSD_BUTTONS = [
+	{id: 'favorite', label: 'Favorite'},
+	{id: 'chapters', label: 'Chapters'},
+	{id: 'episodes', label: 'Episodes'},
+	{id: 'subtitles', label: 'Subtitles'},
+	{id: 'audio', label: 'Audio'},
+	{id: 'castAndCrew', label: 'Cast and Crew'},
+	{id: 'quality', label: 'Playback Quality'},
+	{id: 'zoom', label: 'Zoom'},
+	{id: 'sleep', label: 'Sleep Timer'},
+	{id: 'info', label: 'Playback Information'}
+];
+
+// The plugin sends an array, but a comma joined string is accepted too since that's how Moonfin
+// Core stores these locally.
+const toIds = (stored) => {
+	if (Array.isArray(stored)) return stored.filter(Boolean).map(String);
+	if (typeof stored === 'string') return stored.split(',').filter(Boolean);
+	return [];
+};
+
+// Holds the buttons switched off rather than the ones left on, so a button the app starts
+// offering later shows up for people who already have a list.
+export const hiddenSet = (stored) => new Set(toIds(stored));
+
+// `all` rearranged into the order the user put this row in. Anything they never placed, such
+// as a button added since they last touched this, follows the placed button it was declared
+// after, so it lands where it belongs rather than at the end of the row.
+export const ordered = (all, stored) => {
+	const ids = toIds(stored);
+	if (ids.length === 0) return all;
+
+	const placed = new Map(ids.map((id, index) => [id, index]));
+	let carried = -1;
+	const ranked = all.map((item, declared) => {
+		const rank = placed.get(item.id);
+		if (rank !== undefined) carried = rank;
+		return {rank: carried, declared, item};
+	});
+	ranked.sort((a, b) => (a.rank - b.rank) || (a.declared - b.declared));
+	return ranked.map((entry) => entry.item);
+};
+
+// The visible buttons for a row, in the user's order. `all` has to be in declaration order.
+//
+// A row that only holds some of its buttons at a time, such as the player's, passes the whole
+// `catalogue`. A button nobody placed is then put behind the one declared before it there,
+// even when that one is missing from this row, so it doesn't jump to the front the moment its
+// neighbor, say Chapters on an episode with none, is absent.
+export const arrange = (all, {order, hidden, catalogue} = {}) => {
+	const off = hiddenSet(hidden);
+	if (!catalogue) return ordered(all, order).filter((item) => !off.has(item.id));
+
+	const position = new Map(ordered(catalogue, order).map((item, index) => [item.id, index]));
+	const at = (item) => (position.has(item.id) ? position.get(item.id) : catalogue.length);
+	return all
+		.map((item, declared) => ({item, declared}))
+		.sort((a, b) => (at(a.item) - at(b.item)) || (a.declared - b.declared))
+		.map(({item}) => item)
+		.filter((item) => !off.has(item.id));
+};
+
+// A save from this app has to carry through the ids it has no button for. The other clients
+// offer buttons this one doesn't and everyone shares these two settings, so writing back only
+// what's in `catalogue` would erase what those clients arranged. Each carried id goes behind
+// the id it was stored after, the same way `ordered` places a button nobody arranged.
+export const withUnknownIds = (catalogue, saved, stored) => {
+	const known = new Set(catalogue.map((item) => item.id));
+	const leading = [];
+	const trailing = new Map();
+	let anchor = null;
+	toIds(stored.order).forEach((id) => {
+		if (known.has(id)) {
+			anchor = id;
+		} else if (anchor === null) {
+			leading.push(id);
+		} else {
+			const behind = trailing.get(anchor);
+			if (behind) behind.push(id);
+			else trailing.set(anchor, [id]);
+		}
+	});
+
+	const order = [...leading];
+	saved.order.forEach((id) => {
+		order.push(id);
+		const behind = trailing.get(id);
+		if (behind) order.push(...behind);
+	});
+
+	const offElsewhere = toIds(stored.hidden).filter((id) => !known.has(id));
+	return {order, hidden: [...saved.hidden, ...offElsewhere]};
+};
+
+// With nothing in the library to play, mark or add anywhere, the actions left worth offering are
+// the ones that ask Seerr for the title, and the trailer, which Seerr supplies along with them.
+export const seerrOnlyRow = (buttons) =>
+	buttons.filter((item) => item.id.startsWith('seerr') || item.id === 'trailer');
+
+// A slot the viewer arranges as one can show more than one button, and each counts toward the
+// row's limit and its overflow menu on its own.
+export const splitSlots = (buttons) => buttons.flatMap((btn) => (btn.parts ? btn.parts.filter((part) => part.when) : [btn]));
+
+// How a capped row splits into the buttons that stay inline and the ones that fold behind an
+// ellipsis. `totalButtons` counts the whole row, the leading play slot included, because that
+// slot takes a place in the row like any other button.
+//
+// `countCapped` is what keeps the older rows as they are. Classic and Modern don't cap at all,
+// so they leave it off and every button stays inline. Spotlight caps strictly: it overflows as
+// soon as one more button exists than the slots hold, even when the menu would hold a single
+// action, where a row exactly at the cap would otherwise stay inline.
+export const countSplit = ({totalButtons, maxVisible, overflowAsMenu, countCapped}) => {
+	const visibleCount = maxVisible - 1;
+	const threshold = overflowAsMenu ? visibleCount : maxVisible;
+	return {visibleCount, needsOverflow: Boolean(countCapped) && totalButtons > threshold};
+};
+
+// The viewer's own cap from the Action Buttons on Screen setting, laid over what the style already
+// asked for. Auto leaves the style alone, All lifts the cap so every button stays in the row and it
+// scrolls sideways, and a number is how many end up on screen with the rest behind the menu.
+export const applyButtonLimit = (prefLimit, layout) => {
+	if (prefLimit === -1) return {...layout, countCapped: false};
+	if (prefLimit >= 1) return {maxVisible: prefLimit + 1, overflowAsMenu: true, countCapped: true};
+	return layout;
+};
