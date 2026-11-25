@@ -18,7 +18,8 @@ import { openSeerrItem } from './seerrModels.js'
 
 // A TMDB-only person, laid out like a library person: a random backdrop from their credits, the
 // round portrait, name, dates, birthplace and department, the biography (Enter opens it in full)
-// and Appearances and Crew tabs, each a row of portrait cards.
+// and Appearances and Crew tabs, each a row of portrait cards. It sits on the theme's background, in
+// its text colors, and the portrait has no ring (Core draws none).
 const OVERVIEW_LINE = 33
 const COVER = { resizeMode: { type: 'cover' } }
 const EMPTY_ROW = { title: '', items: [], key: 'none' }
@@ -76,6 +77,7 @@ export default function Person(props) {
   const active = () => tabs()[Math.min(tab(), tabs().length - 1)] || null
   const info = createMemo(() => {
     const d = details()
+    const t = theme()
     if (!d) return null
     const name = props.name || d.name || ''
     const known = d.knownForDepartment ? `${$L('Known for:')} ${d.knownForDepartment}` : null
@@ -84,10 +86,10 @@ export default function Person(props) {
     const meta = []
     lines.forEach((text, i) => {
       if (i) {
-        meta.push({ key: `dot${i}`, text: '•', x: x + 16, color: '#666666ff', font: bodyFont })
+        meta.push({ key: `dot${i}`, text: '•', x: x + 16, color: t.os(0.4), font: bodyFont })
         x += 16 + textWidth('•', 24) + 16
       }
-      meta.push({ key: `m${i}`, text, x, color: '#aaaaaaff', font: fontFor(text) })
+      meta.push({ key: `m${i}`, text, x, color: t.os(0.67), font: fontFor(text) })
       x += textWidth(text, 24)
     })
     // The biography's line breaks and runs of spaces collapse into single spaces.
@@ -169,7 +171,7 @@ export default function Person(props) {
       ref={root}
       width={1920}
       height={1080}
-      color="#000000ff"
+      color={theme().background}
       forwardFocus={() => {
         const row = zone() === 'row' && rowNodes[tab()]
         if (!row) return false
@@ -220,7 +222,7 @@ export default function Person(props) {
       </view>
       <view>
         <Show when={error()}>
-          <text x={960} y={480} mountX={0.5} fontFamily={bodyFont} fontSize={24} color="#888888ff">
+          <text x={960} y={480} mountX={0.5} fontFamily={bodyFont} fontSize={24} color={theme().os(0.53)}>
             {error()}
           </text>
           <view x={895} y={530} width={130} height={50} borderRadius={8} color="#ffffffff" />
@@ -234,18 +236,18 @@ export default function Person(props) {
         <Show when={info()}>
           {(nf) => (
             <view>
-              <view x={72} y={156} width={256} height={256} borderRadius={128} color="#333333ff" border={{ width: 3, color: hex('#00a4dcff') }} />
+              <view x={75} y={159} width={250} height={250} borderRadius={125} color={theme().os(0.2)} />
               <Show
                 when={nf().profile}
                 fallback={
-                  <text x={200} y={284} mountX={0.5} mountY={0.5} fontFamily={nameFont} fontSize={72} color="#666666ff">
+                  <text x={200} y={284} mountX={0.5} mountY={0.5} fontFamily={nameFont} fontSize={72} color={theme().os(0.4)}>
                     {nf().initial}
                   </text>
                 }
               >
                 <view x={75} y={159} width={250} height={250} borderRadius={125} src={nf().profile} textureOptions={COVER} />
               </Show>
-              <text x={384} y={158} fontFamily={nf().nameFont} fontSize={48} lineHeight={33} maxWidth={1488} maxLines={1} color="#e6e6e6ff">
+              <text x={384} y={158} fontFamily={nf().nameFont} fontSize={48} lineHeight={33} maxWidth={1488} maxLines={1} color={theme().onSurface}>
                 {nf().name}
               </text>
               <view>
@@ -268,11 +270,11 @@ export default function Person(props) {
                     lineHeight={33}
                     maxWidth={1462}
                     maxLines={expanded() ? 0 : nf().bioLines}
-                    color="#ccccccff"
+                    color={theme().os(0.8)}
                   >
                     {nf().bio}
                   </text>
-                  <text x={13} y={nf().bioH - 33} fontFamily={smallFont} fontSize={16} lineHeight={24} color="#00a4dccc" alpha={expanded() ? 1 : 0}>
+                  <text x={13} y={nf().bioH - 33} fontFamily={smallFont} fontSize={16} lineHeight={24} color={theme().accentA(0.8)} alpha={expanded() ? 1 : 0}>
                     {showLess}
                   </text>
                 </view>
@@ -283,7 +285,7 @@ export default function Person(props) {
                     <view x={tb.x} y={nf().tabsY} width={tb.w} height={55}>
                       <view width={tb.w} height={55} borderRadius={8} color={theme().accentA(0.2)} alpha={tb.i === tab() ? 1 : 0} />
                       <view width={tb.w} height={55} borderRadius={8} color="#00000000" border={edge()} alpha={tb.i === tabFocus() ? 1 : 0} />
-                      <text x={25} y={13} fontFamily={tabFont} fontSize={22} lineHeight={33} color={tb.i === tab() ? '#ffffffff' : '#aaaaaaff'}>
+                      <text x={25} y={13} fontFamily={tabFont} fontSize={22} lineHeight={33} color={tb.i === tab() ? theme().onSurface : theme().os(0.67)}>
                         {tb.label}
                       </text>
                     </view>

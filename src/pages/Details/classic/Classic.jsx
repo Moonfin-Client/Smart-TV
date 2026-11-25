@@ -22,7 +22,7 @@ import { classicActions } from './actions.js'
 import { PAD_BOTTOM, classicLeft, layoutButtons, layoutHeader, layoutMetadata, list, metadataCells, overviewH } from './layout.js'
 import { layoutSections } from './sections.js'
 import { pageScroll } from './scroll.js'
-import { STYLESHEET_ACCENT, paintAudio, paintPerson, paintPlaylist, paintSeason, personTabs } from './screens.js'
+import { paintAudio, paintPerson, paintPlaylist, paintSeason, personTabs } from './screens.js'
 
 // The Classic details style: one scrolling page with the header, the action tiles, the metadata
 // strip and the sections. Seasons, people, playlists and tracks get their own screens from
@@ -603,7 +603,7 @@ export default function Classic(props) {
           >
             {personOv().text}
           </text>
-          <text x={12} y={personOv().hintY + 2.5} fontFamily={hintFont()} fontSize={25.5} lineHeight={33} letterSpacing={t().spacing || 0} color={STYLESHEET_ACCENT}>
+          <text x={12} y={personOv().hintY + 2.5} fontFamily={hintFont()} fontSize={25.5} lineHeight={33} letterSpacing={t().spacing || 0} color={t().accent}>
             {personOv().hint}
           </text>
         </view>

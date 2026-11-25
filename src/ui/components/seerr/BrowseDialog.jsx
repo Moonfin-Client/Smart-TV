@@ -1,6 +1,7 @@
 import { For, Show, createMemo, createSelector, createSignal } from 'solid-js'
 import { fontFor, uiFont } from '../../text.js'
 import { hex } from '../../color.js'
+import { theme } from '../../theme.js'
 import { focusScrollFor } from '../../../pages/Seerr/browseGrid.js'
 import { keyed } from '../library/pageKit.js'
 
@@ -10,7 +11,8 @@ import { keyed } from '../library/pageKit.js'
 // at the top.
 // rows: [{ id, kind, label, on, count, expanded, arrow }] where kind is title, subtitle, divider,
 // section, radio, check, expander or clear, and arrow is 'asc' or 'desc' on the picked sort.
-// Sizes are points on an 1150 wide canvas, drawn at 1920.
+// Sizes are points on an 1150 wide canvas, drawn at 1920. The panel and text take the theme's
+// surface and text colors, and the picked marks its downloading color (Moonfin's indigo).
 const DP = 1920 / 1150
 const PAD = 20 * DP
 const W = 380 * DP
@@ -29,22 +31,23 @@ const WEIGHT = { title: 'bold', section: 'medium', expander: 'medium' }
 const SIZE = { title: 20 * DP, section: 13 * DP, expander: 13 * DP }
 const LINE = { title: 20 * DP * 1.43, section: 13 * DP * 1.43, expander: 13 * DP * 1.43 }
 const TEXT_Y = { title: 8 * DP, subtitle: 4 * DP, section: 12 * DP }
-const PANEL_EDGE = { width: 1, color: hex('#8ec8f054') }
-
-const labelColor = (r) => {
-  if (r.kind === 'clear') return '#6366f1ff'
-  if (r.kind === 'title') return '#ffffffff'
-  if (r.kind === 'subtitle') return '#ffffffb3'
-  if (r.kind === 'section' || r.kind === 'expander') return '#ffffffb8'
-  if (r.on) return '#ffffffff'
-  return r.kind === 'check' ? '#ffffffb8' : '#ffffffb3'
+const labelColor = (r, t) => {
+  if (r.kind === 'clear') return t.status.downloading
+  if (r.kind === 'title') return t.onSurface
+  if (r.kind === 'subtitle') return t.os(0.7)
+  if (r.kind === 'section' || r.kind === 'expander') return t.os(0.72)
+  if (r.on) return t.onSurface
+  return r.kind === 'check' ? t.os(0.72) : t.os(0.7)
 }
 
 export default function BrowseDialog(props) {
   const [curId, setCurId] = createSignal(null)
   const [scroll, setScroll] = createSignal(0)
   const countFont = uiFont('bold')
+  const t = () => theme()
+  const mark = () => t().status.downloading
   const placed = createMemo(() => {
+    const th = t()
     let y = PAD
     return (props.rows || []).map((r, i) => {
       const h = HEIGHTS[r.kind] || HEIGHTS.radio
@@ -68,7 +71,7 @@ export default function BrowseDialog(props) {
         textY: TEXT_Y[r.kind] != null ? TEXT_Y[r.kind] : (h - line) / 2,
         // The label runs to the right padding, less a trailing sort arrow or count and chevron.
         textW: W - 2 - textX - 24 * DP - (r.arrow ? 28 * DP : r.kind === 'expander' ? 40 * DP : 0),
-        color: labelColor(r),
+        color: labelColor(r, th),
         focusable: !!FOCUSABLE[r.kind],
         mark,
         round: r.kind === 'radio' ? 9 * DP : 4 * DP,
@@ -141,7 +144,7 @@ export default function BrowseDialog(props) {
       }}
     >
       <view width={1920} height={1080} color="#0000008a" />
-      <view x={642.78} y={top()} width={634.44} height={panelH()} borderRadius={33.39} color="#1a1a1ae6" border={PANEL_EDGE}>
+      <view x={642.78} y={top()} width={634.44} height={panelH()} borderRadius={33.39} color={`${t().surface.slice(0, 7)}e6`} border={{ width: 1, color: hex(t().accentA(0.33)) }}>
         <view x={1} y={1} width={632.44} height={view()} clipping>
           <view y={-scroll()} width={632.44} height={contentH()}>
             <For each={kept.keys()}>
@@ -149,9 +152,9 @@ export default function BrowseDialog(props) {
                 const r = kept.item(k)
                 return (
                   <view y={r().y} width={632.44} height={r().h}>
-                    <view width={632.44} height={r().h} color="#ffffff1f" alpha={isCur(r().i) ? 1 : 0} />
+                    <view width={632.44} height={r().h} color={t().os(0.12)} alpha={isCur(r().i) ? 1 : 0} />
                     <Show when={r().kind === 'divider'}>
-                      <view y={12.52} width={632.44} height={1.67} color="#ffffff14" />
+                      <view y={12.52} width={632.44} height={1.67} color={t().os(0.08)} />
                     </Show>
                     <Show when={r().mark}>
                       <view
@@ -160,14 +163,14 @@ export default function BrowseDialog(props) {
                         width={30.05}
                         height={30.05}
                         borderRadius={r().round}
-                        color={r().on ? '#6366f1ff' : '#00000000'}
-                        border={{ width: 3, color: hex(r().on ? '#6366f1ff' : '#ffffff80') }}
+                        color={r().on ? mark() : '#00000000'}
+                        border={{ width: 3, color: hex(r().on ? mark() : t().os(0.5)) }}
                       />
                       <view x={48.42} y={(r().h - 13.36) / 2} width={13.36} height={13.36} borderRadius={6.68} color="#ffffffff" alpha={r().dot ? 1 : 0} />
                       <view x={43.41} y={(r().h - 23.37) / 2} width={23.37} height={23.37} src="icons/check.webp" color="#ffffffff" alpha={r().check ? 1 : 0} />
                     </Show>
                     <Show when={r().kind === 'clear'}>
-                      <view x={40.07} y={(r().h - 30.05) / 2} width={30.05} height={30.05} src="icons/filterAltOff.webp" color="#6366f1ff" />
+                      <view x={40.07} y={(r().h - 30.05) / 2} width={30.05} height={30.05} src="icons/filterAltOff.webp" color={mark()} />
                     </Show>
                     <text
                       x={r().textX}
@@ -183,15 +186,15 @@ export default function BrowseDialog(props) {
                       {r().label}
                     </text>
                     <Show when={r().arrow}>
-                      <view x={565.66} y={(r().h - 26.71) / 2} width={26.71} height={26.71} src={'icons/' + r().arrow + '.webp'} color="#6366f1ff" />
+                      <view x={565.66} y={(r().h - 26.71) / 2} width={26.71} height={26.71} src={'icons/' + r().arrow + '.webp'} color={mark()} />
                     </Show>
                     <Show when={r().countText}>
-                      <text x={548.96} mountX={1} y={r().textY + 2} fontFamily={countFont} fontSize={21.7} lineHeight={31.04} letterSpacing={0.417} color="#6366f1ff">
+                      <text x={548.96} mountX={1} y={r().textY + 2} fontFamily={countFont} fontSize={21.7} lineHeight={31.04} letterSpacing={0.417} color={mark()}>
                         {r().countText}
                       </text>
                     </Show>
                     <Show when={r().chevron}>
-                      <view x={562.32} y={(r().h - 30.05) / 2} width={30.05} height={30.05} src={'icons/' + r().chevron + '.webp'} color="#ffffffb8" />
+                      <view x={562.32} y={(r().h - 30.05) / 2} width={30.05} height={30.05} src={'icons/' + r().chevron + '.webp'} color={t().os(0.72)} />
                     </Show>
                   </view>
                 )

@@ -6,6 +6,7 @@ import { textWidth, wrapLines } from '../../../ui/components/details/measure.js'
 import { formatDuration, getImageUrl } from '../../../utils/helpers.js'
 import { personDateLines } from '../../../utils/personCredits.js'
 import { offersFavorite } from '../personFavorite.js'
+import { inkOn } from '../../../theme/themeSpec.js'
 import { hidesMediaDescription } from '../detailsMedia.js'
 import { ratingsRow } from '../modern/hero.js'
 import { PAD_BOTTOM, PAD_TOP, badgeDot, collapse, img, layoutButtons, list, poster, rect, text } from './layout.js'
@@ -15,7 +16,8 @@ import { compactAnimePills, mediaRowFor, scrollRowFor, thumbEntries } from './se
 const VIEW_H = 1080
 const BULLET = '•'
 // The person's ring, tabs and buttons keep this blue on every theme.
-export const STYLESHEET_ACCENT = '#00a4dcff'
+// A label on a fill: dark on a bright one and white on a dim one, by the badges' contrast check.
+const labelOn = (fill) => (inkOn('#ff' + fill.slice(1, 7)) === '0, 0, 0' ? '#000000de' : '#ffffffff')
 
 // The facts as one bullet-led line, for the season header.
 const bulletLine = (out, k, items, x0, y, t) => {
@@ -158,16 +160,14 @@ const personHead = (comp, d) => {
   const out = list()
   const st = comp._person
   const left = d.left
-  // The photo: 220 round inside a 3px accent ring, with 6px under it. Neon Pulse rings it in pink
-  // and trades the shadow for a pink glow.
-  const shadow = t.neon ? { color: '#ff2e9233', x: 0, y: 0, blur: 14, spread: 0 } : { color: '#00000080', x: 0, y: 8, blur: 32, spread: 0 }
+  // The photo: 220 round, with no ring (Core draws none), and 6px under it.
+  const shadow = { color: '#00000080', x: 0, y: 8, blur: 32, spread: 0 }
   rect(out, { k: 'photoShadow', x: left, y: PAD_TOP, w: 226, h: 226, r: 113, color: '#00000001', shadow })
   if (it.ImageTags && it.ImageTags.Primary) img(out, { k: 'photo', x: left + 3, y: PAD_TOP + 3, w: 220, h: 220, r: 110, src: getImageUrl(d.server, it.Id, 'Primary', { maxHeight: 450, quality: 90 }) })
   else {
-    rect(out, { k: 'photoPh', x: left + 3, y: PAD_TOP + 3, w: 220, h: 220, r: 110, color: '#ffffff14' })
-    img(out, { k: 'photoIcon', x: left + 81, y: PAD_TOP + 81, w: 64, h: 64, src: 'icons/cls_person.webp', color: '#ffffff40' })
+    rect(out, { k: 'photoPh', x: left + 3, y: PAD_TOP + 3, w: 220, h: 220, r: 110, color: t.os(0.08) })
+    img(out, { k: 'photoIcon', x: left + 81, y: PAD_TOP + 81, w: 64, h: 64, src: 'icons/cls_person.webp', color: t.os(0.25) })
   }
-  rect(out, { k: 'photoRing', x: left, y: PAD_TOP, w: 226, h: 226, r: 113, color: '#00000001', bw: 3, bc: t.neon ? '#ff2e9273' : STYLESHEET_ACCENT })
 
   const x0 = left + 220 + 40
   const w = d.contentW - 260
@@ -212,7 +212,7 @@ const personHead = (comp, d) => {
     const pw = 22 + 24 + 10 + textWidth(label, 20, 'bold') + 22 + 2
     pills.push({
       id, x: px, y, w: pw, h: 55, r: 27.5, label, font: pillFont, size: 20, tx: 57, ty: 13, icon, ix: 23, iy: 15.5, is: 24,
-      bg: '#ffffff14', bgOn: '#00a4dc4d', bd: '#00000000', bdOn: STYLESHEET_ACCENT, ink: '#ffffffff', inkOn: '#ffffffff', scaleOn: 1.05,
+      bg: t.os(0.08), bgOn: t.accentA(0.3), bd: '#00000000', bdOn: t.accent, ink: t.onSurface, inkOn: t.onSurface, scaleOn: 1.05,
     })
     px += pw + 16
   }
@@ -236,6 +236,7 @@ const personHead = (comp, d) => {
 export const personTabs = (comp, head) => {
   const { d, ovZone, headerBottom, film } = head
   const s = d.settings
+  const t = comp.tokens
   const st = comp._person
   const left = d.left
   const credits = st.credits || { appearances: [], crew: [] }
@@ -256,8 +257,8 @@ export const personTabs = (comp, head) => {
     const active = i === st.tab
     tabPills.push({
       id: tab.key, idx: i, x: tx, y, w: tw, h: 49, r: 8, label: tab.label, font: tabFont, size: 33, tx: 20, ty: 11,
-      bg: active ? STYLESHEET_ACCENT : '#ffffff0f', bgOn: '#ffffff1f', bd: '#00000000', bdOn: '#00000000',
-      ink: active ? '#ffffffff' : '#ffffffb3', inkOn: active ? '#ffffffff' : '#ffffffb3',
+      bg: active ? t.focus : t.os(0.06), bgOn: t.os(0.12), bd: '#00000000', bdOn: '#00000000',
+      ink: active ? labelOn(t.focus) : t.os(0.7), inkOn: t.onSurface,
     })
     tx += tw + 8
   })

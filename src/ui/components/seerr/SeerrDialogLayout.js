@@ -16,19 +16,19 @@ const DP = 1.66957
 const dp = (n) => n * DP
 const SCREEN_W = 1920
 const SCREEN_H = 1080
-// Only the match cards take the theme's accent. The other controls stay blue on every theme.
-const CONTROL_ACCENT = '#00a4dc'
-const ON_FOCUS = '#000000de'
 const PANEL_W = dp(440)
 // The scrim's 24dp padding caps a panel's height, and the body scrolls inside what's left.
 const PANEL_MAX_H = SCREEN_H - 2 * dp(24)
 
 const white = (a) => `#ffffff${alphaHex(a)}`
+// The colors the bodies draw in when no theme is passed: Moonfin's default dark ones.
+const DEFAULT_COLORS = { accent: '#00a4dcff', accentA: (a) => `#00a4dc${alphaHex(a)}`, onAccent: '#ffffffff', focus: '#00a4dcff', onSurface: '#ffffffff', os: white, navFocusFill: '#ffffffff', navFocusInk: '#000000de', inputBackground: '#2a2a2aff', status: { available: '#22c55eff' } }
 const rgbOf = (lc) => String(lc || '#1a1a1aff').slice(0, 7)
 
-// A builder for one layer's draw lists. The match cards take the theme's accent from it.
-const drawList = (accent = '#00a4dcff') => {
-  const out = { rects: [], glows: [], icons: [], imgs: [], texts: [], spaced: [], spinners: [], focusables: [], accent }
+// A builder for one layer's draw lists. The bodies take the theme's colors from it (d.t), so the
+// text and controls follow the dialog panel instead of staying white and blue.
+const drawList = (t = DEFAULT_COLORS) => {
+  const out = { rects: [], glows: [], icons: [], imgs: [], texts: [], spaced: [], spinners: [], focusables: [], accent: t.accent, t }
   let n = 0
   out.rect = (x, y, w, h, r, color, bw, bc) => out.rects.push({ k: `r${n++}`, x, y, w, h, r: r || 0, color, bw: bw || 0, bc: bc || '#00000000' })
   out.icon = (x, y, size, name, color) => out.icons.push({ k: `i${n++}`, x, y, w: size, h: size, src: `icons/${name}.webp`, color })
@@ -76,11 +76,11 @@ export const wrapText = (text, size, weight, maxW, ls = 0) => {
 // may grow scrolls by `scroll`, and with clipBody it's drawn into its own lists (`body`) for the
 // caller to clip to `clip`.
 const coreDialog = ({ t, title, focusId, body, bodyInset = 0, scroll = 0, clipBody = false }) => {
-  const d = drawList(t.accent)
+  const d = drawList(t)
   const inner = PANEL_W - 2
   const titleH = dp(20) * 1.17 + dp(12)
   // Measure first, then place at the vertical center.
-  const probe = drawList(t.accent)
+  const probe = drawList(t)
   const bodyH = body(probe, 0, 0, inner - 2 * bodyInset, focusId)
   const chrome = 1 + dp(20) + titleH + dp(1) + dp(8) + dp(20) + 1
   const h = Math.min(PANEL_MAX_H, chrome + bodyH)
@@ -96,7 +96,7 @@ const coreDialog = ({ t, title, focusId, body, bodyInset = 0, scroll = 0, clipBo
   d.rect(x + 1, divY, inner, dp(1), 0, t.os(0.08))
   const bodyTop = divY + dp(1) + dp(8)
   const top = Math.max(0, Math.min(scroll, bodyH - viewH))
-  const bd = clipBody ? drawList(t.accent) : d
+  const bd = clipBody ? drawList(t) : d
   body(bd, x + 1 + bodyInset, bodyTop - top, inner - 2 * bodyInset, focusId)
   if (clipBody) d.focusables = bd.focusables
   return { ...d, panel: { x, y, w: PANEL_W, h }, body: clipBody ? bd : null, clip: { x: x + 1, y: bodyTop, w: inner, h: viewH }, bodyTop, bodyH, viewH, scroll: top }
@@ -104,7 +104,7 @@ const coreDialog = ({ t, title, focusId, body, bodyInset = 0, scroll = 0, clipBo
 
 // An alert: a title, a message, then text buttons along the bottom right.
 export const coreAlert = ({ t, title, message, actions, focusId }) => {
-  const d = drawList()
+  const d = drawList(t)
   const pad = dp(24)
   const titleSize = dp(24)
   const msgSize = dp(14)
@@ -140,7 +140,7 @@ export const coreAlert = ({ t, title, message, actions, focusId }) => {
 // A focusable row: a solid fill in the text color with an accent hairline when focused, and a
 // clear hairline otherwise so nothing moves when focus lands.
 const focusRow = (d, x, y, w, h, on) => {
-  d.rect(x, y, w, h, dp(8), on ? '#ffffffff' : '#00000000', 1, on ? CONTROL_ACCENT : '#00000000')
+  d.rect(x, y, w, h, dp(8), on ? d.t.navFocusFill : '#00000000', 1, on ? d.t.accent : '#00000000')
 }
 
 const ROW_TEXT = dp(14)
@@ -154,7 +154,7 @@ const toggleRow = (d, { id, row, x, y, w, title, value, checkbox, focusId }) => 
   const h = 2 * dp(12) + 2 + Math.max(ROW_LH, iconSize)
   focusRow(d, x, y, w, h, on)
   const midY = y + h / 2
-  const tone = on ? ON_FOCUS : value ? CONTROL_ACCENT : white(0.38)
+  const tone = on ? d.t.navFocusInk : value ? d.t.accent : d.t.os(0.38)
   let tx = x + 1 + dp(8)
   if (checkbox) {
     d.icon(tx, midY - iconSize / 2, iconSize, value ? 'checkBox' : 'checkBoxBlank', tone)
@@ -162,14 +162,14 @@ const toggleRow = (d, { id, row, x, y, w, title, value, checkbox, focusId }) => 
   } else {
     d.icon(x + w - 1 - dp(8) - iconSize, midY - iconSize / 2, iconSize, value ? 'toggleOn' : 'toggleOff', tone)
   }
-  d.text(tx, midY - ROW_LH / 2, title, ROW_TEXT, 'regular', on ? ON_FOCUS : '#ffffffff', ROW_LH, { ls: ROW_LS })
+  d.text(tx, midY - ROW_LH / 2, title, ROW_TEXT, 'regular', on ? d.t.navFocusInk : d.t.onSurface, ROW_LH, { ls: ROW_LS })
   d.focus(id, row, x, y, w, h)
   return h
 }
 
 // A divider: 16dp of height with the rule in the middle.
 const divider = (d, x, y, w) => {
-  d.rect(x, y + dp(7.5), w, dp(1), 0, white(0.12))
+  d.rect(x, y + dp(7.5), w, dp(1), 0, d.t.os(0.12))
   return dp(16)
 }
 
@@ -178,19 +178,19 @@ const divider = (d, x, y, w) => {
 const selectorRow = (d, { id, row, x, y, w, label, value, focusId }) => {
   const on = focusId === id
   const h = 2 * dp(14) + 2 + Math.max(ROW_LH, dp(24))
-  d.rect(x, y, w, h, dp(8), '#00000000', 1, '#8ec8f054')
-  if (on) d.rect(x - 1, y - 1, w + 2, h + 2, dp(8), '#00000000', 3, CONTROL_ACCENT)
+  d.rect(x, y, w, h, dp(8), '#00000000', 1, d.t.accentA(0.33))
+  if (on) d.rect(x - 1, y - 1, w + 2, h + 2, dp(8), '#00000000', 3, d.t.focus)
   const inner = w - 2 - 2 * dp(12)
   const labelW = textWidth(label, ROW_TEXT) + ROW_LS * label.length
   const free = Math.max(0, inner - labelW - dp(32))
   const endX = x + 1 + dp(12) + labelW + free / 2
   const endW = dp(32) + free / 2
   const midY = y + h / 2
-  d.text(x + 1 + dp(12), midY - ROW_LH / 2, label, ROW_TEXT, 'regular', white(0.54), ROW_LH, { ls: ROW_LS })
+  d.text(x + 1 + dp(12), midY - ROW_LH / 2, label, ROW_TEXT, 'regular', d.t.os(0.54), ROW_LH, { ls: ROW_LS })
   const valueMax = Math.max(0, endW - dp(24) - dp(8))
   const valueW = Math.min(valueMax, textWidth(value, ROW_TEXT) + ROW_LS * String(value).length)
-  d.text(endX, midY - ROW_LH / 2, value, ROW_TEXT, 'regular', '#ffffffff', ROW_LH, { ls: ROW_LS, maxw: valueMax })
-  d.icon(endX + valueW + dp(8), midY - dp(12), dp(24), 'arrowDropDown', white(0.54))
+  d.text(endX, midY - ROW_LH / 2, value, ROW_TEXT, 'regular', d.t.onSurface, ROW_LH, { ls: ROW_LS, maxw: valueMax })
+  d.icon(endX + valueW + dp(8), midY - dp(12), dp(24), 'arrowDropDown', d.t.os(0.54))
   d.focus(id, row, x, y, w, h)
   return h
 }
@@ -199,15 +199,16 @@ const selectorRow = (d, { id, row, x, y, w, label, value, focusId }) => {
 // A button with no action stays focusable but grayed.
 const dialogButton = (d, { id, row, x, y, w, label, icon, primary, primaryColor, foreground, enabled = true, focusId }) => {
   const h = 2 * dp(14) + dp(15) * 1.43
-  let fill = white(0.1)
-  if (primary) fill = enabled ? primaryColor || '#ff8f00' : white(0.12)
+  let fill = d.t.os(0.1)
+  if (primary) fill = enabled ? primaryColor || '#ff8f00' : d.t.os(0.12)
   d.rect(x, y, w, h, dp(10), fill)
-  if (focusId === id) d.rect(x, y, w, h, dp(10), '#00000000', 3, CONTROL_ACCENT)
+  if (focusId === id) d.rect(x, y, w, h, dp(10), '#00000000', 3, d.t.focus)
   const size = dp(15)
   const lw = textWidth(label, size, 'bold') + dp(0.25) * label.length
   const iw = icon ? dp(18) + dp(8) : 0
   const lx = x + (w - lw - iw) / 2
-  const color = !enabled ? white(0.38) : foreground || '#ffffffff'
+  // A primary button keeps white on its own fill; the others write in the panel's text color.
+  const color = !enabled ? d.t.os(0.38) : foreground || (primary ? '#ffffffff' : d.t.onSurface)
   if (icon) d.icon(lx, y + (h - dp(18)) / 2, dp(18), icon, color)
   d.text(lx + iw, y + dp(14), label, size, 'bold', color, size * 1.43, { ls: dp(0.25) })
   d.focus(id, row, x, y, w, h)
@@ -223,8 +224,8 @@ const buttonRow = (d, { row, x, y, w, buttons, focusId }) => {
 // The 4K, quota and continuing notes are only read, never focused.
 const quotaRow = (d, { x, y, w, label, blocked }) => {
   const h = 2 * dp(10) + Math.max(dp(16), dp(12.5) * 1.43)
-  d.rect(x, y, w, h, dp(8), blocked ? '#ef44441a' : white(0.08))
-  const tone = blocked ? '#ef4444ff' : white(0.7)
+  d.rect(x, y, w, h, dp(8), blocked ? '#ef44441a' : d.t.os(0.08))
+  const tone = blocked ? '#ef4444ff' : d.t.os(0.7)
   d.icon(x + dp(12), y + (h - dp(16)) / 2, dp(16), blocked ? 'block' : 'dataUsage', tone)
   d.text(x + dp(12) + dp(16) + dp(8), y + (h - dp(12.5) * 1.43) / 2, label, dp(12.5), 'regular', tone, dp(12.5) * 1.43, { ls: ROW_LS })
   return h
@@ -233,9 +234,10 @@ const quotaRow = (d, { x, y, w, label, blocked }) => {
 const continuingNote = (d, { x, y, w, t }) => {
   const lh = dp(13) * 1.43
   const h = 2 * dp(10) + 2 + Math.max(dp(20), lh)
-  d.rect(x, y, w, h, dp(8), '#22c55e26', 1, '#22c55e66')
+  const ok = t.status.available.slice(0, 7)
+  d.rect(x, y, w, h, dp(8), ok + '26', 1, ok + '66')
   d.icon(x + 1 + dp(14), y + (h - dp(20)) / 2, dp(20), 'autorenew', t.status.available)
-  d.text(x + 1 + dp(14) + dp(20) + dp(10), y + (h - lh) / 2, $L('Series Continuing · Future Seasons Can Be Requested'), dp(13), 'medium', '#ffffffff', lh, { ls: ROW_LS })
+  d.text(x + 1 + dp(14) + dp(20) + dp(10), y + (h - lh) / 2, $L('Series Continuing · Future Seasons Can Be Requested'), dp(13), 'medium', t.onSurface, lh, { ls: ROW_LS })
   return h
 }
 
@@ -255,11 +257,13 @@ const seasonChips = (d, { x, y, w, chips, focusId, firstRow }) => {
       cy += h + dp(8)
       row++
     }
-    const fill = c.selected ? CONTROL_ACCENT : c.disabled ? white(0.04) : white(0.08)
+    const fill = c.selected ? d.t.accent : c.disabled ? d.t.os(0.04) : d.t.os(0.08)
     d.rect(cx, cy, cw, h, h / 2, fill)
-    if (focusId === c.id) d.rect(cx, cy, cw, h, h / 2, '#00000000', 3, CONTROL_ACCENT)
-    if (c.available) d.icon(cx + dp(14), cy + (h - dp(14)) / 2, dp(14), 'checkCircle', '#22c55eff')
-    d.text(cx + dp(14) + check, cy + dp(8), c.label, size, 'regular', c.selected ? '#ffffffff' : c.disabled ? white(0.38) : white(0.7), lh, { ls: ROW_LS })
+    if (focusId === c.id) d.rect(cx, cy, cw, h, h / 2, '#00000000', 3, d.t.focus)
+    if (c.available) d.icon(cx + dp(14), cy + (h - dp(14)) / 2, dp(14), 'checkCircle', d.t.status.available)
+    // A season already asked for keeps its dimmed text, picked or not.
+    const ink = c.disabled ? d.t.os(0.38) : c.selected ? d.t.onAccent : d.t.os(0.7)
+    d.text(cx + dp(14) + check, cy + dp(8), c.label, size, 'regular', ink, lh, { ls: ROW_LS })
     if (!c.disabled) d.focus(c.id, row, cx, cy, cw, h)
     cx += cw + dp(8)
   })
@@ -269,7 +273,7 @@ const seasonChips = (d, { x, y, w, chips, focusId, firstRow }) => {
 // A note in the body's own text, wrapped, with its 12dp under it.
 const note = (d, x, y, w, text) => {
   const lines = wrapText(text, ROW_TEXT, 'regular', w, ROW_LS)
-  lines.forEach((line, i) => d.text(x, y + i * ROW_LH, line, ROW_TEXT, 'regular', white(0.7), ROW_LH, { ls: ROW_LS }))
+  lines.forEach((line, i) => d.text(x, y + i * ROW_LH, line, ROW_TEXT, 'regular', d.t.os(0.7), ROW_LH, { ls: ROW_LS }))
   return lines.length * ROW_LH
 }
 
@@ -298,19 +302,19 @@ const matchCard = (d, { id, row, x, y, w, match, selected, focusId }) => {
   }
   const textH = (match.year > 0 ? yearLh : 0) + titleLh + (overview.length ? dp(4) + overview.length * yearLh : 0)
   const h = 2 + 2 * dp(8) + Math.max(posterH, textH)
-  d.rect(x, y, w, h, dp(10), selected ? d.accent.slice(0, 7) + '2e' : white(0.06), 1, white(0.12))
+  d.rect(x, y, w, h, dp(10), selected ? d.accent.slice(0, 7) + '2e' : d.t.os(0.06), 1, d.t.os(0.12))
   if (focusId === id) d.rect(x + 1, y + 1, w - 2, h - 2, dp(10) - 1, '#00000000', dp(2), d.accent)
-  d.rect(px, top, posterW, posterH, dp(6), white(0.1))
+  d.rect(px, top, posterW, posterH, dp(6), d.t.os(0.1))
   if (match.remotePoster) d.image(px, top, posterW, posterH, dp(6), match.remotePoster)
   let ty = top
   if (match.year > 0) {
-    d.text(tx, ty, String(match.year), dp(12), 'regular', white(0.54), yearLh, { ls: ROW_LS })
+    d.text(tx, ty, String(match.year), dp(12), 'regular', d.t.os(0.54), yearLh, { ls: ROW_LS })
     ty += yearLh
   }
-  d.text(tx, ty, match.title, dp(15), 'bold', '#ffffffff', titleLh, { ls: ROW_LS, maxw: tw })
+  d.text(tx, ty, match.title, dp(15), 'bold', d.t.onSurface, titleLh, { ls: ROW_LS, maxw: tw })
   ty += titleLh
   if (overview.length) ty += dp(4)
-  overview.forEach((line, i) => d.text(tx, ty + i * yearLh, line, dp(12), 'regular', white(0.54), yearLh, { ls: ROW_LS }))
+  overview.forEach((line, i) => d.text(tx, ty + i * yearLh, line, dp(12), 'regular', d.t.os(0.54), yearLh, { ls: ROW_LS }))
   if (selected) d.icon(x + w - 1 - dp(8) - dp(22), top, dp(22), 'checkCircle', d.accent)
   if (id) d.focus(id, row, x, y, w, h)
   return h
@@ -383,8 +387,8 @@ const advancedSection = (d, { x, y, w, a, focusId, row }) => {
   const hh = 2 * dp(12) + 2 + Math.max(ROW_LH, dp(24))
   const on = focusId === 'advanced'
   focusRow(d, x, y, w, hh, on)
-  d.text(x + 1 + dp(8), y + (hh - ROW_LH) / 2, $L('Advanced Options'), ROW_TEXT, 'regular', on ? ON_FOCUS : '#ffffffff', ROW_LH, { ls: ROW_LS })
-  d.icon(x + w - 1 - dp(8) - dp(24), y + (hh - dp(24)) / 2, dp(24), a.expanded ? 'expandLess' : 'expandMore', on ? ON_FOCUS : white(0.7))
+  d.text(x + 1 + dp(8), y + (hh - ROW_LH) / 2, $L('Advanced Options'), ROW_TEXT, 'regular', on ? d.t.navFocusInk : d.t.onSurface, ROW_LH, { ls: ROW_LS })
+  d.icon(x + w - 1 - dp(8) - dp(24), y + (hh - dp(24)) / 2, dp(24), a.expanded ? 'expandLess' : 'expandMore', on ? d.t.navFocusInk : d.t.os(0.7))
   d.focus('advanced', row++, x, y, w, hh)
   y += hh
   if (a.expanded) {
@@ -397,7 +401,7 @@ const advancedSection = (d, { x, y, w, a, focusId, row }) => {
         y += selectorRow(d, { id: `adv:${r.key}`, row: row++, x, y, w, label: r.label, value: r.value, focusId })
       })
     } else {
-      d.text(x + dp(8), y + dp(8), $L('No service servers configured'), ROW_TEXT, 'regular', white(0.54), ROW_LH, { ls: ROW_LS })
+      d.text(x + dp(8), y + dp(8), $L('No service servers configured'), ROW_TEXT, 'regular', d.t.os(0.54), ROW_LH, { ls: ROW_LS })
       y += 2 * dp(8) + ROW_LH
     }
   }
@@ -405,8 +409,8 @@ const advancedSection = (d, { x, y, w, a, focusId, row }) => {
 }
 
 // The advanced section alone, from (0, 0), for a sheet that draws the rest itself.
-export const advancedLayout = ({ a, w, focusId }) => {
-  const d = drawList()
+export const advancedLayout = ({ t, a, w, focusId }) => {
+  const d = drawList(t)
   return { ...d, h: advancedSection(d, { x: 0, y: 0, w, a, focusId, row: 0 }).h }
 }
 
@@ -454,7 +458,7 @@ export const manageDialog = ({ t, requests, busy, focusId, scroll, clipBody }) =
   body: (d, x, by, w, f) => {
     let y = by
     requests.forEach((r, i) => {
-      d.text(x, y + dp(12), r.label, ROW_TEXT, 'regular', '#ffffffff', ROW_LH, { ls: ROW_LS, maxw: w })
+      d.text(x, y + dp(12), r.label, ROW_TEXT, 'regular', d.t.onSurface, ROW_LH, { ls: ROW_LS, maxw: w })
       y += dp(12) + ROW_LH + dp(8)
       y += buttonRow(d, {
         row: i, x, y, w, focusId: f,
@@ -481,8 +485,8 @@ export const reportDialog = ({ t, s, focusId, scroll, clipBody }) => coreDialog(
       const on = f === ty.id
       const h = 2 * dp(12) + 2 + Math.max(ROW_LH, dp(20))
       focusRow(d, x, y, w, h, on)
-      d.icon(x + 1 + dp(8), y + (h - dp(20)) / 2, dp(20), ty.selected ? 'radioChecked' : 'radioUnchecked', on ? ON_FOCUS : ty.selected ? CONTROL_ACCENT : white(0.38))
-      d.text(x + 1 + dp(8) + dp(20) + dp(12), y + (h - ROW_LH) / 2, ty.label, ROW_TEXT, 'regular', on ? ON_FOCUS : '#ffffffff', ROW_LH, { ls: ROW_LS })
+      d.icon(x + 1 + dp(8), y + (h - dp(20)) / 2, dp(20), ty.selected ? 'radioChecked' : 'radioUnchecked', on ? d.t.navFocusInk : ty.selected ? d.t.accent : d.t.os(0.38))
+      d.text(x + 1 + dp(8) + dp(20) + dp(12), y + (h - ROW_LH) / 2, ty.label, ROW_TEXT, 'regular', on ? d.t.navFocusInk : d.t.onSurface, ROW_LH, { ls: ROW_LS })
       d.focus(ty.id, row++, x, y, w, h)
       y += h
     })
@@ -496,14 +500,14 @@ export const reportDialog = ({ t, s, focusId, scroll, clipBody }) => coreDialog(
       }
     }
     y += dp(16)
-    d.text(x, y, $L("What's wrong?"), dp(13), 'regular', white(0.7), dp(13) * 1.43, { ls: ROW_LS })
+    d.text(x, y, $L("What's wrong?"), dp(13), 'regular', d.t.os(0.7), dp(13) * 1.43, { ls: ROW_LS })
     y += dp(13) * 1.43 + dp(8)
     const on = f === 'message' || s.fieldOn
     const bwid = on ? 4 : 1
     const fh = 2 * dp(16) + 2 * bwid + ROW_LH
-    d.rect(x, y, w, fh, dp(12), '#2a2a2aff', bwid, on ? CONTROL_ACCENT : '#8ec8f054')
+    d.rect(x, y, w, fh, dp(12), d.t.inputBackground, bwid, on ? d.t.focus : d.t.accentA(0.33))
     const shown = s.message || s.placeholder
-    d.text(x + bwid + dp(16), y + bwid + dp(16), shown, ROW_TEXT, 'regular', s.message ? '#ffffffff' : white(0.54), ROW_LH, { maxw: w - 2 * (bwid + dp(16)) })
+    d.text(x + bwid + dp(16), y + bwid + dp(16), shown, ROW_TEXT, 'regular', s.message ? d.t.onSurface : d.t.os(0.54), ROW_LH, { maxw: w - 2 * (bwid + dp(16)) })
     d.focus('message', row++, x, y, w, fh)
     y += fh + dp(20)
     y += buttonRow(d, {

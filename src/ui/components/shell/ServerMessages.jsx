@@ -6,6 +6,7 @@ import { coreFrame, dp } from './coreFrame.js'
 import { layoutBlocks, roboto, robotoShift, wrapText } from './MessageMarkdown.js'
 import { theme, rgba } from '../../theme.js'
 import { hex } from '../../color.js'
+import { alphaHex } from '../../themeColor.js'
 import { cssShift, fontFor, textReady, textWidth, themeSpacing, uiFont } from '../../text.js'
 import { MESSAGE_COLORS, hasAction, stripMarkdown } from '../../../services/serverMessages.js'
 import { parseMarkdown } from '../../../utils/markdown.js'
@@ -16,8 +17,8 @@ import { shell } from '../../../state/shell/shellState.js'
 
 // The messages the server admin wrote, as cards in a wide CoreDialog. A card opens in place on
 // Enter, which counts as reading it, and an opened message's action sits under it and shows its
-// link as a QR code. Mark all as read sits under the list. Its colors are fixed, not the theme's,
-// apart from the CoreDialog around it. It takes focus as it mounts and keeps every key. Back closes
+// link as a QR code. Mark all as read sits under the list. The cards, text and buttons take the
+// dialog panel's theme colors; a message's own color stays the admin's pick. It takes focus as it mounts and keeps every key. Back closes
 // the QR code, then calls onClose().
 const LIST_PAD_X = dp(16)
 const LIST_PAD_Y = dp(4)
@@ -30,7 +31,6 @@ const DATE = dp(11)
 const BODY = dp(13)
 const BTN = dp(13)
 const BTN_H = BTN * 1.17 + 2 * dp(8)
-const ACCENT = '#00a4dc'
 const NONE = '#00000000'
 
 const formatWhen = (iso) => {
@@ -130,7 +130,7 @@ export default function ServerMessages(props) {
         preview = measured(m, 'preview', () => stripMarkdown(m.body))
         cy = previewY + Math.min(2, measured(m, `preview|${textW}`, () => wrapText(preview, BODY, 'regular', textW).length)) * BODY * 1.35
       } else if (m.body) {
-        const body = measured(m, `body|${textW}`, () => layoutBlocks(parseMarkdown(m.body), textW, th, ACCENT + 'ff'))
+        const body = measured(m, `body|${textW}`, () => layoutBlocks(parseMarkdown(m.body), textW, th, t().accent))
         body.texts.forEach((x) => md.texts.push({ ...x, x: x.x + LIST_PAD_X + textX, y: x.y + y + previewY }))
         body.rects.forEach((x) => md.rects.push({ ...x, x: x.x + LIST_PAD_X + textX, y: x.y + y + previewY }))
         cy = previewY + body.h
@@ -223,7 +223,13 @@ export default function ServerMessages(props) {
     }
     return true
   }
-  const pill = (on) => (on ? '#00a4dcff' : '#00a4dc29')
+  const pill = (on) => (on ? t().accent : t().accentA(0.16))
+  const pillInk = (on) => (on ? t().onAccent : t().onSurface)
+  // The card keeps the surface variant's own transparency, so Glass's stays see-through.
+  const cardFill = () => {
+    const sv = t().surfaceVariant
+    return sv.slice(0, 7) + alphaHex((parseInt(sv.slice(7, 9) || 'ff', 16) / 255) * 0.95)
+  }
 
   return (
     <view
@@ -255,7 +261,7 @@ export default function ServerMessages(props) {
                   width={c().w}
                   height={c().h}
                   borderRadius={26.71}
-                  color="#2a2a2af2"
+                  color={cardFill()}
                   border={{ width: 1, color: hex(c().ring) }}
                 >
                   <view x={c().iconX} y={c().iconX} width={36.73} height={36.73} src="icons/infoOutlineRounded.webp" color={c().color} />
@@ -266,7 +272,7 @@ export default function ServerMessages(props) {
                     y={c().titleY}
                     lineHeight={29.301}
                     maxWidth={c().titleW}
-                    color="#ffffffff"
+                    color={t().onSurface}
                   >
                     {c().title}
                   </text>
@@ -279,7 +285,7 @@ export default function ServerMessages(props) {
                     color={c().color}
                     alpha={c().unread ? 1 : 0}
                   />
-                  <text fontFamily={roboto()} fontSize={18.365} x={c().textX} y={c().dateY} lineHeight={21.487} color="#ffffff80">
+                  <text fontFamily={roboto()} fontSize={18.365} x={c().textX} y={c().dateY} lineHeight={21.487} color={t().os(0.5)}>
                     {c().date || ' '}
                   </text>
                   <text
@@ -290,7 +296,7 @@ export default function ServerMessages(props) {
                     lineHeight={29.301}
                     maxWidth={c().textW}
                     maxLines={2}
-                    color="#ffffffbf"
+                    color={t().os(0.75)}
                   >
                     {c().preview || ' '}
                   </text>
@@ -333,7 +339,7 @@ export default function ServerMessages(props) {
                     y={btn().y}
                     lineHeight={25.394}
                     letterSpacing={btn().spacing}
-                    color="#ffffffff"
+                    color={pillInk(a().ti === cur() && !qr())}
                   >
                     {a().label}
                   </text>
@@ -353,7 +359,7 @@ export default function ServerMessages(props) {
             borderRadius={13.36}
             color={pill(cur() === order().length - 1 && !qr())}
           >
-            <text fontFamily={btn().font} fontSize={21.704} x={23.37} y={btn().y} lineHeight={25.394} letterSpacing={btn().spacing} color="#ffffffff">
+            <text fontFamily={btn().font} fontSize={21.704} x={23.37} y={btn().y} lineHeight={25.394} letterSpacing={btn().spacing} color={pillInk(cur() === order().length - 1 && !qr())}>
               {allText}
             </text>
           </view>
@@ -361,7 +367,7 @@ export default function ServerMessages(props) {
       </view>
       <view x={frame().bodyX} y={frame().bodyY}>
         <Show when={!laid().cards.length}>
-          <text fontFamily={roboto()} fontSize={23.374} x={40.07} y={22.03} lineHeight={27.348} color="#ffffff99">
+          <text fontFamily={roboto()} fontSize={23.374} x={40.07} y={22.03} lineHeight={27.348} color={t().os(0.6)}>
             {$L('No messages from your server yet')}
           </text>
         </Show>
