@@ -203,6 +203,7 @@ const COVER = { resizeMode: { type: 'cover' } }
 // The pill count stays for a minute across visits, so coming back doesn't refetch it.
 let cachedBadge = { count: 0, at: 0 }
 const BADGE_TTL_MS = 60000
+const CHECK_GRACE = 300
 
 export default function Discover(props) {
   const store = getStore()
@@ -212,6 +213,10 @@ export default function Discover(props) {
   const [loading, setLoading] = createSignal(true)
   const [enabled, setEnabled] = createSignal(true)
   const [authenticated, setAuthenticated] = createSignal(true)
+  // The spinner waits CHECK_GRACE for the Seerr check, so an unconfigured setup doesn't flash it
+  // before its notice, and then shows anyway.
+  const [checked, setChecked] = createSignal(false)
+  const [checkSlow, setCheckSlow] = createSignal(false)
   const [zone, setZone] = createSignal('rows')
   const [pillCur, setPillCur] = createSignal(0)
   const [rowIndex, setRowIndex] = createSignal(0)
@@ -221,12 +226,13 @@ export default function Discover(props) {
   const [badge, setBadge] = createSignal(cachedBadge.count)
   const noticeFont = uiFont()
   const infoFont = uiFont()
-  const my = { pages: {}, more: {}, curs: {}, backdropTimer: null, alive: true }
+  const my = { pages: {}, more: {}, curs: {}, backdropTimer: null, checkTimer: null, alive: true }
   const rowNodes = {}
   let root
   onCleanup(() => {
     my.alive = false
     clearTimeout(my.backdropTimer)
+    clearTimeout(my.checkTimer)
   })
 
   const s = () => settings.all()
@@ -425,10 +431,13 @@ export default function Discover(props) {
   }
 
   const load = async () => {
+    my.checkTimer = setTimeout(() => setCheckSlow(true), CHECK_GRACE)
     const seerr = await checkSeerr(!seerrState().available)
+    clearTimeout(my.checkTimer)
     if (!my.alive) return
     setEnabled(!!seerr.enabled)
     setAuthenticated(!!seerr.authenticated)
+    setChecked(true)
     if (!seerr.available) {
       setLoading(false)
       return
@@ -757,7 +766,7 @@ export default function Discover(props) {
         </Show>
       </view>
       <view>
-        <Show when={loading() && enabled() && authenticated()}>
+        <Show when={loading() && enabled() && authenticated() && (checked() || checkSlow())}>
           <Spinner x={924} y={504} size={72} />
         </Show>
       </view>
