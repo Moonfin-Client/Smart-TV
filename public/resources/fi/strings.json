@@ -1526,7 +1526,7 @@
     "Show Episode Information": "Näytä jakson tiedot",
     "Show Physical Releases": "Näytä fyysiset julkaisut",
     "Show Release Date": "Näytä julkaisupäivä",
-    "Show Rewatch row in Home Sections": "Näytä ”Katso uudelleen” -rivi Etusivun osioissa",
+    "Show Rewatch row in Home Sections.": "Näytä ”Katso uudelleen” -rivi Etusivun osioissa",
     "Show Technical Details": "Näytä tekniset tiedot",
     "Show User Ratings": "Näytä käyttäjien arviot",
     "Show app update notifications when a new release is available": "Näytä sovelluksen päivitysilmoitukset, kun uusi versio on saatavilla",
@@ -3431,5 +3431,6 @@
     "A panel of tiles with library artwork": "Laattapaneeli, jossa on kirjaston taideteoksia",
     "Browse all": "Selaa kaikkia",
     "Continue in {section}": "Jatka {section}",
-    "Featured: {title}": "Esittelyssä: {title}"
+    "Featured: {title}": "Esittelyssä: {title}",
+    "Recently Released Episodes": "Äskettäin julkaistut jaksot"
 }

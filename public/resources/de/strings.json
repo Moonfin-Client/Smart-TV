@@ -2088,7 +2088,7 @@
     "My shows keeps the series you favorited or started watching": "„Meine Serien“ enthält die Serien, die du favorisiert oder begonnen hast",
     "Narrow": "Schmal",
     "Native": "Nativ",
-    "Native uses your TV's own keyboard. Classic is the original Moonfin keyboard. Glass is a frosted panel with larger keys. Docked fills the bottom of the screen and shows what you type above the keys.": "„Nativ“ verwendet die eigene Tastatur deines Fernsehers. „Klassisch“ ist die ursprüngliche Moonfin-Tastatur. „Glas“ ist eine milchglasartige Fläche mit größeren Tasten. „Angedockt“ füllt den unteren Bildschirmrand und zeigt deine Eingabe über den Tasten an.",
+    "Native uses your TV's own keyboard. Classic is the original Moonfin keyboard. Glass is a frosted panel with larger keys. Docked fills the bottom of the screen and shows what you type above the keys.": "Nativ verwendet die eigene Tastatur deines Fernsehers. Klassisch ist die bisherige Moonfin-Tastatur. Glass ist eine milchglasartige Fläche mit größeren Tasten. Angedockt füllt den unteren Bildschirmrand und zeigt deine Eingabe über den Tasten an.",
     "Navigation Bar": "Navigationsleiste",
     "Navigation, home screen, libraries, details page, and themes": "Navigation, Startseite, Bibliotheken, Detailseite und Themes",
     "Neonfin Phases": "Neonfin-Phasen",
@@ -2428,7 +2428,7 @@
     "Video reference frames exceed player limits.": "Die Referenzframes des Videos überschreiten die Grenzen des Players.",
     "Voice search": "Sprachsuche",
     "Waiting for you": "Wartet auf dich",
-    "Waiting for you to approve the code...": "Warte darauf, dass du den Code bestätigst...",
+    "Waiting for you to approve the code...": "Warte auf deine Bestätigung des Codes...",
     "Warmth": "Wärme",
     "Watch Together": "Gemeinsam schauen",
     "Watching {title}": "Schaut {title}",
@@ -2822,7 +2822,7 @@
     "Show Missing Collection Items": "Fehlende Sammlungselemente anzeigen",
     "Show Physical Releases": "Physische Veröffentlichungen anzeigen",
     "Show Release Date": "Erscheinungsdatum anzeigen",
-    "Show Rewatch row in Home Sections": "Zeile „Noch einmal ansehen“ in den Startseitenbereichen anzeigen",
+    "Show Rewatch row in Home Sections.": "Zeile „Noch einmal ansehen“ in den Startseitenbereichen anzeigen",
     "Show User Ratings": "Nutzerbewertungen anzeigen",
     "Show app update notifications when a new release is available": "Benachrichtigungen über App-Updates anzeigen, wenn eine neue Version verfügbar ist",
     "Show more ({count} left)": "Mehr anzeigen (noch {count})",
@@ -3299,5 +3299,6 @@
     "A panel of tiles with library artwork": "Ein Bereich mit Kacheln mit Bibliotheks-Artwork",
     "Browse all": "Alle durchsuchen",
     "Continue in {section}": "Weiter in {section}",
-    "Featured: {title}": "Hervorgehoben: {title}"
+    "Featured: {title}": "Hervorgehoben: {title}",
+    "Recently Released Episodes": "Kürzlich veröffentlichte Episoden"
 }

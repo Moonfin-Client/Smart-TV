@@ -1701,7 +1701,7 @@
     "Show Episode Information": "Afficher les informations de l'épisode",
     "Show Physical Releases": "Afficher les sorties physiques",
     "Show Release Date": "Afficher la date de sortie",
-    "Show Rewatch row in Home Sections": "Afficher la rangée Revisionnage dans les sections d'accueil",
+    "Show Rewatch row in Home Sections.": "Afficher la rangée Revisionnage dans les sections d'accueil",
     "Show Technical Details": "Afficher les détails techniques",
     "Show User Ratings": "Afficher les notes des utilisateurs",
     "Show app update notifications when a new release is available": "Afficher une notification lorsqu'une nouvelle version est disponible",
@@ -3270,5 +3270,6 @@
     "Three perfect drops in a row grow it a lot wider.": "Trois lâchers parfaits d'affilée l'élargissent beaucoup.",
     "Falls from cleared blocks. Catching it shrinks the scrubber.": "Tombe des blocs effacés. L'attraper rétrécit le curseur.",
     "Dolby Vision": "Dolby Vision",
-    "Unavailable": "Indisponible"
+    "Unavailable": "Indisponible",
+    "Recently Released Episodes": "Épisodes récemment sortis"
 }

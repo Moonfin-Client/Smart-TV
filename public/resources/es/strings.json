@@ -2326,5 +2326,6 @@
     "Video dynamic range (e.g. Dolby Vision / HDR) is not supported by this display.": "Este monitor no es compatible con el rango dinámico de vídeo (por ejemplo, Dolby Vision/HDR).",
     "Video Library Style": "Estilo de Biblioteca de Vídeo",
     "Video reference frames exceed player limits.": "Los fotogramas de referencia del vídeo superan los límites del reproductor.",
-    "Voice search": "Búsqueda por voz"
+    "Voice search": "Búsqueda por voz",
+    "Recently Released Episodes": "Episodios lanzados recientemente"
 }
