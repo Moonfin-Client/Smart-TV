@@ -1,12 +1,12 @@
-// Answers another client that starts music here: playlist "Play on..." from a phone, or a remote
-// command from the server. remoteControl.js had the command plumbing but nothing ever registered
-// the app and player it reads through, so playItems and the transport commands had nowhere to go.
+// Answers another client that starts music here: "Play on..." from a phone, or a remote command from
+// the server. remoteControl.js had the command plumbing, but nothing ever registered a player for it
+// to drive and App's playItems was a no-op, so remote playback could not work.
 //
-// Scope: audio only. Video playback still needs the video engine wired the same way.
+// Scope: audio only. Video playback is wired by the Player page itself.
 import { api } from './jellyfinApi.js'
 import { router } from '../app/router.js'
 import * as player from '../state/audioPlayer.js'
-import { setAppControls, setPlayerControls } from './remoteControl.js'
+import { setPlayerControls } from './remoteControl.js'
 
 const TICKS = 10000000
 const itemsOf = (res) => (Array.isArray(res) ? res : (res && res.Items) || [])
@@ -19,14 +19,18 @@ export const playItems = async (itemIds, options = {}) => {
 	const res = await api
 		.getItems({Ids: ids.join(','), Fields: 'MediaSources,MediaStreams'})
 		.catch(() => null)
+	// The sender may have moved on while the lookup ran.
+	if (options.isCurrent && !options.isCurrent()) return
 	const items = itemsOf(res)
 	if (!items.length) return
 	const start = Math.min(Math.max(0, options.startIndex || 0), items.length - 1)
 	player.play(items, start)
+	if (options.startPositionTicks > 0) player.seek(options.startPositionTicks / TICKS)
 	router.to('/nowplaying')
 }
 
-// The transport commands remoteControl.js forwards while something is playing.
+// The transport commands remoteControl.js forwards. Registered at boot; a video player pushes its own
+// controls on top while it plays and hands back to these when it closes.
 const controls = {
 	pause: () => {
 		if (active() && player.audio.playing) player.toggle()
@@ -58,7 +62,4 @@ const controls = {
 	},
 }
 
-export const installRemotePlayback = () => {
-	setAppControls({current: {playItems}})
-	setPlayerControls({current: controls})
-}
+export const installRemotePlayback = () => setPlayerControls({current: controls})
