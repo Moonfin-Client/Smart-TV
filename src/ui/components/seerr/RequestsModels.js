@@ -1,8 +1,9 @@
 // What the requests screen draws for each request tile and issue row, worked out once so the
-// templates only bind fields. Sizes are at 1920x1080, where 1rem is 24px. Colors are fixed, apart
-// from the download fill, which follows the theme.
+// templates only bind fields. Sizes are at 1920x1080, where 1rem is 24px. Colors come from the
+// theme, so a model is only good for the theme it was made under.
 import $L from '../../../services/i18n.js'
-import { theme, rgba } from '../../theme.js'
+import { theme } from '../../theme.js'
+import { hex2 } from '../../themeColor.js'
 import { cssShift, fontFor, uiFont } from '../../text.js'
 import { textWidth, spacedWidth } from './look.js'
 import { getImageUrl } from '../../../services/seerrApi.js'
@@ -30,14 +31,16 @@ const hueOf = (color) => {
   const t = theme()
   return color === 'approved' || !t.status[color] ? t.accent : t.status[color]
 }
+// A theme '#rrggbbaa' color with its own alpha scaled by a.
+export const fade = (c, a = 1) => c.slice(0, 7) + hex2(parseInt(c.slice(7, 9) || 'ff', 16) * a)
 // The hue mixed toward white, for light text on a fill of it.
 const tint = (c, k) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(c.slice(i, i + 2), 16) * (1 - k) + 255 * k).toString(16).padStart(2, '0')).join('')
 
 // A status chip: fill at 80%, a border of the hue and light text of it, uppercase.
 export const statusChip = (label, color) => {
   const hue = hueOf(color)
-  const border = rgba(hue)
-  const fill = rgba(hue, 0.8)
+  const border = fade(hue)
+  const fill = fade(hue, 0.8)
   const ink = tint(hue, 0.8)
   const text = String(label || '').toUpperCase()
   return { text, border, fill, ink, w: Math.round(spacedWidth(text, 18, 'bold', 0.4) + 26), font: uiFont('bold') }
@@ -141,9 +144,9 @@ export const requestTile = (request, index, { queueResponse, viewer, split }) =>
     image: media.posterPath ? getImageUrl(media.posterPath, 'w342') : '',
     badge,
     badgeW: Math.round(spacedWidth(badge, 15, 'bold', 0.8) + 18),
-    badgeColor: rgba(isMovie ? theme().status.movie : theme().status.show, 0.85),
+    badgeColor: fade(isMovie ? theme().status.movie : theme().status.show, 0.85),
     badgeFont: uiFont('bold'),
-    stripe: rgba(hueOf(info.color)),
+    stripe: hueOf(info.color),
     actions,
     title,
     titleFont: fontFor(title, 'bold'),
@@ -200,8 +203,8 @@ export const issueRow = (issue, index, viewer) => {
         label: toggleLabel,
         w: toggleW,
         x: 1644 - 24 - toggleW,
-        ink: rgba(toggleHue),
-        fill: rgba(toggleHue, 0.16),
+        ink: toggleHue,
+        fill: fade(toggleHue, 0.16),
       }]
       : [],
     open: issue.status === ISSUE_STATUS.OPEN,

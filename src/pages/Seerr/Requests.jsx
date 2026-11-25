@@ -165,16 +165,17 @@ export default function Requests(props) {
     return { first, last: first + Math.ceil(listH() / stepY()) + 2 }
   })
   const showList = () => !loading() && !error()
-  // Each tile's model is kept while its request, its arr answer and the viewer stay the same.
+  // Each tile's model is kept while its request, its arr answer, the viewer and the theme stay the same.
   const models = new WeakMap()
   const tileModel = (r, i) => {
     const ans = answers()[queueKey(r)]
     const v = viewer()
     const sp = split()
+    const th = t()
     const was = models.get(r)
-    if (was && was.i === i && was.ans === ans && was.v === v && was.sp === sp) return was.model
+    if (was && was.i === i && was.ans === ans && was.v === v && was.sp === sp && was.th === th) return was.model
     const model = requestTile(r, i, { queueResponse: ans, viewer: v, split: sp })
-    models.set(r, { i, ans, v, sp, model })
+    models.set(r, { i, ans, v, sp, th, model })
     return model
   }
   // The list makes way for the spinner or the error.
@@ -201,8 +202,9 @@ export default function Requests(props) {
     const out = []
     for (let i = first; i <= last && i < list.length; i++) {
       const was = rowModels.get(list[i])
-      const model = was && was.i === i && was.v === v ? was.model : issueRow(list[i], i, v)
-      rowModels.set(list[i], { i, v, model })
+      const th = t()
+      const model = was && was.i === i && was.v === v && was.th === th ? was.model : issueRow(list[i], i, v)
+      rowModels.set(list[i], { i, v, th, model })
       out.push({ key: model.key, model, y: i * ISSUE_ROW.step + ISSUE_ROW.inset })
     }
     return out

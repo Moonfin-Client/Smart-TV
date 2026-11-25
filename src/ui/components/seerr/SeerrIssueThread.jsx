@@ -7,7 +7,7 @@ import { fontFor, uiFont } from '../../text.js'
 import { hex } from '../../color.js'
 import { theme } from '../../theme.js'
 import { textWidth } from './look.js'
-import { issueScope, statusChip, threadComments } from './RequestsModels.js'
+import { fade, issueScope, statusChip, threadComments } from './RequestsModels.js'
 import * as seerrApi from '../../../services/seerrApi.js'
 import { ISSUE_STATUS, getIssueStatusInfo, getIssueTypeLabel } from '../../../utils/seerrStatus.js'
 import { issueActions } from '../../../pages/Seerr/requestActions.js'
@@ -84,8 +84,8 @@ export default function SeerrIssueThread(props) {
       sendW,
       inputW: 1014 - sendW - 14,
       toggleLabel: open ? $L('Resolve') : $L('Reopen'),
-      toggleInk: open ? '#22c55eff' : '#eab308ff',
-      toggleFill: open ? '#22c55e29' : '#eab30829',
+      toggleInk: open ? theme().status.available : theme().status.pending,
+      toggleFill: fade(open ? theme().status.available : theme().status.pending, 0.16),
       toggleW: acts.canAct ? (acts.canDelete ? 1014 - 14 - deleteW : 1014) : 0,
       deleteLabel,
       deleteW,
@@ -292,7 +292,7 @@ export default function SeerrIssueThread(props) {
                 <view y={c.y} width={1014} height={c.h}>
                   <view width={1014} height={c.h} borderRadius={8} color={c.first ? '#ffffff0f' : '#ffffff0a'} />
                   <Show when={c.first}>
-                    <view width={5} height={c.h} borderRadius={[8, 0, 0, 8]} color="#00a4dcff" />
+                    <view width={5} height={c.h} borderRadius={[8, 0, 0, 8]} color={theme().accent} />
                   </Show>
                   <text x={c.textX} y={18} fontFamily={c.authorFont} fontSize={20} lineHeight={33} color="#ffffffff">
                     {c.author}
@@ -313,10 +313,10 @@ export default function SeerrIssueThread(props) {
                 <text y={13.5} fontFamily={inputFont} fontSize={30} lineHeight={33} maxWidth={m().inputW} maxLines={1} color={comment() ? '#e6e6e6ff' : '#e6e6e673'}>
                   {fieldText()}
                 </text>
-                <view y={10.5} x={caretX()} width={2} height={33} color="#00a4dcff" alpha={caretOn() ? 1 : 0} />
-                <view x={1014 - m().sendW} width={m().sendW} height={54} borderRadius={10} color={canSend() ? '#00a4dcff' : '#00a4dc73'}>
+                <view y={10.5} x={caretX()} width={2} height={33} color={theme().accent} alpha={caretOn() ? 1 : 0} />
+                <view x={1014 - m().sendW} width={m().sendW} height={54} borderRadius={10} color={theme().accentA(canSend() ? 1 : 0.45)}>
                   <view width={m().sendW} height={54} borderRadius={10} color="#00000000" border={{ width: 3, color: hex(theme().focus) }} alpha={ringAt() === 'send' ? 1 : 0} />
-                  <text x={31} y={19} fontFamily={boldFont} fontSize={20} lineHeight={1} color={canSend() ? '#ffffffff' : '#ffffff73'}>
+                  <text x={31} y={19} fontFamily={boldFont} fontSize={20} lineHeight={1} color={fade(theme().onAccent, canSend() ? 1 : 0.45)}>
                     {sendLabel}
                   </text>
                 </view>
