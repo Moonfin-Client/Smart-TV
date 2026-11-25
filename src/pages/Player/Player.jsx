@@ -288,12 +288,13 @@ export default function Player(props) {
   const shownPosition = () => (s.scrubPos >= 0 ? s.scrubPos : s.seekTarget >= 0 ? s.seekTarget : s.position)
   const progress = () => (s.dur > 0 ? Math.max(0, Math.min(1, shownPosition() / s.dur)) : 0)
   // The loader is dimmed while a stream comes up, and plain while it buffers or reconnects, except while a seek
-  // is picked over a trickplay preview and for 3 s after.
+  // is picked over a trickplay preview and for 3 s after. One key for both, so going from loading straight to
+  // buffering keeps the same animation running instead of starting it over.
   const loaders = createMemo(() => {
-    if (s.loading && !s.error) return [{ key: 'load', label: $L('Loading Stream...'), dimmed: true }]
+    if (s.loading && !s.error) return [{ key: 'loader', label: $L('Loading Stream...'), dimmed: true }]
     const behindPreview = !!s.osdTp && isTrickplayOn(settings.all() || {}) && (s.seeking || s.seekGrace)
     if (s.reconnecting || (s.buffering && !behindPreview && !s.error)) {
-      return [{ key: 'buffer', label: s.reconnecting || $L('Loading Stream...'), dimmed: false }]
+      return [{ key: 'loader', label: s.reconnecting || $L('Loading Stream...'), dimmed: false }]
     }
     return []
   })
