@@ -5,11 +5,14 @@ import { REQUEST_STATUS, ISSUE_STATUS } from '../../utils/seerrStatus.js'
 import { cancelableRequests } from '../../utils/seerrRequestRules.js'
 
 // A tile on the requests screen: a moderator answers a waiting request or retries a failed one,
-// and anyone else can take back their own while it waits.
+// and anyone else can take back their own while it waits. On Silo, a failed request that
+// delivered nothing (canRemove) can be removed by its requester or a moderator.
 export const tileActions = (request, { canManage, me }) => {
   const own = me != null && !!request.requestedBy && request.requestedBy.id === me
   if (request.status === REQUEST_STATUS.PENDING) return canManage ? ['approve', 'decline'] : own ? ['cancel'] : []
-  return request.status === REQUEST_STATUS.FAILED && canManage ? ['retry'] : []
+  if (request.status !== REQUEST_STATUS.FAILED) return []
+  const remove = request.canRemove === true && (canManage || own) ? ['remove'] : []
+  return canManage ? ['retry', ...remove] : remove
 }
 
 // An issue: a moderator or its reporter can resolve, reopen and comment, and its reporter can

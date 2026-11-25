@@ -913,6 +913,11 @@ export const retryRequest = async (requestId) => {
 	return request(`/request/${requestId}/retry`, {method: 'POST'});
 };
 
+// Silo only: deletes a failed request that delivered nothing. Offered where a request has `canRemove`.
+export const removeFailedRequest = async (requestId) => {
+	return request(`/request/${requestId}/remove`, {method: 'POST'});
+};
+
 export const getMyRequests = async (requestedByUserId, take = 50, skip = 0) => {
 	const result = await request(`/request?filter=all&requestedBy=${requestedByUserId}&take=${take}&skip=${skip}&sort=modified`);
 	return result;
@@ -1110,6 +1115,7 @@ export default {
 	approveRequest,
 	declineRequest,
 	retryRequest,
+	removeFailedRequest,
 	getMyRequests,
 	getRecentRequests,
 	getRecentlyAdded,

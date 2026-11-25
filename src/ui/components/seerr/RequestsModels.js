@@ -47,6 +47,7 @@ const ICONS = {
   decline: ['req_decline', '#ef4444', () => $L('Decline')],
   retry: ['req_retry', '#eab308', () => $L('Retry')],
   cancel: ['close', '#ffffff', () => $L('Cancel')],
+  remove: ['delete', '#ef4444', () => $L('Remove Request')],
 }
 
 // A download bar. compact is the tile's, at 17px over a 6px track. The label's left side

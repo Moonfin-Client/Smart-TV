@@ -1,6 +1,7 @@
 import $L from '../../services/i18n.js'
 import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js'
 import Spinner from '../../ui/components/Spinner.jsx'
+import Dialog from '../../ui/components/Dialog.jsx'
 import RequestsTile from '../../ui/components/seerr/RequestsTile.jsx'
 import RequestsIssueRow from '../../ui/components/seerr/RequestsIssueRow.jsx'
 import SeerrIssueThread from '../../ui/components/seerr/SeerrIssueThread.jsx'
@@ -24,8 +25,8 @@ import { openSeerrItem } from './seerrModels.js'
 // A Requests tab and an Issues tab, each with its filter chips. Requests is a grid of poster tiles
 // with the status band, the arr's download bar or Not found yet, and round Approve and Decline,
 // Retry or Cancel buttons for whoever may use them. Issues is a list that opens a thread overlay.
-// Every action goes straight through with no confirmation, and Right from a tile walks into its
-// buttons.
+// Every action but Silo's Remove goes straight through with no confirmation, and Right from a tile
+// walks into its buttons.
 const PAGE_SIZE = 20
 const REQUEST_FILTERS = ['all', 'pending', 'approved', 'processing', 'available', 'failed']
 const ISSUE_FILTERS = ['open', 'resolved', 'all']
@@ -75,8 +76,11 @@ export default function Requests(props) {
   const [sub, setSub] = createSignal(0)
   const [scroll, setScroll] = createSignal(0)
   const [thread, setThread] = createSignal(null)
+  // The failed Silo request waiting on its Remove confirm.
+  const [confirm, setConfirm] = createSignal(null)
+  let dialogRef = null
   const [fontsIn, setFontsIn] = createSignal(0)
-  const my = { gen: 0, more: false, loadingMore: false, queues: false, asked: {}, poll: null, alive: true }
+  const my = { gen: 0, more: false, loadingMore: false, queues: false, asked: {}, poll: null, alive: true, removed: {} }
   let root
   onCleanup(() => {
     my.alive = false
@@ -252,7 +256,9 @@ export default function Requests(props) {
   const fetchPage = async (v, filter, skip) => {
     const data = v === 'requests' ? await seerrApi.getRequests(filter, PAGE_SIZE, skip) : await seerrApi.getIssues(filter, PAGE_SIZE, skip)
     const raw = (data && data.results) || []
-    return { results: await hydrateRequestMediaItems(raw), raw }
+    // A read that started before a Remove finished can still hold that request.
+    const results = (await hydrateRequestMediaItems(raw)).filter((item) => !(v === 'requests' && my.removed[item.id]))
+    return { results, raw }
   }
 
   // One Moonbase call per title that could be downloading: all of them on a load, only the new ones
@@ -489,11 +495,60 @@ export default function Requests(props) {
         await seerrApi.cancelRequest(request.id)
         setRequests(requests().filter((r) => r.id !== request.id))
         setCur_(Math.min(cur(), Math.max(0, requests().length - 1)))
+      } else if (action === 'remove') {
+        setConfirm(request)
+        if (dialogRef) dialogRef.setFocus()
+        return
       }
     } catch (e) {
       console.error('[SeerrRequests] Action failed:', action, e && e.message)
     }
     if (my.alive) setSub(0)
+  }
+  // Silo deletes a failed request that delivered nothing. Its tile drops, and focus stays on the
+  // place it held. A 409 means the request changed meanwhile (retried, or a copy arrived), so it's
+  // read again and shows where it stands.
+  const removeRequest = async (request) => {
+    try {
+      await seerrApi.removeFailedRequest(request.id)
+      my.removed[request.id] = true
+      if (!my.alive) return
+      const at = requests().findIndex((r) => r.id === request.id)
+      const left = requests().filter((r) => r.id !== request.id)
+      batch(() => {
+        setRequests(left)
+        if (at >= 0 && at < cur()) setCur_(cur() - 1)
+        else setCur_(Math.min(cur(), Math.max(0, left.length - 1)))
+        setSub(0)
+        if (!left.length) setZone('filters')
+      })
+      // Scrolls to the tile now in its place and reads the next page once the loaded ones run low.
+      reveal()
+    } catch (e) {
+      console.error('[SeerrRequests] Remove failed:', e && e.message)
+      if (!my.alive) return
+      const fresh = await seerrApi.getRequest(request.id).catch(() => null)
+      // The same artwork fill as a page read, so a tile that needed it keeps its poster.
+      const shown = fresh && (await hydrateRequestMediaItems([fresh]).catch(() => [fresh]))[0]
+      if (shown && my.alive) patchRequest(request.id, shown)
+      setSub(0)
+    }
+  }
+  const confirmMessage = (request) => {
+    const media = request.media || {}
+    const title = media.title || media.name || $L('Unknown')
+    const own = me() != null && !!request.requestedBy && request.requestedBy.id === me()
+    return own
+      ? $L('Your failed request for "{title}" will be deleted. You can request it again later.').split('{title}').join(title)
+      : $L('The failed request for "{title}" by {name} will be deleted. They can request it again later.')
+          .split('{title}').join(title)
+          .split('{name}').join((request.requestedBy && request.requestedBy.displayName) || $L('Unknown'))
+  }
+  const onConfirm = (id) => {
+    const request = confirm()
+    setConfirm(null)
+    if (root) root.setFocus()
+    if (id === 'remove' && request) removeRequest(request)
   }
   const onThreadChanged = (updated) => {
     if (updated.deleted) {
@@ -720,6 +775,22 @@ export default function Requests(props) {
       <view>
         <Show when={thread()} keyed>
           {(th) => <SeerrIssueThread issue={th} canManage={issueViewer().canManageIssues} me={me()} onThreadClose={onThreadClose} onThreadChanged={onThreadChanged} />}
+        </Show>
+      </view>
+      <view>
+        <Show when={confirm()} keyed>
+          {(request) => (
+            <Dialog
+              ref={(n) => {
+                dialogRef = n
+                if (n) n.setFocus()
+              }}
+              title={$L('Remove Request')}
+              message={confirmMessage(request)}
+              buttons={[{ id: 'cancel', label: $L('Cancel') }, { id: 'remove', label: $L('Remove Request'), destructive: true }]}
+              onDialog={onConfirm}
+            />
+          )}
         </Show>
       </view>
     </view>

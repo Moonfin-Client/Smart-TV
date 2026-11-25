@@ -3199,5 +3199,8 @@
     "A panel of tiles with library artwork": "A panel of tiles with library artwork",
     "Browse all": "Browse all",
     "Continue in {section}": "Continue in {section}",
-    "Featured: {title}": "Featured: {title}"
+    "Featured: {title}": "Featured: {title}",
+    "Remove Request": "Remove Request",
+    "The failed request for \"{title}\" by {name} will be deleted. They can request it again later.": "The failed request for \"{title}\" by {name} will be deleted. They can request it again later.",
+    "Your failed request for \"{title}\" will be deleted. You can request it again later.": "Your failed request for \"{title}\" will be deleted. You can request it again later."
 }

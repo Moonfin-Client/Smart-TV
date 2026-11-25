@@ -140,6 +140,8 @@ export const createSiloSeerr = ({call, library = null, baseUrl = '', random = Ma
 	const requestKeys = {};
 	const genreSlugs = {};
 	let admin = null;
+	// Whether this Silo offers removeFailedRequest, from its request status.
+	let removeFailed = null;
 	let me = 0;
 	let myName = null;
 	const accountNames = {};
@@ -214,6 +216,7 @@ export const createSiloSeerr = ({call, library = null, baseUrl = '', random = Ma
 
 	const status = async () => {
 		const answer = await get('/requests/status');
+		removeFailed = answer.remove_failed_supported === true;
 		const enabled = answer.requests_enabled === true;
 		const user = enabled ? await currentUser() : null;
 		return {
@@ -532,6 +535,23 @@ export const createSiloSeerr = ({call, library = null, baseUrl = '', random = Ma
 		return page({page: 1, total_pages: 1, total_results: recs.length, results: recs});
 	};
 
+	// Reads the request status once, for `removeFailed`, when nothing has read it yet. An older Silo leaves the flag out
+	// and gets no Remove.
+	const readRemoveFailed = async () => {
+		if (removeFailed != null) return;
+		// Left unknown on a failed read, so the next list read asks again.
+		try {
+			removeFailed = (await get('/requests/status')).remove_failed_supported === true;
+		} catch {
+			// asked again next time
+		}
+	};
+
+	// The server's rule for removeFailedRequest: failed, and no quality was delivered. It also lets the owner or an admin
+	// do it, and the lists here only hold the viewer's own requests unless the viewer is an admin.
+	const removable = (r) => removeFailed === true && r.outcome === 'failed' &&
+		!list(r.targets).some((t) => t?.status === 'completed');
+
 	const mapRequest = (r) => {
 		const type = seerrType(r.media_type);
 		const state = r.state == null ? null : String(r.state);
@@ -551,6 +571,7 @@ export const createSiloSeerr = ({call, library = null, baseUrl = '', random = Ma
 			updatedAt: r.updated_at,
 			type,
 			is4k: false,
+			canRemove: removable(r),
 			media,
 			...(requestedBy != null ? {requestedBy: {id: requestedBy}} : null),
 			seasonCount: seasons.length,
@@ -581,6 +602,7 @@ export const createSiloSeerr = ({call, library = null, baseUrl = '', random = Ma
 		const filter = params.get('filter');
 		const by = intOf(params.get('requestedBy'));
 		const manage = await isAdmin();
+		await readRemoveFailed();
 		const keep = (r) => matches(r, filter);
 		const {requests: found, more} = !manage || (by != null && by === me)
 			? await readRequests('/requests/mine', {}, skip + take, keep)
@@ -723,9 +745,20 @@ export const createSiloSeerr = ({call, library = null, baseUrl = '', random = Ma
 			if (id == null) return {};
 			// Seerr deletes a request, but Silo cancels it, which keeps its history.
 			if (verb === 'DELETE') return call(`/api/v2/requests/${requestId(id)}/cancel`, {method: 'POST', body: {}});
+			// Silo deletes a failed request that delivered nothing; 409 once it was retried or got a copy. A 404 means
+			// it is already gone, which is what was asked for.
+			if (verb === 'POST' && parts[2] === 'remove') {
+				try {
+					return await call(`/api/v2/requests/${requestId(id)}`, {method: 'DELETE'});
+				} catch (err) {
+					if (err.status === 404) return {};
+					throw err;
+				}
+			}
 			if (['approve', 'decline', 'retry'].includes(parts[2])) {
 				return call(`/api/v2/admin/requests/${requestId(id)}/${parts[2]}`, {method: 'POST', body: {}});
 			}
+			await readRemoveFailed();
 			const one = mapRequest(await get(`/requests/${requestId(id)}`));
 			await addRequesterNames([one]);
 			return one;
