@@ -369,6 +369,19 @@ export default function ChannelCarousel(props) {
     return true
   }
 
+  const pointCard = (i) => {
+    if (st.dismissed) return false
+    const list = st.slots || []
+    const s = list[i]
+    const mid = list.find((x) => x.c)
+    if (!s || !mid || s.ch < 0) return false
+    if (s.c) return true
+    resetInactivity()
+    endHold()
+    moveBy(Math.round((s.x - mid.x) / PITCH))
+    return false
+  }
+
   const open =({ prewarm, api, channels, currentChannelId, sortBy }) => {
     teardown()
     st.dismissed = false
@@ -465,6 +478,9 @@ export default function ChannelCarousel(props) {
         if (props.ref) props.ref(n)
       }}
       width={1920}
+      // The strip leaves the video showing, so the Magic Remote's cursor only works the strip while
+      // it's up (app/pointer.js).
+      pointerModal
       height={472.95}
       transition={tx({ y: { duration: moveMs(), easing: easing() } })}
       y={shown() ? 607.05 : 1080}
@@ -541,6 +557,10 @@ export default function ChannelCarousel(props) {
           height={218.95}
           transition={tx({ x: { duration: trackMs(), easing: 'linear' } })}
           x={trackX() - shift()}
+          // The strip slides to the centered channel, so the cursor rings a card. A click on the
+          // centered one tunes it, as OK does; on another it slides there.
+          pointerChildRing={14.5}
+          onPointerChildClick={(i) => pointCard(i)}
         >
           <Index each={slots()}>{(s) => <CarouselCard x={shift() + s().x} m={s().m} centered={s().c} />}</Index>
         </view>

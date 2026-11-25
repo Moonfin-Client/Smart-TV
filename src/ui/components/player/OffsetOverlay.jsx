@@ -20,7 +20,7 @@ const FOCUS_EDGE = { width: 1, color: hex('#00a4dc') }
 const FADE = { duration: 200 }
 
 const Round = (props) => (
-  <view x={props.x} width={64} height={64} transition={{ scale: FADE }} scale={props.lit ? 1.1 : 1}>
+  <view x={props.x} width={64} height={64} transition={{ scale: FADE }} scale={props.lit ? 1.1 : 1} onPointerOver={props.onPointerOver}>
     <view width={64} height={64} borderRadius={32} transition={{ color: FADE }} color={props.lit ? '#00a4dc4d' : '#ffffff1a'} />
     <view width={64} height={64} borderRadius={32} color="#00000000" border={BUTTON_EDGE} />
     <view width={64} height={64} borderRadius={32} color="#00000000" border={FOCUS_EDGE} transition={{ alpha: FADE }} alpha={props.lit ? 1 : 0} />
@@ -94,6 +94,9 @@ export default function OffsetOverlay(props) {
     if (props.onOffsetChange) props.onOffsetChange(Math.round(seconds * 10) / 10)
   }
 
+  // The Magic Remote's cursor focuses a button, and OK then presses it (app/pointer.js).
+  const point = (id) => cur() !== id && setCur(id)
+
   return (
     <view
       ref={(n) => {
@@ -101,6 +104,9 @@ export default function OffsetOverlay(props) {
         if (props.ref) props.ref(n)
       }}
       width={1920}
+      // The panel leaves the video showing, so the Magic Remote's cursor only works the panel while
+      // it's open (app/pointer.js).
+      pointerModal
       height={1080}
       transition={tx({ alpha: { duration: on() ? 200 : 0, easing: 'ease' } })}
       alpha={on() ? 1 : 0}
@@ -149,11 +155,11 @@ export default function OffsetOverlay(props) {
         </text>
 
         <view x={rowX()} y={108.9} width={360} height={64}>
-          <Round x={0} lit={lit('minus')} font={glyphFont} glyph={MINUS} />
+          <Round x={0} lit={lit('minus')} font={glyphFont} glyph={MINUS} onPointerOver={() => point('minus')} />
           <text fontFamily={valueFont} fontSize={36} x={164} y={14.9} mountX={0.5} color="#ffffffff">
             {shown()}
           </text>
-          <Round x={264} lit={lit('plus')} font={plainFont} glyph="+" />
+          <Round x={264} lit={lit('plus')} font={plainFont} glyph="+" onPointerOver={() => point('plus')} />
         </view>
 
         <view alpha={wide() ? 1 : 0} y={200.9} width={954} height={134}>
@@ -190,7 +196,7 @@ export default function OffsetOverlay(props) {
           </view>
         </view>
 
-        <view x={(panelW() - resetW) / 2} y={actionsY()} width={resetW} height={56}>
+        <view x={(panelW() - resetW) / 2} y={actionsY()} width={resetW} height={56} onPointerOver={() => point('reset')}>
           <view width={resetW} height={56} borderRadius={8} transition={{ color: FADE }} color={lit('reset') ? '#00a4dc4d' : '#ffffff1a'} />
           <view width={resetW} height={56} borderRadius={8} color="#00000000" border={BUTTON_EDGE} />
           <view width={resetW} height={56} borderRadius={8} color="#00000000" border={FOCUS_EDGE} transition={{ alpha: FADE }} alpha={lit('reset') ? 1 : 0} />
@@ -199,7 +205,15 @@ export default function OffsetOverlay(props) {
           </text>
         </view>
 
-        <view x={27} y={actionsY() + 68} width={closeW} height={41} borderRadius={4} color={lit('close') ? '#ffffff1a' : '#00000000'}>
+        <view
+          x={27}
+          y={actionsY() + 68}
+          width={closeW}
+          height={41}
+          borderRadius={4}
+          color={lit('close') ? '#ffffff1a' : '#00000000'}
+          onPointerOver={() => point('close')}
+        >
           <text fontFamily={plainFont} fontSize={18} x={20} y={11.95} color={lit('close') ? '#ffffffff' : '#ffffff99'}>
             {closeLabel}
           </text>

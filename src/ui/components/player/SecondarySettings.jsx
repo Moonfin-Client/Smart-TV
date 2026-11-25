@@ -64,6 +64,7 @@ export default function SecondarySettings(props) {
         if (props.ref) props.ref(n)
       }}
       width={1920}
+      pointerModal
       height={1080}
       transition={tx({ alpha: { duration: on() ? 200 : 0, easing: 'ease' } })}
       alpha={on() ? 1 : 0}
@@ -107,8 +108,9 @@ export default function SecondarySettings(props) {
 
         <view>
           <Index each={sliders()}>
-            {(s) => (
-              <view x={61} y={s().y} width={680} height={122}>
+            {(s, i) => (
+              // The Magic Remote's cursor focuses a row, and OK then uses it (app/pointer.js).
+              <view x={61} y={s().y} width={680} height={122} onPointerOver={() => cur() !== i && setCur(i)}>
                 <view width={680} height={122} borderRadius={10} transition={{ color: FADE }} color={s().bg} />
                 <view width={680} height={122} borderRadius={10} color="#00000000" border={EDGE} />
                 <view width={680} height={122} borderRadius={10} color="#00000000" border={FOCUS_EDGE} transition={{ alpha: FADE }} alpha={s().on ? 1 : 0} />
@@ -128,7 +130,7 @@ export default function SecondarySettings(props) {
           </Index>
         </view>
 
-        <view x={61} y={441.1} width={680} height={70} transition={{ scale: FADE }} scale={colorOn() ? 1.02 : 1}>
+        <view x={61} y={441.1} width={680} height={70} transition={{ scale: FADE }} scale={colorOn() ? 1.02 : 1} onPointerOver={() => cur() !== 2 && setCur(2)}>
           <view width={680} height={70} borderRadius={10} transition={{ color: FADE }} color={colorOn() ? '#00a4dc4d' : '#ffffff14'} />
           <view width={680} height={70} borderRadius={10} color="#00000000" border={EDGE} />
           <view width={680} height={70} borderRadius={10} color="#00000000" border={FOCUS_EDGE} transition={{ alpha: FADE }} alpha={colorOn() ? 1 : 0} />
@@ -140,7 +142,7 @@ export default function SecondarySettings(props) {
           </text>
         </view>
 
-        <view x={51} y={526} width={700} height={41} borderRadius={4} color={closeOn() ? '#ffffff1a' : '#00000000'}>
+        <view x={51} y={526} width={700} height={41} borderRadius={4} color={closeOn() ? '#ffffff1a' : '#00000000'} onPointerOver={() => cur() !== 3 && setCur(3)}>
           <text fontFamily={closeFont} fontSize={18} x={350} y={11.95} mountX={0.5} color={closeOn() ? '#ffffffff' : '#ffffff99'}>
             {closeLabel}
           </text>
