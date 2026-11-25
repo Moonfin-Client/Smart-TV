@@ -6,6 +6,7 @@ import { focusNav } from '../../../app/focus.js'
 import { createBarContext } from './barContext.js'
 import { genreGlowRgb } from './galleryGlow.js'
 import { glowOf, imageOf, padIndex, restartCarousel, rgbA, stopCarousel } from './barKit.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // The Bookshelf media bar: the slide's poster as a book standing in a lit alcove, between up to
 // seven spines a side in their genre colors. Trailers don't play here.
@@ -183,6 +184,12 @@ export default function BookshelfBar(props) {
       width={1920}
       height={bannerH()}
       alpha={props.alpha === undefined ? 1 : props.alpha}
+      // A click on the banner opens its title (app/pointer.js). The bar spans the screen under
+      // Home's rows, so hovering it doesn't take focus from them.
+      onPointerClick={(n) => {
+        pointerFocus(n)
+        return true
+      }}
       onFocusChanged={(has) => {
         bar._focused = has
         if (has) restart()

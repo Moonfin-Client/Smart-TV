@@ -19,6 +19,7 @@ import { createBarContext } from './barContext.js'
 import { face, facesReady, textWidth as faceWidth, themeFace } from './faces.js'
 import { themeSpacing } from '../../text.js'
 import { activeDotIndex, fitImage, flowWrap, makdOverlay } from './makdLayout.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // The MakD media bar, after makd's Jellyfin Media Bar v6 Classic: the art fills the screen under a
 // shade, a wash and a fade into the page, with the slide's details over Info, Play and Favorite
@@ -425,6 +426,12 @@ export default function MakdBar(props) {
       width={1920}
       height={1080}
       alpha={props.alpha === undefined ? 1 : props.alpha}
+      // A click on the banner opens its title (app/pointer.js). The bar spans the screen under
+      // Home's rows, so hovering it doesn't take focus from them.
+      onPointerClick={(n) => {
+        pointerFocus(n)
+        return true
+      }}
       onFocusChanged={onFocusChanged}
       onLeft={() => {
         // Over a full screen trailer the first press ends it and brings the bar back.

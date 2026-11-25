@@ -288,8 +288,8 @@ export default function MediaRow(props) {
   // rows around this one focus it in their own way.
   let self
   const pick = (i) => () => {
+    pointerFocus(self)
     if (props.onPointerRow) props.onPointerRow()
-    else pointerFocus(self)
     move(i, i > cur() ? 1 : -1)
     return true
   }

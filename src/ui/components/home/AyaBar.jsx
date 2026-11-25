@@ -8,6 +8,7 @@ import { trailerHost } from './trailerHost.js'
 import { createBarContext } from './barContext.js'
 import { roundedZoom } from './zoomShader.js'
 import { backdropOf, breakable, glowOf, imageOf, loadReleases, releaseOf, restartCarousel, stopCarousel, toNum } from './barKit.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // The Aya media bar: one slide at a time in a rounded frame, with Home's own backdrop around it
 // (Home draws that from onBarSlide, and keeps it around a trailer through onBarTrailer's hole).
@@ -284,6 +285,12 @@ export default function AyaBar(props) {
       width={1920}
       height={1080}
       alpha={props.alpha === undefined ? 1 : props.alpha}
+      // A click on the banner opens its title (app/pointer.js). The bar spans the screen under
+      // Home's rows, so hovering it doesn't take focus from them.
+      onPointerClick={(n) => {
+        pointerFocus(n)
+        return true
+      }}
       onFocusChanged={onFocusChanged}
       onLeft={() => {
         if (cfg().left && safe() === 0) focusNav()

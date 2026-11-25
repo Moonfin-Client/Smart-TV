@@ -18,6 +18,7 @@ import { genreGlowRgb } from './galleryGlow.js'
 import { onScreen } from './onScreen.js'
 import { galleryPanels, wrapPills } from './barMath.js'
 import { backdropOf, breakable, glowOf, shade, padIndex, loadReleases, releaseOf, restartCarousel, rgbA, stopCarousel } from './barKit.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // The Gallery media bar: five slides at a time as tall panels on a glowing page. The active one opens
 // up wide with its details and a credits card, and the rest stand as narrow strips with their number
@@ -349,6 +350,12 @@ export default function GalleryBar(props) {
       width={1920}
       height={1080}
       alpha={props.alpha === undefined ? 1 : props.alpha}
+      // A click on the banner opens its title (app/pointer.js). The bar spans the screen under
+      // Home's rows, so hovering it doesn't take focus from them.
+      onPointerClick={(n) => {
+        pointerFocus(n)
+        return true
+      }}
       onFocusChanged={onFocusChanged}
       onLeft={() => {
         if (cfg().left && safe() === 0) focusNav()
@@ -626,7 +633,20 @@ export default function GalleryBar(props) {
           pass would do it. */}
       <view>
         <Index each={arrows()}>
-          {(a) => <CarouselArrow ax={a().x} ay={a().y} icon={a().icon} frost="" ink={cfg().arrowInk} radius={35} />}
+          {(a) => (
+            <CarouselArrow
+              ax={a().x}
+              ay={a().y}
+              icon={a().icon}
+              frost=""
+              ink={cfg().arrowInk}
+              radius={35}
+              onPointerClick={() => {
+                pointerFocus(bar.root)
+                go(a().icon === 'chevron_left' ? -1 : 1)
+              }}
+            />
+          )}
         </Index>
       </view>
     </view>
