@@ -158,6 +158,7 @@ export default function OptionSheet(props) {
       }}
       width={1920}
       height={1080}
+      pointerModal
       onUp={() => {
         if (cur() > 0) setCur(cur() - 1)
         reveal()
@@ -194,7 +195,14 @@ export default function OptionSheet(props) {
         />
         <view width={look().w} height={laid().h} borderRadius={look().r} color={look().bg} border={{ width: 1, color: hex(look().border) }} />
         <view width={look().w} height={laid().h} clipping>
-          <view y={-scroll()} width={look().w} height={laid().full}>
+          <view
+            y={-scroll()}
+            width={look().w}
+            height={laid().full}
+            // The Magic Remote's cursor focuses the row under it, and OK then picks it (app/pointer.js).
+            pointerItems={() => laid().rows}
+            onPointerItem={(it, i) => cur() !== i && setCur(i)}
+          >
             <text fontFamily={laid().titleFont} fontSize={look().titleSize} x={look().titleX + 1} y={laid().titleY} lineHeight={33} color={t().onBackground}>
               {(props.sheet && props.sheet.title) || ' '}
             </text>

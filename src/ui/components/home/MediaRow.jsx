@@ -16,6 +16,7 @@ import { tx } from '../../fx.js'
 import { usePage } from '../../../app/PageStack.jsx'
 import { afterDraw } from '../../afterDraw.js'
 import { getRenderer } from '@solidtv/solid'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // One of Home's rows in the Classic, Modern or Carousel look. The row owns Left, Right and Enter.
 // Up and Down go to the page. The focused card parks at the row's leading edge, grows to its wide
@@ -288,7 +289,7 @@ export default function MediaRow(props) {
   let self
   const pick = (i) => () => {
     if (props.onPointerRow) props.onPointerRow()
-    else if (!focused()) self.setFocus()
+    else pointerFocus(self)
     move(i, i > cur() ? 1 : -1)
     return true
   }

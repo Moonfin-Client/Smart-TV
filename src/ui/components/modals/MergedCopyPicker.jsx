@@ -131,6 +131,7 @@ export default function MergedCopyPicker(props) {
         if (props.ref) props.ref(n)
       }}
       width={1920}
+      pointerModal
       height={1080}
       alpha={item() ? 1 : 0}
       onUp={() => {
@@ -167,8 +168,8 @@ export default function MergedCopyPicker(props) {
         <view x={1} y={L().dividerY} width={732.61} height={1.67} color="#ffffff14" />
         <view>
           <Index each={L().rows}>
-            {(r) => (
-              <view x={1} y={r().y} width={732.61} height={94}>
+            {(r, i) => (
+              <view x={1} y={r().y} width={732.61} height={94} onPointerOver={() => cur() !== i && setCur(i)}>
                 <view
                   x={36}
                   y={32}
@@ -206,6 +207,7 @@ export default function MergedCopyPicker(props) {
           </Index>
         </view>
         <view x={1} y={L().cancelDivider} width={732.61} height={1.67} color="#ffffff14" />
+        <view y={L().cancelY} width={734} height={L().cancelH} onPointerOver={() => !onCancel() && setCur(L().rows.length)} />
         <text fontFamily={uiFont()} fontSize={26.71} x={41.07} y={L().cancelY + 23.37 + cssShift(dp(16))} lineHeight={31.25} color="#ffffff80">
           {$L('Cancel')}
         </text>
