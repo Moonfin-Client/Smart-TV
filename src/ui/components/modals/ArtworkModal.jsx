@@ -507,6 +507,36 @@ export default function ArtworkModal(props) {
     setScrollY(Math.max(0, Math.min(max, y)))
   }
 
+  // The Magic Remote's cursor (app/pointer.js): every control, in screen space, cut to the body's
+  // window. One in full view takes focus on hover; one the body or its row would scroll to only on a
+  // click, so nothing moves under the cursor.
+  const pointSpots = () => {
+    if (overlay() && over()) {
+      const o = ov()
+      return over().focusables.map((f) => ({ f, box: { x: o.x + f.x, y: o.y + f.y, w: f.w, h: f.h }, whole: true }))
+    }
+    const top = bodyTop()
+    const right = CONTENT.x + CONTENT.w
+    return spots().map((f) => {
+      if (f.zone !== 'body') return { f, box: { x: f.sx, y: f.sy, w: f.w, h: f.h }, whole: true }
+      const x = Math.max(CONTENT.x, f.sx)
+      const y = Math.max(top, f.sy)
+      const w = Math.min(right, f.sx + f.w) - x
+      const h = Math.min(CONTENT.bottom, f.sy + f.h) - y
+      return w > 0 && h > 0 ? { f, box: { x, y, w, h }, whole: w >= f.w - 1 && h >= f.h - 1 } : null
+    })
+  }
+  const pointAt = (i) => {
+    const s = pointSpots()[i]
+    if (s && s.whole && s.f.id !== cur()) focusOn(s.f)
+  }
+  const clickAt = (i) => {
+    const s = pointSpots()[i]
+    if (!s) return false
+    focusOn(s.f)
+    return true
+  }
+
   history = [props.item]
   load(props.item)
 
@@ -578,6 +608,13 @@ export default function ArtworkModal(props) {
           <Texts list={overTexts()} />
         </view>
       </view>
+      <view
+        width={1920}
+        height={1080}
+        pointerItems={() => pointSpots().map((s) => s && s.box)}
+        onPointerItem={(_, i) => pointAt(i)}
+        onPointerItemClick={(_, i) => clickAt(i)}
+      />
     </view>
   )
 }
