@@ -4,6 +4,7 @@ import { byKey } from '../../../ui/components/details/keyed.js'
 import { cssShift, themeSpacing, uiFont } from '../../../ui/text.js'
 import { hex } from '../../../ui/color.js'
 import { holdPress } from '../../../utils/longPress.js'
+import { actionRadius } from './stageRules.js'
 
 // The `stacked` and `centered` action rows, driven by actionRow(). Stacked is Stage's column under
 // the poster: the first button runs the full 388px and the rest sit under it as 86px circles.
@@ -57,8 +58,6 @@ export default function StyledActions(props) {
   const placed = createMemo(() => {
     const tk = t()
     const st = stacked()
-    // Pixel themes square off the 38px radius.
-    const r = tk.isPixel ? 0 : 38
     return layoutActions(buttons(), props.variant, props.w).map((p) => {
       const b = p.b
       const iconSize = 40
@@ -79,7 +78,7 @@ export default function StyledActions(props) {
       }
       const lit = b.active && !p.lead
       return {
-        k: b.id, i: p.i, x: p.x, y: p.y, w: p.w, h: p.h, r, lead: p.lead,
+        k: b.id, i: p.i, x: p.x, y: p.y, w: p.w, h: p.h, r: actionRadius(p, tk.isPixel), lead: p.lead,
         fill: lit ? tint(b, tk) : '#ffffff0f',
         onFill: lit ? tint(b, tk) : tk.buttonFocused,
         icon: `icons/d/${b.icon}.webp`, iconX, iconY: (p.h - iconSize) / 2,

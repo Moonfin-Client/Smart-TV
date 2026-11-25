@@ -27,6 +27,10 @@ export const collectionLabel = (groups) => (groups.length === 1 ? groups[0].titl
 // shows whatever the button count setting says.
 export const STAGE_BUTTON_CAP = 5;
 
+// The labeled first button is a pill with a 38px radius, and the icon buttons after it are circles,
+// as in Core. Pixel themes square every button off.
+export const actionRadius = ({lead, w, h}, isPixel) => (isPixel ? 0 : lead ? 38 : Math.min(w, h) / 2);
+
 // The page sits on the picture rather than beside it, so the darkening keeps a floor even with the
 // opacity slider at the bottom.
 export const stageScrimAlpha = (blurAmount) =>
