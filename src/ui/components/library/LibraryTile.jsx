@@ -148,7 +148,7 @@ export default function LibraryTile(props) {
         </view>
         {/* The pointer's hit area and hover ring over the art, the size of the focus ring; the
         title under it still takes the click through the card (Grid passes the click). */}
-        <view width={o().cardW} height={o().posterH} pointerRing={8} onPointerClick={props.onPointerClick} />
+        <view width={o().cardW} height={o().posterH} pointerRing={!c().loading && c().image ? 8 : undefined} onPointerClick={props.onPointerClick} />
       </view>
     </view>
   )
