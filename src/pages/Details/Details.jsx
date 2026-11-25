@@ -1135,7 +1135,8 @@ export default function Details(props) {
     const ms = it.MediaSources[m.tracks.version] || it.MediaSources[0]
     const audios = (ms.MediaStreams || []).filter((x) => x.Type === 'Audio')
     const subs = (ms.MediaStreams || []).filter((x) => x.Type === 'Subtitle')
-    const out = { mediaSourceId: ms.Id }
+    // The version shown here is the one that plays, as on Jellyfin and Emby, so Silo isn't free to play another.
+    const out = { mediaSourceId: ms.Id, pinVersion: true }
     if (m.chosen.audio && audios[m.tracks.audio]) out.audioStreamIndex = audios[m.tracks.audio].Index
     if (m.chosen.subtitle) out.subtitleStreamIndex = m.tracks.subtitle >= 0 && subs[m.tracks.subtitle] ? subs[m.tracks.subtitle].Index : -1
     return out
@@ -1147,7 +1148,7 @@ export default function Details(props) {
     const partIds = ((parts && parts.Items) || []).map((p) => p.Id)
     const prerolls = resume ? [] : await fetchPrerolls(m.api, it, all()).catch(() => [])
     if (prerolls.length) {
-      playItem(prerolls[0], false, { queue: prerolls.map((p) => p.Id).concat(it.Id, partIds), prerolls: prerolls.length })
+      playItem(prerolls[0], false, { ...picks, queue: prerolls.map((p) => p.Id).concat(it.Id, partIds), prerolls: prerolls.length })
     } else {
       playItem(it, resume, partIds.length ? { ...picks, queue: [it.Id].concat(partIds) } : picks)
     }

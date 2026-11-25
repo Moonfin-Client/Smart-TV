@@ -210,7 +210,7 @@ export const playItem = (item) => {
   const ticks = syncPlay.getGroupPositionTicks() || 0
   const o = (playQueue && playQueue.PlaybackOptions) || {}
   const picks = {}
-  if (o.mediaSourceId) picks.mediaSourceId = o.mediaSourceId
+  if (o.mediaSourceId) Object.assign(picks, { mediaSourceId: o.mediaSourceId, pinVersion: true })
   if (o.audioStreamIndex != null) picks.audioStreamIndex = o.audioStreamIndex
   if (o.subtitleStreamIndex != null) picks.subtitleStreamIndex = o.subtitleStreamIndex
   if (player && player.open) {

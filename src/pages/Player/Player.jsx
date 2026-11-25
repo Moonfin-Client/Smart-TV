@@ -254,6 +254,11 @@ export default function Player(props) {
     list: [props.id].concat(Array.isArray(props.queue) ? props.queue.filter((q) => q && q !== props.id) : []),
     // Cinema Mode's trailers lead the queue Details hands over.
     prerolls: Number(props.prerolls) || 0,
+    // The version and tracks Details picked are the feature's, which Cinema Mode's trailers can lead.
+    featureId: Array.isArray(props.queue) && Number(props.prerolls) > 0 ? props.queue[Number(props.prerolls)] : props.id,
+    featurePicks: {},
+    // The version playing came from Details (or the room), so Silo keeps it when the player starts it again.
+    pinVersion: false,
     // Details' advanced play: a bitrate, and transcoding whatever the file.
     quality: pick(props.forceBitrate),
     forceTranscode: props.forceTranscode === true,
@@ -399,12 +404,21 @@ export default function Player(props) {
     }
   })
 
-  // picks are the tracks and version Details chose, for the first item only. startTicks null starts where
+  // Details' picks for the feature: all of them the first time it starts, then only its version, so coming back
+  // to it keeps the version but not tracks Details chose before the viewer switched in the player.
+  function featureStart(id) {
+    if (id !== my.featureId) return {}
+    const picks = my.featurePicks
+    my.featurePicks = { mediaSourceId: picks.mediaSourceId, pinVersion: picks.pinVersion }
+    return picks
+  }
+  // picks are the tracks and version Details chose, for the feature only. startTicks null starts where
   // the item was left, unless the route said not to resume.
   async function start(itemId, startTicks, picks = {}) {
     // playback.js holds one session, so music playing behind has to report its stop first.
     stopAudio()
     const mine = ++my.startGen
+    my.pinVersion = !!picks.pinVersion
     s.error = ''
     s.buffering = true
     s.loading = true
@@ -482,6 +496,7 @@ export default function Player(props) {
         audioStreamIndex: picks.audioStreamIndex,
         subtitleStreamIndex: picks.subtitleStreamIndex,
         mediaSourceId: picks.mediaSourceId,
+        pinVersion: picks.pinVersion,
         stereoUpmixEnabled: st.stereoUpmixEnabled,
       }
       let info = await playback.getPlaybackInfo(itemId, opts)
@@ -775,6 +790,7 @@ export default function Player(props) {
         startPositionTicks: Math.floor(at * TICKS),
         maxBitrate: my.quality || settings.get('maxBitrate') || 0,
         mediaSourceId: my.info && my.info.mediaSourceId,
+        pinVersion: my.pinVersion,
         audioStreamIndex: my.audioIndex != null ? my.audioIndex : undefined,
         subtitleStreamIndex: my.burnIn != null ? my.burnIn : undefined,
         item: my.item,
@@ -1815,6 +1831,7 @@ export default function Player(props) {
     const info = await apiOf(item).getPlaybackInfo(item.Id, {
       StartTimeTicks: Math.floor(my.pos * TICKS),
       MediaSourceId: sourceId,
+      PinVersion: my.pinVersion,
       AudioStreamIndex: my.audioIndex,
       SubtitleStreamIndex: my.subIndex,
       MaxStreamingBitrate: my.quality || settings.get('maxBitrate'),
@@ -1866,7 +1883,7 @@ export default function Player(props) {
     }
     my.cues = null
     s.cue = ''
-    await start(ep.Id, (ep.UserData && ep.UserData.PlaybackPositionTicks) || 0)
+    await start(ep.Id, (ep.UserData && ep.UserData.PlaybackPositionTicks) || 0, featureStart(ep.Id))
     showOsd()
   }
   // The host's audio output and the transcode are asked for each time the dialog opens, and the rows
@@ -1928,6 +1945,7 @@ export default function Player(props) {
       audioStreamIndex: my.audioIndex,
       subtitleStreamIndex: my.subIndex,
       mediaSourceId: my.info && my.info.mediaSourceId,
+      pinVersion: my.pinVersion,
     })
     showOsd()
   }
@@ -2239,7 +2257,7 @@ export default function Player(props) {
     if (my.list.length > 1) my.listPos += step
     my.cues = null
     s.cue = ''
-    await start(item.Id, 0)
+    await start(item.Id, 0, featureStart(item.Id))
     if (s.osd) showOsd()
     else focusDefault()
     // A server's shuffle (Silo's) hands out one item ahead: the one starting now was it, so the server picks the next.
@@ -2407,6 +2425,7 @@ export default function Player(props) {
       enableTranscoding: true,
       ...(h264 ? { deviceProfile: await getH264FallbackProfile() } : null),
       mediaSourceId: my.info && my.info.mediaSourceId,
+      pinVersion: my.pinVersion,
       audioStreamIndex: my.audioIndex != null ? my.audioIndex : undefined,
       subtitleStreamIndex: my.burnIn != null ? my.burnIn : undefined,
       item: my.item,
@@ -2737,19 +2756,22 @@ export default function Player(props) {
     // A route without a start position starts where the item was left.
     const given = props.startPositionTicks != null && props.startPositionTicks !== ''
     const ticks = props.resume === false ? 0 : given ? Number(props.startPositionTicks) || 0 : null
-    // A group plays the feature, not Cinema Mode's trailers, which would go to everyone.
-    if (party.isInGroup() && my.prerolls > 0 && my.list[my.prerolls]) {
-      my.listPos = my.prerolls
-      my.prerolls = 0
-      await start(my.list[my.listPos], 0)
-      if (!gone) focusDefault()
-      return
-    }
-    await start(props.id, ticks == null || party.isInGroup() ? ticks : applyResumeRewind(ticks, settings.all()), {
+    const routePicks = {
       audioStreamIndex: pick(props.audioStreamIndex),
       subtitleStreamIndex: pick(props.subtitleStreamIndex),
       mediaSourceId: props.mediaSourceId || undefined,
-    })
+      pinVersion: props.pinVersion === true,
+    }
+    my.featurePicks = routePicks
+    // A group plays the feature, not Cinema Mode's trailers, which would go to everyone.
+    if (party.isInGroup() && my.prerolls > 0 && my.list.includes(my.featureId)) {
+      my.listPos = my.list.indexOf(my.featureId)
+      my.prerolls = 0
+      await start(my.list[my.listPos], 0, featureStart(my.featureId))
+      if (!gone) focusDefault()
+      return
+    }
+    await start(props.id, ticks == null || party.isInGroup() ? ticks : applyResumeRewind(ticks, settings.all()), featureStart(props.id))
     // The controls stay away until a key asks for them.
     if (!gone) focusDefault()
   })

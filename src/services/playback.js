@@ -974,6 +974,7 @@ const siloPlaybackResult = async ({
 			SubtitleStreamIndex: subtitleStreamIndex,
 			MaxStreamingBitrate: maxBitrate,
 			MediaSourceId: options.mediaSourceId,
+			PinVersion: options.pinVersion === true,
 			// Asked again with direct play off, the original file failed here, and Silo is told so.
 			EnableDirectPlay: allowDirectPlay && options.enableDirectPlay !== false
 		}, options.item);
@@ -1018,6 +1019,8 @@ const siloPlaybackResult = async ({
 		audioStreamIndex: selectedAudio,
 		subtitleStreamIndex: requestedSubtitleStreamIndex,
 		maxBitrate: options.maxBitrate,
+		// A reconnect, a seek Silo replans or a track switch asks again with the session, and keeps the version.
+		pinVersion: options.pinVersion === true,
 		allowDirectPlay,
 		allowDirectStream,
 		serverCredentials: creds
