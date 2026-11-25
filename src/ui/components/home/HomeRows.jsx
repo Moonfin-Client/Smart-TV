@@ -256,6 +256,7 @@ export default function HomeRows(props) {
                 onRowCur={hand.onRowCur}
                 onRowGrow={hand.onRowGrow}
                 onCardPreview={hand.onCardPreview}
+                onPointerRow={() => focusRow(rows().findIndex((r) => r.key === k))}
               />
             )
           }}

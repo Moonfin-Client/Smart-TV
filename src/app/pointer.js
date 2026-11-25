@@ -4,7 +4,8 @@
 //
 // A control takes the pointer with these props:
 //   onPointerOver(node)   the cursor came onto it. Controls whose screen holds still move focus here.
-//   onPointerClick(node)  OK (or a mouse click) on it. Without one, a click on a control with
+//   onPointerClick(node)  OK (or a mouse click) on it. Returning true means it focused the control
+//                         and Enter should now press it. Without one, a click on a control with
 //                         onPointerOver is that control's Enter: hover has already focused it.
 //   pointerRing           draw the hover ring around it (PointerRing.jsx). Rows that slide under focus
 //                         use this instead of onPointerOver, since moving focus would slide the card
@@ -32,6 +33,8 @@ let lastY = -1
 let enterAt = 0
 // Whether the Enter keydown in progress went to the pointer, so its keyup goes there too.
 let enterTaken = false
+// Whether it went on to the focused control after the pointer's control focused itself.
+let enterPassed = false
 
 const takes = (n) => !!(n.onPointerOver || n.onPointerClick || n.pointerRing)
 
@@ -108,15 +111,29 @@ const hover = (n) => {
   hovered = n
   if (n && n.pointerRing) {
     const l = n.lng
-    setRing({ x: l.absX, y: l.absY, w: l.width || 0, h: l.height || 0, radius: n.pointerRing === true ? n.borderRadius || 0 : n.pointerRing })
+    const first = n.children && n.children[0]
+    const radius = n.pointerRing !== true ? n.pointerRing : n.borderRadius || (first && first.borderRadius) || 0
+    setRing({ x: l.absX, y: l.absY, w: l.width || 0, h: l.height || 0, radius })
   } else if (ring()) setRing(null)
   if (n && n.onPointerOver) n.onPointerOver(n)
 }
 
+const synthetic = new WeakSet()
+
+const sendEnter = () => {
+  const down = keyEvent('Enter', 13, 'keydown')
+  const up = keyEvent('Enter', 13, 'keyup')
+  synthetic.add(down)
+  synthetic.add(up)
+  document.dispatchEvent(down)
+  document.dispatchEvent(up)
+}
+
+// The press moves focus, which can move the screen, so the ring goes until the cursor moves.
 const press = (n) => {
-  n.onPointerClick(n)
-  // The press moved focus, which can move the screen, so the ring goes until the cursor moves.
+  const enter = n.onPointerClick(n) === true
   clear()
+  return enter
 }
 
 const onMove = (e) => {
@@ -129,8 +146,6 @@ const onMove = (e) => {
   hover(targetAt(p.x, p.y))
 }
 
-const synthetic = new WeakSet()
-
 const onClick = (e) => {
   if (!onCanvas(e)) return
   if (wake()) return
@@ -138,29 +153,34 @@ const onClick = (e) => {
   const p = toStage(e)
   const n = targetAt(p.x, p.y)
   if (!n) return
-  if (n.onPointerClick) return press(n)
+  if (n.onPointerClick) {
+    if (press(n)) sendEnter()
+    return
+  }
   if (!n.onPointerOver) return
   hovered = null
   hover(n)
-  const down = keyEvent('Enter', 13, 'keydown')
-  const up = keyEvent('Enter', 13, 'keyup')
-  synthetic.add(down)
-  synthetic.add(up)
-  document.dispatchEvent(down)
-  document.dispatchEvent(up)
+  sendEnter()
 }
 
 // Ahead of the focus manager. OK with the cursor on a control is that control's press; any other key
 // is the d-pad taking over, so the hover goes.
+const swallow = (e) => {
+  e.preventDefault()
+  e.stopPropagation()
+}
+
 const onKey = (e) => {
-  const enter = e.keyCode === 13
   if (synthetic.has(e)) return
+  const enter = e.keyCode === 13
   if (e.type === 'keyup') {
-    if (enter && (hovered || enterTaken)) enterAt = Date.now()
-    if (enter && enterTaken) {
+    if (!enter) return
+    // The click that follows this press is the same press.
+    if (hovered || enterTaken || enterPassed) enterAt = Date.now()
+    enterPassed = false
+    if (enterTaken) {
       enterTaken = false
-      e.preventDefault()
-      e.stopPropagation()
+      swallow(e)
     }
     return
   }
@@ -168,14 +188,19 @@ const onKey = (e) => {
     if (hovered) clear()
     return
   }
-  if (!hovered) return
+  // A held OK repeats, and the repeats go where the first one went.
+  if (enterTaken) return swallow(e)
+  if (!hovered || e.repeat) return
   enterAt = Date.now()
-  // Focus is already on it, so Enter goes on as it is.
+  // Hover already focused it, so Enter goes on as it is.
   if (!hovered.onPointerClick) return
-  e.preventDefault()
-  e.stopPropagation()
+  if (press(hovered)) {
+    // The control focused itself, and this Enter goes on to press it.
+    enterPassed = true
+    return
+  }
   enterTaken = true
-  if (!e.repeat) press(hovered)
+  swallow(e)
 }
 
 // webOS hides the cursor a few seconds after the remote stops moving, and when a d-pad key is pressed.

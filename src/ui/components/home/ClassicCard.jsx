@@ -90,6 +90,8 @@ export default function ClassicCard(props) {
       x={props.x || 0}
       width={c().w}
       height={c().h}
+      pointerRing={props.onPointerClick ? true : undefined}
+      onPointerClick={props.onPointerClick}
       pivot={0.5}
       zIndex={props.focused ? 10 : 0}
       scale={props.focused && L().zoom && !props.vid ? 1.05 : 1}
