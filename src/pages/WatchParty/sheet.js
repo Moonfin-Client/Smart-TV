@@ -126,7 +126,7 @@ export const button = (s, id, x, y, w, label, kind = 'create', disabled = false,
   const rest = kind === 'plain' ? a : 0
   s.ring(`${id}:ring`, x, y, w, h, f ? s.look.focus : s.look.os(0.25), 1, 12, f ? a : rest)
   glow(s, `${id}:glow`, x, y, w, h, 12, f)
-  s.text(`${id}:t`, x + w / 2, y + (h - normal(20)) / 2, label, { size: 20, weight: 500, color: f ? st.focusInk : st.ink, mx: 0.5, a, mw: w - 50 })
+  s.text(`${id}:t`, x + w / 2, y + (h - normal(20)) / 2, label, { size: 20, weight: 500, color: f && !disabled ? st.focusInk : st.ink, mx: 0.5, a, mw: w - 50 })
   if (focusable) s.focusable(id, x, y, w, h)
   return h
 }
