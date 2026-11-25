@@ -854,7 +854,8 @@ function OverlayKeyboard(props) {
                 onPointerOver={() => {
                   // The first cell is the popup's panel, not a choice.
                   const pop = popup()
-                  const at = pop ? pop.options.indexOf(o.k) : -1
+                  // The row style keys its cells by index and letter ('0é'), the column style by letter.
+                  const at = pop ? pop.options.findIndex((opt, i) => o.k === opt || o.k === `${i}${opt}`) : -1
                   if (at >= 0 && at !== pop.index) setPopup({ ...pop, index: at })
                 }}
               >

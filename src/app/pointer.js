@@ -37,6 +37,8 @@ export { ring as pointerRing }
 let hovered = null
 let lastX = -1
 let lastY = -1
+// Where the cursor last was on the stage, while webOS shows it.
+let cursorAt = null
 // When the last Enter key from the remote came with the cursor on a control.
 let enterAt = 0
 // Whether the Enter keydown in progress went to the pointer, so its keyup goes there too.
@@ -58,11 +60,11 @@ const inside = (l, x, y) => {
 
 // Children in the order they draw: zIndex, then the order they were added.
 const drawOrder = (children) => {
-  let sorted = false
-  for (let i = 1; i < children.length && !sorted; i++) {
-    if (((children[i].lng && children[i].lng.zIndex) || 0) < ((children[i - 1].lng && children[i - 1].lng.zIndex) || 0)) sorted = true
+  let unsorted = false
+  for (let i = 1; i < children.length && !unsorted; i++) {
+    if (((children[i].lng && children[i].lng.zIndex) || 0) < ((children[i - 1].lng && children[i - 1].lng.zIndex) || 0)) unsorted = true
   }
-  if (!sorted) return children
+  if (!unsorted) return children
   return children
     .map((c, i) => ({ c, i, z: (c.lng && c.lng.zIndex) || 0 }))
     .sort((a, b) => a.z - b.z || a.i - b.i)
@@ -248,6 +250,7 @@ const onMove = (e) => {
   lastY = e.clientY
   wake()
   const p = toStage(e)
+  cursorAt = p
   movers.forEach((fn) => fn(p))
   hover(targetAt(p.x, p.y))
 }
@@ -290,12 +293,18 @@ const onKey = (e) => {
     return
   }
   if (!enter) {
+    cursorAt = null
     if (hovered) clear()
     return
   }
   // A held OK repeats, and the repeats go where the first one went.
   if (enterTaken) return swallow(e)
-  if (!hovered || e.repeat) return
+  if (e.repeat) return
+  // What's under the cursor now: a dialog may have opened or the screen changed since it last moved,
+  // and a press clears the hover until it moves again.
+  if (cursorAt) hover(targetAt(cursorAt.x, cursorAt.y))
+  else if (hovered) clear()
+  if (!hovered) return
   enterAt = Date.now()
   // Hover already focused it, so Enter goes on as it is.
   if (!hovered.click) return
@@ -307,7 +316,9 @@ const onKey = (e) => {
 
 // webOS hides the cursor a few seconds after the remote stops moving, and when a d-pad key is pressed.
 const onCursor = (e) => {
-  if (e.detail && e.detail.visibility === false) clear()
+  if (!e.detail || e.detail.visibility !== false) return
+  cursorAt = null
+  clear()
 }
 
 const keyEvent = (key, keyCode, type) => {
