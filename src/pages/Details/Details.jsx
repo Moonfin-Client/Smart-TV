@@ -1303,12 +1303,15 @@ export default function Details(props) {
       }),
     )
   }
-  createEffect(() => {
+  const syncCyclePause = () => {
     const hidden = (page && !page.active()) || appHidden()
     if (hidden) backdropCycler.pause()
     else backdropCycler.resume()
-  })
+  }
+  createEffect(syncCyclePause)
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', syncCyclePause)
   onCleanup(() => {
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', syncCyclePause)
     if (m.item && m.item.Type === 'Playlist') store.navVisible = true
     m.gen++
     clearTimeout(settleTimer)
