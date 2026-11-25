@@ -49,3 +49,11 @@ assert.deepEqual(issueActions(issue(1, 3, 1), { canManageIssues: false, me: 2 })
 assert.deepEqual(issueActions({ status: 1, createdBy: null }, { canManageIssues: false, me: null }), { canAct: false, canDelete: false, toggle: null })
 
 console.log('requestActions ok')
+
+// Silo: a failed request that delivered nothing (canRemove) can be removed by its requester or a
+// moderator, next to a moderator's Retry.
+const removable = (by) => ({ ...req(9, FAILED, by), canRemove: true })
+assert.deepEqual(tileActions(removable(2), admin), ['retry', 'remove'])
+assert.deepEqual(tileActions(removable(2), viewer), ['remove'], 'the requester removes their own failed request')
+assert.deepEqual(tileActions(removable(3), viewer), [], 'but not anyone else\'s')
+assert.deepEqual(tileActions({ ...req(9, PENDING, 2), canRemove: true }, viewer), ['cancel'], 'only a failed request is removed')
