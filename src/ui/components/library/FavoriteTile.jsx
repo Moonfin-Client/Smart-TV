@@ -11,7 +11,7 @@ export default function FavoriteTile(props) {
   const o = () => props.opts || {}
   const c = () => props.card || {}
   // The poster's 3px border sits outside its width and height, so the box is 6 more each way than
-  // the card, and the card's line box adds 6 under it.
+  // the card. The title and subtitle sit under the box, in the textH the page made room for.
   const bw = () => o().cardW + 6
   const bh = () => o().posterH + 6
   // A person's or artist's picture is rounded off, but its empty placeholder keeps the 8px corners.
@@ -24,7 +24,7 @@ export default function FavoriteTile(props) {
       x={10}
       y={10}
       width={o().cardW}
-      height={o().posterH + 12}
+      height={bh() + (o().textH || 6)}
       pivot={0.5}
       scale={props.focused ? 1.05 : 1}
       transition={tx({ scale: ease() })}
@@ -63,7 +63,20 @@ export default function FavoriteTile(props) {
           </view>
         </Show>
       </view>
-      {/* The pointer's hit area and hover ring, the size of the focus ring (Grid passes the click). */}
+      <view>
+        <Show when={o().showText && props.card}>
+          <text fontFamily={c().titleFont} fontSize={19} y={bh() + 4} lineHeight={22.8} maxWidth={bw()} maxLines={1} color="#ffffff">
+            {c().title || ''}
+          </text>
+          <Show when={c().subtitle}>
+            <text fontFamily={c().subtitleFont} fontSize={17} y={bh() + 26.8} lineHeight={20.4} maxWidth={bw()} maxLines={1} color="#ffffff99">
+              {c().subtitle}
+            </text>
+          </Show>
+        </Show>
+      </view>
+      {/* The pointer's hit area and hover ring, the size of the focus ring; the title under it still
+      takes the click through the card (Grid passes the click). */}
       <view width={bw()} height={bh()} pointerRing={c().image ? r() : undefined} onPointerClick={props.onPointerClick} />
     </view>
   )

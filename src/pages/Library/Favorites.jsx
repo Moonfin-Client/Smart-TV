@@ -40,6 +40,7 @@ import {
   ALL_FAVORITE_TABS, FAVORITE_TABS, FAVORITE_TAB_FIELDS, FAVORITE_TAB_PAGE_SIZE, FAVORITE_TAB_TYPES, WATCHLIST_TAB, bucketByTab,
   cardMetrics, currentCard, favoriteCardImage, swapRequestCard, visibleTabs, watchlistCards, withRequestDetail,
 } from './favoriteTabs.js'
+import { cardSubtitle } from './libraryModel.js'
 import { routeForItem } from '../../state/libraryRoutes.js'
 import * as settings from '../../state/settings.js'
 
@@ -362,19 +363,19 @@ export default function Favorites(props) {
       const type = cardType()
       const m = cardMetrics(type, my.size)
       const g = virtualGridLayout(1880, m.itemSize.minWidth, m.itemSize.minHeight, 20)
+      const s = settings.all()
+      const showText = s.libraryCardTitles !== false
+      const detailed = s.useDetailedSubHeadings !== false
+      // The card fills its column, 20px from the next as rows are, and a square or round picture is
+      // as tall as it is wide.
+      const cardW = g.itemWidth - 6
+      const posterH = type === 'square' || type === 'circle' ? cardW : m.posterHeight
       st.horizontal = my.direction === 'horizontal'
       // The grid's content starts under its own 10px padding: 404 in the Home view, and 157 in the
       // Library view, under the toolbar that ends at 147.
       st.gridTop = st.home ? 404 : 157
       st.viewH = st.home ? 1080 - 404 - 10 : 1080 - 157 - 49 - 10
-      st.cols = st.horizontal ? Math.max(1, Math.floor((st.viewH + 20) / (g.itemHeight + 20))) : g.columns
       st.tileW = g.stepX
-      st.tileH = g.stepY
-      const t = theme()
-      st.opts = {
-        cardW: g.itemWidth - 20, posterH: m.posterHeight, ms: focusMs(200), slide: slideMs(200),
-        watchedBg: t.badgeWatched, onBadge: t.onBadge,
-      }
       const server = getServerUrl()
       const items = shownItems()
       // A card filled in after it took focus shows at once, and one that left the list takes the
@@ -397,9 +398,27 @@ export default function Favorites(props) {
           server: serverName, serverFont: fontFor(serverName, 'medium'),
           serverW: serverName ? Math.min(180, Math.ceil(textWidth(serverName, 18, 'medium')) + 20) : 0,
         }
+        if (showText) {
+          // The renderer ends a line too long for the card with an ellipsis, so the text isn't
+          // measured here. Double spaces in the subtitle fold into one.
+          card.title = it.Name || ''
+          card.titleFont = fontFor(card.title, 'bold')
+          card.subtitle = (cardSubtitle(it, false, detailed) || '').replace(/\s+/g, ' ')
+          card.subtitleFont = fontFor(card.subtitle, 'regular')
+        }
         built.set(it, { i, type, server, unified: my.unified, v, card })
         return card
       })
+      // The cell holds the poster in its 3px border, the lines under it, and 20px to the next row.
+      const textH = showText ? (st.cards.some((c) => c.subtitle) ? 61 : 35) : 0
+      const itemH = posterH + 6 + textH
+      st.cols = st.horizontal ? Math.max(1, Math.floor((st.viewH + 20) / (itemH + 20))) : g.columns
+      st.tileH = itemH + 20
+      const t = theme()
+      st.opts = {
+        cardW, posterH, showText, textH, ms: focusMs(200), slide: slideMs(200),
+        watchedBg: t.badgeWatched, onBadge: t.onBadge,
+      }
       st.emptyText = !st.loading && !items.length ? (st.home ? $L('No favorites yet') : $L('No favorites found')) : ''
       if (!st.home) {
         const filter = TYPE_FILTERS.find((x) => x.key === my.typeKey) || TYPE_FILTERS[0]
