@@ -37,7 +37,8 @@ export const fetchDetailPlaybackInfo = async (api, {
 	};
 	if (deviceProfile) body.DeviceProfile = deviceProfile;
 	if (maxStreamingBitrate) body.MaxStreamingBitrate = maxStreamingBitrate;
-	if (mediaSourceId) body.MediaSourceId = mediaSourceId;
+	// Play keeps the version shown, so the preview does too.
+	if (mediaSourceId) Object.assign(body, {MediaSourceId: mediaSourceId, PinVersion: true});
 	if (audioStreamIndex != null) body.AudioStreamIndex = audioStreamIndex;
 	if (subtitleStreamIndex != null) body.SubtitleStreamIndex = subtitleStreamIndex;
 

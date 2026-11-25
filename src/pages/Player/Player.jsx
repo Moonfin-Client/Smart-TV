@@ -254,7 +254,8 @@ export default function Player(props) {
     list: [props.id].concat(Array.isArray(props.queue) ? props.queue.filter((q) => q && q !== props.id) : []),
     // Cinema Mode's trailers lead the queue Details hands over.
     prerolls: Number(props.prerolls) || 0,
-    // With trailers ahead, the version and tracks Details picked are the feature's, which starts after them.
+    // The version and tracks Details picked are the feature's, which Cinema Mode's trailers can lead.
+    featureId: Array.isArray(props.queue) && Number(props.prerolls) > 0 ? props.queue[Number(props.prerolls)] : props.id,
     featurePicks: {},
     // The version playing was picked in Details, so Silo keeps it when the player starts it again.
     pinVersion: false,
@@ -403,12 +404,13 @@ export default function Player(props) {
     }
   })
 
-  // picks are the tracks and version Details chose, for the first item only. startTicks null starts where
+  // picks are the tracks and version Details chose, for the feature only. startTicks null starts where
   // the item was left, unless the route said not to resume.
   async function start(itemId, startTicks, picks = {}) {
     // playback.js holds one session, so music playing behind has to report its stop first.
     stopAudio()
     const mine = ++my.startGen
+    my.pinVersion = !!picks.pinVersion
     s.error = ''
     s.buffering = true
     s.loading = true
@@ -475,7 +477,6 @@ export default function Player(props) {
         my.pos = s.position
       }
       const directAllowed = !my.forceTranscode && !st.preferTranscode
-      my.pinVersion = !!picks.pinVersion
       const opts = {
         item,
         startPositionTicks: startTicks,
@@ -2247,7 +2248,7 @@ export default function Player(props) {
     if (my.list.length > 1) my.listPos += step
     my.cues = null
     s.cue = ''
-    await start(item.Id, 0, my.prerolls > 0 && my.listPos === my.prerolls ? my.featurePicks : {})
+    await start(item.Id, 0, item.Id === my.featureId ? my.featurePicks : {})
     if (s.osd) showOsd()
     else focusDefault()
     // A server's shuffle (Silo's) hands out one item ahead: the one starting now was it, so the server picks the next.
@@ -2752,16 +2753,16 @@ export default function Player(props) {
       mediaSourceId: props.mediaSourceId || undefined,
       pinVersion: props.pinVersion === true,
     }
-    if (my.prerolls > 0) my.featurePicks = routePicks
+    my.featurePicks = routePicks
     // A group plays the feature, not Cinema Mode's trailers, which would go to everyone.
-    if (party.isInGroup() && my.prerolls > 0 && my.list[my.prerolls]) {
-      my.listPos = my.prerolls
+    if (party.isInGroup() && my.prerolls > 0 && my.list.includes(my.featureId)) {
+      my.listPos = my.list.indexOf(my.featureId)
       my.prerolls = 0
       await start(my.list[my.listPos], 0, my.featurePicks)
       if (!gone) focusDefault()
       return
     }
-    await start(props.id, ticks == null || party.isInGroup() ? ticks : applyResumeRewind(ticks, settings.all()), my.prerolls > 0 ? {} : routePicks)
+    await start(props.id, ticks == null || party.isInGroup() ? ticks : applyResumeRewind(ticks, settings.all()), props.id === my.featureId ? routePicks : {})
     // The controls stay away until a key asks for them.
     if (!gone) focusDefault()
   })

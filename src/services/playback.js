@@ -1019,6 +1019,8 @@ const siloPlaybackResult = async ({
 		audioStreamIndex: selectedAudio,
 		subtitleStreamIndex: requestedSubtitleStreamIndex,
 		maxBitrate: options.maxBitrate,
+		// A reconnect, a seek Silo replans or a track switch asks again with the session, and keeps the version.
+		pinVersion: options.pinVersion === true,
 		allowDirectPlay,
 		allowDirectStream,
 		serverCredentials: creds

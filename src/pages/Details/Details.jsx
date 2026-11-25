@@ -193,7 +193,7 @@ export default function Details(props) {
     m.anime = null
     m.lists = emptyLists()
     m.tracks = { version: 0, audio: 0, subtitle: -1 }
-    m.chosen = { version: false, audio: false, subtitle: false }
+    m.chosen = { audio: false, subtitle: false }
     m.seerr = idleSeerr()
     m.seerrDone = false
     m.ratings = []
@@ -897,7 +897,6 @@ export default function Details(props) {
         m.tracks = { version: i, audio: Math.max(0, def), subtitle: m.tracks.subtitle }
         m.chosen = { audio: false, subtitle: false }
       }
-      m.chosen.version = true
     } else if (kind === 'audio') {
       m.tracks = { ...m.tracks, audio: i }
       m.chosen.audio = true
@@ -1136,9 +1135,8 @@ export default function Details(props) {
     const ms = it.MediaSources[m.tracks.version] || it.MediaSources[0]
     const audios = (ms.MediaStreams || []).filter((x) => x.Type === 'Audio')
     const subs = (ms.MediaStreams || []).filter((x) => x.Type === 'Subtitle')
-    const out = { mediaSourceId: ms.Id }
-    // A version picked here plays as that version, the default too; until then Silo may play another.
-    if (m.chosen.version) out.pinVersion = true
+    // The version shown here is the one that plays, as on Jellyfin and Emby, so Silo isn't free to play another.
+    const out = { mediaSourceId: ms.Id, pinVersion: true }
     if (m.chosen.audio && audios[m.tracks.audio]) out.audioStreamIndex = audios[m.tracks.audio].Index
     if (m.chosen.subtitle) out.subtitleStreamIndex = m.tracks.subtitle >= 0 && subs[m.tracks.subtitle] ? subs[m.tracks.subtitle].Index : -1
     return out
