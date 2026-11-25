@@ -29,7 +29,7 @@ const STUBS = {
     export const getApiKey = () => auth.token
     export const reportCapabilities = () => {}
     export const createApiForServer = (url, token, userId, type) => ({
-      logout: async () => { logouts.push({ url, token, userId, type }) },
+      logout: async () => { logouts.push({ url, token, userId, type, loaded: globalThis.__sessionsLoaded === true }) },
     })
     export const api = { getUserConfiguration: async () => ({ Id: auth.userId, Name: 'user ' + auth.userId }) }`,
   'services/i18n.js': `export default (s) => s`,
@@ -136,7 +136,7 @@ await test('Sign Out All Users removes everything and ends each Silo login once,
   await auth.signOutAll()
   assert.deepEqual(await savedUsers(), [])
   assert.deepEqual(logouts.map((l) => l.token).sort(), ['tok-a', 'tok-b'])
-  assert.equal(globalThis.__sessionsLoaded, true)
+  assert.ok(logouts.every((l) => l.loaded), 'stored sessions are read before each logout')
   assert.equal(globalThis.__store.authenticated, false)
 })
 

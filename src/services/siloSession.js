@@ -278,7 +278,7 @@ const runRefresh = async (session, deviceInfo, platform) => {
 	} catch (err) {
 		if (err.status === 401 && session.identity === identity && session.tokens === current) {
 			closeSiloSession(session);
-			endListeners.forEach((listener) => listener(session));
+			if (session.signingOut !== identity) endListeners.forEach((listener) => listener(session));
 		}
 		return false;
 	}
