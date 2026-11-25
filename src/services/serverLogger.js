@@ -1,0 +1,277 @@
+import {getPlatform} from '../platform';
+import {resolvePlatformModule} from './platformModule';
+import {setNetworkLogSink} from '../utils/networkLogSink';
+import {redact, redactContext} from '../utils/logRedaction';
+import {setSyncLogSink} from '../utils/syncLog';
+import {acceptsReports, clientLogRequest, logsGoToMoonbase} from './clientLogUpload';
+import {moonbaseEndpoint} from './moonbaseEndpoint';
+
+const LOG_LEVELS = {
+	DEBUG: 'Debug',
+	INFO: 'Information',
+	WARNING: 'Warning',
+	ERROR: 'Error',
+	FATAL: 'Fatal'
+};
+
+const LOG_CATEGORIES = {
+	PLAYBACK: 'Playback',
+	NETWORK: 'Network',
+	APP: 'Application',
+	AUTHENTICATION: 'Authentication',
+	NAVIGATION: 'Navigation',
+	SYNCPLAY: 'SyncPlay'
+};
+
+import packageJson from '../../package.json';
+const APP_VERSION = packageJson.version;
+
+// Tracing every request fills this fast, but these sets have little memory to spare.
+const MAX_LOG_BUFFER = 500;
+
+let isEnabled = false;
+let isRecording = false;
+let logBuffer = [];
+let deviceInfoCache = null;
+let authGetter = null;
+let deviceInfoLoader = null;
+let clientLogSupported = false;
+
+const listeners = new Set();
+
+const notify = () => {
+	listeners.forEach((fn) => {
+		try { fn(); } catch { /* a broken listener must not stop the rest */ }
+	});
+};
+
+const getTimestamp = () => {
+	try {
+		return new Date().toISOString();
+	} catch {
+		return new Date().toString();
+	}
+};
+
+const loadDeviceInfo = async () => {
+	if (deviceInfoCache) return deviceInfoCache;
+
+	if (!deviceInfoLoader) deviceInfoLoader = resolvePlatformModule('deviceInfo');
+
+	try {
+		const mod = await deviceInfoLoader;
+		deviceInfoCache = await mod.getDeviceInfo();
+	} catch {
+		deviceInfoCache = {
+			platform: getPlatform(),
+			appVersion: APP_VERSION,
+			userAgent: navigator.userAgent || 'Unknown',
+			screenSize: `${window.screen.width}x${window.screen.height}`,
+			tvVersion: 'Unknown',
+			modelName: 'Unknown'
+		};
+	}
+
+	return deviceInfoCache;
+};
+
+const platformName = {tizen: 'Tizen', vega: 'Fire TV', xbox: 'Xbox'}[getPlatform()] || 'webOS';
+const logEndpointName = `moonfin-${getPlatform()}-log`;
+
+const formatLogAsText = (entry) => {
+	const lines = [
+`=== Moonfin for ${platformName} Log ===`,
+`Timestamp: ${entry.timestamp}`,
+`Level: ${entry.level}`,
+`Category: ${entry.category}`,
+`Message: ${entry.message}`,
+'',
+'=== Device Info ==='
+	];
+
+	if (entry.device) {
+		lines.push(`Platform: ${entry.device.platform}`);
+		lines.push(`App Version: ${entry.device.appVersion}`);
+		lines.push(`TV Version: ${entry.device.tvVersion}`);
+		lines.push(`Model: ${entry.device.modelName}`);
+		lines.push(`Screen: ${entry.device.screenSize}`);
+		lines.push(`User Agent: ${entry.device.userAgent}`);
+	}
+
+	if (entry.context && Object.keys(entry.context).length > 0) {
+		lines.push('');
+		lines.push('=== Context ===');
+		for (const [key, value] of Object.entries(entry.context)) {
+			const valueStr = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+			lines.push(`${key}: ${valueStr}`);
+		}
+	}
+
+	return lines.join('\n');
+};
+
+const postDocument = async (auth, body) => {
+	const toMoonbase = logsGoToMoonbase(auth.serverType);
+	const moonbase = toMoonbase ? await moonbaseEndpoint(auth.serverUrl, auth.accessToken, auth.serverType) : null;
+	if (toMoonbase && !moonbase) throw new Error("Moonbase couldn't be reached");
+	const {url, init, send} = clientLogRequest(auth, logEndpointName, body, moonbase);
+	return (send || fetch)(url, init);
+};
+
+const sendLogToServer = async (entry) => {
+	if (!authGetter) return;
+
+	const auth = authGetter();
+	if (!auth?.serverUrl || !auth?.accessToken || !acceptsReports(auth.serverType, clientLogSupported)) return;
+
+	try {
+		await postDocument(auth, formatLogAsText(entry));
+	} catch (err) {
+		console.warn('[ServerLogger] Network error:', err.message);
+	}
+};
+
+const log = async (level, category, message, context = {}, immediate = false) => {
+	// Tracing every request puts this on the hottest path in the app, so nothing happens,
+	// not even a console write, until the user asks for it.
+	if (!isRecording && !isEnabled) return;
+
+	// Cleaned on the way into the buffer rather than on the way out, so the screen that
+	// reads the log back shows exactly what a report would carry.
+	const entry = {
+		timestamp: getTimestamp(),
+		level,
+		category,
+		message: redact(message),
+		context: redactContext(context),
+		device: await loadDeviceInfo()
+	};
+
+	logBuffer.push(entry);
+	if (logBuffer.length > MAX_LOG_BUFFER) {
+		logBuffer.shift();
+	}
+	notify();
+
+	const consoleMethod = level === LOG_LEVELS.ERROR || level === LOG_LEVELS.FATAL ? 'error' : 'log';
+	console[consoleMethod]('[ServerLogger]', level, '-', category, ':', entry.message, entry.context);
+
+	if (!isEnabled) return;
+
+	if (immediate) {
+		sendLogToServer(entry);
+	}
+};
+
+// One document holding the whole buffer. The per entry formatter above repeats the device
+// block on every entry, which suits a single error report and not a trace of hundreds.
+const exportText = () => {
+	const device = deviceInfoCache;
+	const lines = [
+`=== Moonfin for ${platformName} diagnostic report ===`,
+`Generated: ${getTimestamp()}`,
+`App Version: ${device?.appVersion || APP_VERSION}`,
+`TV Version: ${device?.tvVersion || 'Unknown'}`,
+`Model: ${device?.modelName || 'Unknown'}`,
+`User Agent: ${device?.userAgent || 'Unknown'}`,
+`Entries: ${logBuffer.length}`,
+'='.repeat(60)
+	];
+
+	for (const entry of logBuffer) {
+		lines.push(`${entry.timestamp} ${entry.level} [${entry.category}] ${entry.message}`);
+		const context = entry.context && Object.keys(entry.context).length > 0
+			? JSON.stringify(entry.context)
+			: null;
+		if (context) lines.push(`    ${context}`);
+	}
+
+	return lines.join('\n');
+};
+
+// Sends the buffer as a single document and keeps it, so a report can be sent twice
+// without the second one describing the first.
+const uploadReport = async () => {
+	if (!authGetter) throw new Error('Logging is not initialized');
+
+	const auth = authGetter();
+	if (!auth?.serverUrl || !auth?.accessToken) throw new Error('No server to send the report to');
+	if (!acceptsReports(auth.serverType, clientLogSupported)) throw new Error('The server has nowhere to take the report');
+
+	await loadDeviceInfo();
+	const response = await postDocument(auth, exportText());
+
+	// Jellyfin answers 403 when client logging is switched off server side, which is
+	// worth surfacing rather than reporting a success that never happened.
+	if (!response.ok) {
+		const error = new Error(`Upload failed: ${response.status}`);
+		error.status = response.status;
+		throw error;
+	}
+};
+
+// Where a document of the given name would go on the signed in server, for a page
+// outside the app that has a report of its own to send. Null when nobody is signed
+// in, or the server has nowhere to take one.
+const documentRequest = (name) => {
+	const auth = authGetter ? authGetter() : null;
+	// The probe page can't look Moonbase up, so on Plex and Silo it keeps its report.
+	if (!auth?.serverUrl || !auth?.accessToken || logsGoToMoonbase(auth.serverType) || !acceptsReports(auth.serverType, clientLogSupported)) return null;
+	const {url, init} = clientLogRequest(auth, name);
+	return {url, method: init.method, headers: init.headers};
+};
+
+export const serverLogger = {
+	LOG_LEVELS,
+	LOG_CATEGORIES,
+
+	init: (options = {}) => {
+		isEnabled = options.enabled ?? false;
+		authGetter = options.getAuth ?? null;
+		loadDeviceInfo();
+	},
+
+	setEnabled: (enabled) => {
+		isEnabled = enabled;
+	},
+
+	setClientLogSupported: (supported) => {
+		clientLogSupported = supported;
+	},
+
+	// Recording is the switch for keeping a local trace. Attaching the sink is what makes
+	// the fetch wrappers start reporting, and detaching it is what makes them free again.
+	setRecording: (recording) => {
+		if (recording === isRecording) return;
+		isRecording = recording;
+		setNetworkLogSink(recording
+			? (message, level) => log(level === 'error' ? LOG_LEVELS.ERROR : LOG_LEVELS.DEBUG, LOG_CATEGORIES.NETWORK, message)
+			: null);
+		setSyncLogSink(recording
+			? (message) => log(LOG_LEVELS.DEBUG, LOG_CATEGORIES.SYNCPLAY, message)
+			: null);
+	},
+
+	subscribe: (fn) => {
+		listeners.add(fn);
+		return () => listeners.delete(fn);
+	},
+
+	clear: () => {
+		logBuffer = [];
+		notify();
+	},
+
+	uploadReport,
+	documentRequest,
+
+	debug: (category, message, context) => log(LOG_LEVELS.DEBUG, category, message, context),
+	warn: (category, message, context) => log(LOG_LEVELS.WARNING, category, message, context),
+	error: (category, message, context, immediate = true) => log(LOG_LEVELS.ERROR, category, message, context, immediate),
+
+	playback: (message, context) => log(LOG_LEVELS.INFO, LOG_CATEGORIES.PLAYBACK, message, context),
+
+	getBuffer: () => [...logBuffer]
+};
+
+export default serverLogger;
