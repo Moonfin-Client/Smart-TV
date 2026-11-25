@@ -15,7 +15,7 @@ import { isRowEnabledBySetting } from '../../../utils/homeRowGates.js'
 import { showsWatchedCheck } from '../../../utils/playedState.js'
 import { episodeArtwork, modernCardImageUrl, requestedArtwork } from '../home/cardArtwork.js'
 import { isCarouselRow, isStaticLibraryCard } from '../home/modernCardLayout.js'
-import { classicShape, imageTypeRowId, rowImageType } from '../home/rowPeek.js'
+import { classicShape, imageTypeRowId, rowCardType, rowImageType } from '../home/rowPeek.js'
 import { adaptItem } from './previewData.js'
 
 // When a row's group is off in Rows, the notice names the row or rows to turn on.
@@ -142,7 +142,9 @@ const previewItem = (item, look) => {
     return { ...adapted, cardUrl: modernCardImageUrl(item, false, card), focusUrl: modernCardImageUrl(item, true, card) }
   }
   const art = (item.Type === 'Genre' && item._representative) || item
-  const episode = item.Type === 'Episode' && look.shape !== 'banner' ? episodeArtwork(item, itemServerUrl, look.imageType, look.useSeriesThumbnails) : null
+  // A poster row takes the series poster for an episode, as Home's cards do.
+  const seriesArt = look.useSeriesThumbnails || (look.imageType === 'poster' && look.shape === 'portrait')
+  const episode = item.Type === 'Episode' && look.shape !== 'banner' ? episodeArtwork(item, itemServerUrl, look.imageType, seriesArt) : null
   const wide = look.shape === 'landscape' ? requestedArtwork(art, 'thumb', itemServerUrl) || adapted.backdropUrl : null
   return {
     ...adapted,
@@ -153,7 +155,7 @@ const previewItem = (item, look) => {
 
 const previewRow = (row, s, serverUrl) => {
   const imageType = rowImageType(row, s)
-  const shape = classicShape(row.type, imageType)
+  const shape = classicShape(rowCardType(row, s), imageType)
   const modern = s.homeRowsStyle !== 'v1'
   const staticCards = modern && isStaticLibraryCard(row.id === 'library-tiles', s)
   const look = { modern, imageType, shape, serverUrl, useSeriesThumbnails: s.useSeriesThumbnails, isStaticMyMedia: staticCards }

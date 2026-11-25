@@ -13,7 +13,7 @@ import { fontFor, textWidth } from '../../text.js'
 import { theme } from '../../theme.js'
 import { luminance } from './posterLabels.js'
 import { getCardDisplayTitle, getEpisodeLabels, isCarouselRow, isStaticLibraryCard, modernCardMetrics } from './modernCardLayout.js'
-import { classicCardSize, classicShape, rowImageType } from './rowPeek.js'
+import { classicCardSize, classicShape, rowCardType, rowImageType } from './rowPeek.js'
 import { episodeArtwork, modernCardImageUrl, requestedArtwork } from './cardArtwork.js'
 
 const formatRuntime = (ticks) => {
@@ -205,7 +205,10 @@ export const classicCard = (it, i, { s, cardType, imageType, hideProgress, hideC
       ? toAbsoluteImageUrl(seerrWideArtUrl(it) || seerrThumbUrl(it), serverUrl)
       : null
   const isBanner = type === 'banner' && cardType !== 'square' && cardType !== 'circle'
-  const epArt = it.Type === 'Episode' && !isBanner ? episodeArtwork(it, serverUrl, type, s.useSeriesThumbnails) : null
+  // A Home poster row has no episode poster to show, so it takes the series poster, as Core does.
+  // Rows off Home keep the episode still.
+  const seriesArt = s.useSeriesThumbnails || (!plain && type === 'poster' && cardType === 'portrait')
+  const epArt = it.Type === 'Episode' && !isBanner ? episodeArtwork(it, serverUrl, type, seriesArt) : null
   const wideArt = epArt ? epArt.wide : !!(rowArt || seerrWide)
   const landscape = !isBanner && (cardType === 'landscape' || (cardType === 'portrait' && wideArt))
   const circle = cardType === 'circle'
@@ -324,7 +327,8 @@ export const shapeRow = (row, look, s) => {
   // Every row but Seerr's, the online recommendations and Genres gets the poster labels.
   const posterLabels = !row.isSeerrRow && !row.isOnlineRecoRow && !row.isGenreRow
   const opts = { s, rowKey: row.key, hideProgress: look.hideProgress, hideCount: look.hideCount, plain: !!look.plain, posterLabels }
-  const cardType = row.type === 'poster' ? 'portrait' : row.type
+  const type = rowCardType(row, s)
+  const cardType = type === 'poster' ? 'portrait' : type
   let cards
   let seeAll = null
   // A library's, a collection's or a calendar's row ends in a See All card.

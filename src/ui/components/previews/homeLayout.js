@@ -3,7 +3,7 @@
 import $L from '../../../services/i18n.js'
 import { textWidth, cssShift } from '../../text.js'
 import { homeRowSpacing } from '../home/modernCardLayout.js'
-import { classicShape, rowImageType } from '../home/rowPeek.js'
+import { classicShape, rowCardType, rowImageType } from '../home/rowPeek.js'
 import { rowCardHeights } from './mediaBarMath.js'
 import { metaLayout } from './mediaBarKit.js'
 import { ROW_LEFT_INSET, ROW_SCALE, SAMPLE_PILLS, itemAt, metaParts } from './kit.js'
@@ -193,7 +193,8 @@ export const rowsColumn = ({ s, t, items, rows, modern, focusFirst = false, caro
   const rowSettings = { ...s, homeRowsStyle: modern ? 'v2' : 'v1' }
   const spacing = homeRowSpacing(rowSettings)
   const rowGap = spacing === null ? 540 : spacing / 2
-  const sampleShape = (row, cardType) => classicShape(cardType, rowImageType(row, rowSettings))
+  // A sample row takes the shape Home gives the row it stands for.
+  const sampleShape = (row, cardType) => classicShape(rowCardType({ ...row, type: cardType }, rowSettings), rowImageType(row, rowSettings))
   const x0 = ROW_LEFT_INSET - 16
   let y = 16
   const first = rows ? rows[0].items[0] : items[0]

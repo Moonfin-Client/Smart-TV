@@ -7,8 +7,8 @@ import { isKidsMode } from '../utils/kidsMode.js'
 
 // Bumped whenever a card needs a field the cache used to drop, so rows saved under the old shape
 // are fetched again rather than restored with gaps.
-const STORAGE_KEY_BROWSE = 'browse_cache_v5'
-const STALE_BROWSE_KEYS = ['browse_cache_v4']
+const STORAGE_KEY_BROWSE = 'browse_cache_v6'
+const STALE_BROWSE_KEYS = ['browse_cache_v4', 'browse_cache_v5']
 
 export const CACHE_TTL_VOLATILE = 5 * 60 * 1000
 export const CACHE_TTL_LIBRARIES = 30 * 60 * 1000
@@ -169,6 +169,10 @@ const stripItemForCache = (item) => ({
   mediaInfo: item.mediaInfo,
   SeriesName: item.SeriesName,
   SeriesId: item.SeriesId,
+  // A poster row shows an episode's series poster, or its season's.
+  SeriesPrimaryImageTag: item.SeriesPrimaryImageTag,
+  ParentPrimaryImageItemId: item.ParentPrimaryImageItemId,
+  ParentPrimaryImageTag: item.ParentPrimaryImageTag,
   ParentIndexNumber: item.ParentIndexNumber,
   IndexNumber: item.IndexNumber,
   ParentThumbItemId: item.ParentThumbItemId,
