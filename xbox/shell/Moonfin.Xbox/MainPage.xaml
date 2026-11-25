@@ -1,0 +1,41 @@
+<Page x:Class="Moonfin.Xbox.MainPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Background="#101010">
+
+    <Grid>
+        <!-- The console's own player, under the WebView, which goes clear where video plays. -->
+        <Border x:Name="VideoBackdrop" Background="Black" Visibility="Collapsed" />
+        <MediaPlayerElement x:Name="VideoHost"
+                            AreTransportControlsEnabled="False"
+                            Stretch="Fill"
+                            IsHitTestVisible="False"
+                            IsTabStop="False"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Top"
+                            Visibility="Collapsed" />
+
+        <!-- The WebView goes in here once it's ready to take focus. -->
+        <Grid x:Name="WebViewHost" />
+
+        <!-- Shown when the WebView can't be started, or has failed twice in a row. -->
+        <StackPanel x:Name="ErrorPanel"
+                    Visibility="Collapsed"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="32">
+            <TextBlock x:Name="ErrorText"
+                       Foreground="White"
+                       FontSize="36"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       MaxWidth="1200" />
+            <Button x:Name="RestartButton"
+                    Content="Restart Moonfin"
+                    FontSize="28"
+                    Padding="48,16"
+                    HorizontalAlignment="Center"
+                    Click="OnRestartClick" />
+        </StackPanel>
+    </Grid>
+</Page>

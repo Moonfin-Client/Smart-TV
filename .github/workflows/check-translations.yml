@@ -9,12 +9,12 @@ on:
     branches:
       - main
     paths:
-      - 'packages/app/resources/**/strings.json'
+      - 'public/resources/**/strings.json'
   pull_request:
     branches:
       - main
     paths:
-      - 'packages/app/resources/**/strings.json'
+      - 'public/resources/**/strings.json'
 
 permissions:
   contents: read
@@ -34,7 +34,7 @@ jobs:
           node - <<'EOF'
           const fs = require('fs');
           const path = require('path');
-          const dir = 'packages/app/resources';
+          const dir = 'public/resources';
           const files = [path.join(dir, 'strings.json')];
           for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
             const file = path.join(dir, entry.name, 'strings.json');

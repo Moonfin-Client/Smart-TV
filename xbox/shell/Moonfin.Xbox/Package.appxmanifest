@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap mp rescap">
+
+  <!-- build.mjs writes the version from package.json. The publisher has to
+       match the subject of the certificate the package is signed with. -->
+  <Identity
+    Name="Moonfin.Xbox"
+    Publisher="CN=Moonfin"
+    Version="3.1.1.0" />
+
+  <mp:PhoneIdentity PhoneProductId="2c8c4172-3723-42ed-ace2-54c236dbaa16" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
+
+  <Properties>
+    <DisplayName>Moonfin</DisplayName>
+    <PublisherDisplayName>Moonfin</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <!-- Only consoles, so the Store never offers this beside the desktop app. -->
+    <TargetDeviceFamily Name="Windows.Xbox" MinVersion="10.0.26100.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="x-generate"/>
+  </Resources>
+
+  <Applications>
+    <Application Id="App"
+      Executable="$targetnametoken$.exe"
+      EntryPoint="Moonfin.Xbox.App">
+      <uap:VisualElements
+        DisplayName="Moonfin"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png"
+        Description="Jellyfin and Emby client"
+        BackgroundColor="#101010">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png"/>
+        <uap:SplashScreen Image="Assets\SplashScreen.png" BackgroundColor="#101010" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- Servers on the internet, and servers on the home network. -->
+    <Capability Name="internetClient" />
+    <Capability Name="privateNetworkClientServer" />
+    <!-- Hardware HEVC, 4K and HDR10 on Xbox One S and newer, and the larger memory allowance
+         that comes with it. The app can't run beside a game with this, which a video client
+         has no need to.
+         https://learn.microsoft.com/en-us/windows/uwp/audio-video-camera/hevc-xbox -->
+    <rescap:Capability Name="hevcPlayback" />
+  </Capabilities>
+</Package>
