@@ -47,7 +47,18 @@ export default function BookStrip(props) {
       <text fontFamily={fontFor(props.name || '', 'bold')} fontSize={24} x={60} y={37} color={props.look.onSurface}>
         {label()}
       </text>
-      <TabBar x={tabsX()} y={18} tabs={tabs()} active={active()} focus={has() ? cur() : -1} look={props.look} />
+      <TabBar
+        x={tabsX()}
+        y={18}
+        tabs={tabs()}
+        active={active()}
+        focus={has() ? cur() : -1}
+        look={props.look}
+        onPointerTab={(i) => {
+          if (!has()) props.host.pointNav()
+          setCur(i)
+        }}
+      />
     </view>
   )
 }

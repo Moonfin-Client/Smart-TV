@@ -4,6 +4,7 @@ import { byKey } from '../../../ui/components/details/keyed.js'
 import { cssShift, themeSpacing, uiFont } from '../../../ui/text.js'
 import { hex } from '../../../ui/color.js'
 import { holdPress } from '../../../utils/longPress.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // The `stacked` and `centered` action rows, driven by actionRow(). Stacked is Stage's column under
 // the poster: the first button runs the full 388px and the rest sit under it as 86px circles.
@@ -99,6 +100,12 @@ export default function StyledActions(props) {
     const b = current()
     if (b && props.onActionFocus) props.onActionFocus(b.id)
   }
+  // The Magic Remote's cursor focuses the button under it, and OK then presses it (app/pointer.js).
+  let self
+  const point = (i) => {
+    pointerFocus(self)
+    if (i !== cur()) go(i)
+  }
   const go = (i) => {
     setCur(i)
     notify()
@@ -120,6 +127,7 @@ export default function StyledActions(props) {
   return (
     <view
       ref={(n) => {
+        self = n
         n.current = current
         n.cur = cur
         n.select = (id) => {
@@ -182,7 +190,7 @@ export default function StyledActions(props) {
           const b = () => items.at(k)
           const on = () => isOn(b().i)
           return (
-            <view x={b().x} y={b().y} width={b().w} height={b().h}>
+            <view x={b().x} y={b().y} width={b().w} height={b().h} onPointerOver={() => point(b().i)}>
               <view width={b().w} height={b().h} borderRadius={b().r} color={b().fill} border={{ width: 2, color: RING }} alpha={on() ? 0 : 1} />
               <view width={b().w} height={b().h} borderRadius={b().r} color={b().onFill} border={{ width: 4, color: hex(t().focus) }} alpha={on() ? 1 : 0} />
               <view x={b().iconX} y={b().iconY} width={40} height={40} src={b().icon} color={on() ? b().inkOn : b().ink} />

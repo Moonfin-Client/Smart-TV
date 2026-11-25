@@ -4,6 +4,7 @@ import { tier } from '../../tier.js'
 import { hex } from '../../color.js'
 import { isGameLibrary } from '../../../utils/gameLibrary.js'
 import { menuHold } from '../modals/menuHold.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // Home's Library Buttons row: each library as a frosted square with its type's icon and its name,
 // filled with the accent and grown a little on focus. The row owns Left, Right and Enter like the
@@ -60,6 +61,16 @@ export default function LibraryButtonRow(props) {
     if (b && props.onRowSelect) props.onRowSelect({ raw: b.raw }, props.row.key, cur())
   }
   const hold = menuHold(() => (buttons()[cur()] || {}).raw || null, select)
+  // The Magic Remote's cursor rings a button, and a click focuses it and opens it (app/pointer.js). The
+  // row slides to its focused button, so hover doesn't move focus.
+  let self
+  const pick = (c) => {
+    if (!c) return false
+    pointerFocus(self)
+    if (props.onPointerRow) props.onPointerRow()
+    if (c.idx !== cur()) move(c.idx)
+    return true
+  }
   const move = (to) => {
     if (to === cur() || to < 0 || to >= buttons().length) return
     setCur(to)
@@ -69,6 +80,7 @@ export default function LibraryButtonRow(props) {
   return (
     <view
       ref={(n) => {
+        self = n
         n.focusIndex = (i) => setCur(Math.max(0, Math.min(i, buttons().length - 1)))
         n.cur = cur
         if (props.ref) props.ref(n)
@@ -102,7 +114,15 @@ export default function LibraryButtonRow(props) {
         {props.row.title || ''}
       </text>
       <view x={L().clipX} y={props.box.scrollerY} width={L().viewW} height={220} clipping>
-        <view y={20} x={L().pad - scroll()} width={L().pad * 2 + buttons().length * (SIZE + GAP) + 1920} height={200} transition={{ x: { duration: 220, easing: 'cubic-bezier(0.33, 1, 0.68, 1)' } }}>
+        <view
+          y={20}
+          x={L().pad - scroll()}
+          width={L().pad * 2 + buttons().length * (SIZE + GAP) + 1920}
+          height={200}
+          transition={{ x: { duration: 220, easing: 'cubic-bezier(0.33, 1, 0.68, 1)' } }}
+          pointerChildRing
+          onPointerChildClick={(i) => pick(buttons()[i])}
+        >
           <For each={buttons()}>
             {(b) => {
               const on = () => isCur(b.idx) && focused()

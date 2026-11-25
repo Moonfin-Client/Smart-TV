@@ -115,7 +115,7 @@ export default function SidePanel(props) {
               const op = optionRows.item(k)
               const lit = () => focused() && op().fi === cur()
               return (
-                <view x={33} y={op().y} width={380} height={op().h}>
+                <view x={33} y={op().y} width={380} height={op().h} onPointerOver={() => focused() && op().fi >= 0 && op().fi !== cur() && setCur(op().fi)}>
                   <view width={380} height={op().h} borderRadius={8} color={op().selected ? (props.neon ? NEON.picked : '#00a4dc1f') : '#00000000'} />
                   <view
                     width={380}

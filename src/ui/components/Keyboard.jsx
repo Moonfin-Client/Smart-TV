@@ -591,6 +591,14 @@ function OverlayKeyboard(props) {
     return { color: shadowColor(f.glow || NONE), x: 0, y: f.glowY || 0, blur: f.glowBlur || 0, spread: f.glowSpread || 0 }
   })
   const cellMap = () => cells().map
+  // The Magic Remote's cursor selects the key under it, and OK then presses it (app/pointer.js).
+  const pointAt = (row, col) => {
+    if (!session() || popup()) return
+    batch(() => {
+      setKrow(row)
+      setKcol(col)
+    })
+  }
   const chipMap = () => chipCells().map
   const f = frame
   return (
@@ -602,6 +610,7 @@ function OverlayKeyboard(props) {
           if (props.ref) props.ref(n)
         }}
         alpha={f().show || 0}
+        pointerModal={!!session()}
         onLeft={arrow(() => (popup() ? popupStep(-1) : move(0, -1)))}
         onRight={arrow(() => (popup() ? popupStep(1) : move(0, 1)))}
         onUp={arrow(() => {
@@ -712,7 +721,7 @@ function OverlayKeyboard(props) {
               const ty = () => c().textY + c().size * 0.0918
               const pushed = () => (activeChip() >= 0 && activeChip() < e().i ? chipCells().grow || 0 : 0)
               return (
-                <view x={c().x + pushed()} y={c().y} width={c().w} height={c().h}>
+                <view x={c().x + pushed()} y={c().y} width={c().w} height={c().h} onPointerOver={() => pointAt(-1, e().i)}>
                   <view width={c().w} height={c().h} borderRadius={c().r} color={NONE} alpha={c().glow ? 1 : 0} shadow={glowShadow()} />
                   <view
                     width={c().w}
@@ -764,6 +773,7 @@ function OverlayKeyboard(props) {
                   y={c().y}
                   width={c().w}
                   height={c().h}
+                  onPointerOver={() => pointAt(...k.split('-').map(Number))}
                   pivot={0.5}
                   scale={c().scale}
                   transition={{ scale: { duration: dur, easing: 'ease-out' } }}
@@ -836,7 +846,18 @@ function OverlayKeyboard(props) {
         >
           <For each={popupCells()}>
             {(o) => (
-              <view x={o.x} y={o.y} width={o.w} height={o.h}>
+              <view
+                x={o.x}
+                y={o.y}
+                width={o.w}
+                height={o.h}
+                onPointerOver={() => {
+                  // The first cell is the popup's panel, not a choice.
+                  const pop = popup()
+                  const at = pop && o.i != null ? o.i : -1
+                  if (at >= 0 && at !== pop.index) setPopup({ ...pop, index: at })
+                }}
+              >
                 <view
                   width={o.w}
                   height={o.h}

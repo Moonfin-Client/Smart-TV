@@ -61,7 +61,7 @@ function Row(props) {
         <view transition={GLIDE} x={60 - props.sx} y={20} width={lead() + r().cards.length * r().step + 1920} height={r().h - 69}>
           <view>
             <Show when={r().seeAll}>
-              <view y={seeAllY()} width={SEE_ALL_W} height={SEE_ALL_H}>
+              <view y={seeAllY()} width={SEE_ALL_W} height={SEE_ALL_H} pointerRing={16} onPointerClick={() => props.onPointerCard(0)}>
                 <view
                   width={SEE_ALL_W}
                   height={SEE_ALL_H}
@@ -88,7 +88,17 @@ function Row(props) {
           </view>
           <view width={lead() + r().cards.length * r().step} height={r().h - 69}>
             <For each={cards()}>
-              {(cd) => <MusicCard x={lead() + cd.idx * r().step} card={cd} size={r().cardH} look={look()} focused={sel(cd.idx)} />}
+              {(cd) => (
+                <MusicCard
+                  x={lead() + cd.idx * r().step}
+                  card={cd}
+                  size={r().cardH}
+                  look={look()}
+                  focused={sel(cd.idx)}
+                  pointerRing={12}
+                  onPointerClick={() => props.onPointerCard(cd.idx + (r().seeAll ? 1 : 0))}
+                />
+              )}
             </For>
           </view>
         </view>
@@ -184,6 +194,34 @@ export default function ClassicMusic(props) {
     let y = 0
     if (bottom > view) y = top < view ? bottom - view : (top + bottom - view) / 2
     st.scrollY = Math.max(0, Math.min(y, Math.max(0, layout().end - view)))
+  }
+  // The Magic Remote's cursor (app/pointer.js): Home and the filter button take focus on hover, and
+  // the hero and the chips while in full view; otherwise a click does. The rows glide to their
+  // focused card, so the cursor rings a card and a click focuses it and opens it.
+  const point = (fn) => {
+    my.landed = true
+    fn()
+    if (!st.active && root) root.setFocus()
+  }
+  const shows = (node) => {
+    const [top, bottom] = nodeRect(node)
+    return top >= st.scrollY && bottom <= st.scrollY + 994
+  }
+  const pointNode = (node, set, click) => {
+    if (st.filterOn || (!click && !shows(node))) return false
+    point(() => {
+      focusNode(node)
+      if (set) set()
+    })
+    return click
+  }
+  const pointCard = (i, cur) => {
+    if (st.filterOn) return false
+    point(() => {
+      focusNode('row:' + i)
+      setRowCur(i, cur)
+    })
+    return true
   }
   const nodeOf = () => (st.zone === 'row' ? 'row:' + st.row : st.zone)
   const step = (d) => {
@@ -287,7 +325,15 @@ export default function ClassicMusic(props) {
     >
       <view y={86} width={1920} height={994} clipping>
         <view y={-st.scrollY} width={1920} height={Math.max(994, layout().end)}>
-          <view x={60} y={layout().heroY} width={1800} height={222} alpha={hero() ? 1 : 0}>
+          <view
+            x={60}
+            y={layout().heroY}
+            width={1800}
+            height={222}
+            alpha={hero() ? 1 : 0}
+            onPointerOver={() => !heroFocus() && pointNode('hero', null, false)}
+            onPointerClick={() => pointNode('hero', null, true)}
+          >
             <view width={1800} height={222} borderRadius={16} color={NONE} shadow={HERO_GLOW} alpha={heroFocus() ? 1 : 0} />
             <view width={1800} height={222} borderRadius={16} color={heroFocus() ? '#ffffff26' : '#ffffff12'} border={{ width: 1, color: hex(heroFocus() ? SHEET_ACCENT : NONE) }} />
             <view x={1} y={1} width={220} height={220} color="#ffffff14" />
@@ -324,7 +370,13 @@ export default function ClassicMusic(props) {
               {(ch) => {
                 const f = () => chipFocus() === ch().i
                 return (
-                  <view x={ch().x} width={ch().w} height={55}>
+                  <view
+                    x={ch().x}
+                    width={ch().w}
+                    height={55}
+                    onPointerOver={() => !f() && pointNode('chips', () => (st.ccur = ch().i), false)}
+                    onPointerClick={() => pointNode('chips', () => (st.ccur = ch().i), true)}
+                  >
                     <view width={ch().w} height={55} borderRadius={22} color={f() ? '#00a4dcff' : '#ffffff17'} border={{ width: 1, color: hex(f() ? SHEET_ACCENT : NONE) }} />
                     <view x={19} y={15.5} width={24} height={24} src={'icons/' + ch().icon + '.webp'} color={f() ? '#ffffffff' : '#ffffffcc'} />
                     <text fontFamily={uiFont('bold')} fontSize={15} x={53} y={lineY(11, 33, 15)} color={f() ? '#ffffffff' : '#ffffffcc'}>
@@ -355,6 +407,7 @@ export default function ClassicMusic(props) {
                   look={look()}
                   sx={st.rowX[rw.i] || 0}
                   focus={live() && st.zone === 'row' && st.row === rw.i ? (st.rowCur[rw.i] >= 0 ? st.rowCur[rw.i] : rw.entry) : -1}
+                  onPointerCard={(cur) => pointCard(rw.i, cur)}
                 />
               )}
             </For>
@@ -363,14 +416,38 @@ export default function ClassicMusic(props) {
       </view>
       <view x={60} y={16} width={62} height={62} borderRadius={31} color={NONE} shadow={CHIP_GLOW} alpha={homeFocus() ? 1 : 0} />
       <view x={1798} y={16} width={62} height={62} borderRadius={31} color={NONE} shadow={CHIP_GLOW} alpha={filterFocus() ? 1 : 0} />
-      <view x={60} y={16} width={62} height={62}>
+      <view
+        x={60}
+        y={16}
+        width={62}
+        height={62}
+        onPointerOver={() =>
+          !st.filterOn &&
+          point(() => {
+            st.zone = 'header'
+            st.hcur = 0
+          })
+        }
+      >
         <view width={62} height={62} borderRadius={31} color={homeFocus() ? '#00a4dcff' : '#ffffff17'} border={{ width: 1, color: hex(homeFocus() ? SHEET_ACCENT : NONE) }} />
         <view x={19} y={19} width={24} height={24} src="icons/nav_home.webp" color={homeFocus() ? '#ffffffff' : '#ffffffcc'} />
       </view>
       <text fontFamily={uiFont()} fontSize={34} x={136} y={lineY(31, 42, 34) - 3} maxWidth={1648} contain="width" textAlign="center" maxLines={1} color="#ffffffff">
         {title()}
       </text>
-      <view x={1798} y={16} width={62} height={62}>
+      <view
+        x={1798}
+        y={16}
+        width={62}
+        height={62}
+        onPointerOver={() =>
+          !st.filterOn &&
+          point(() => {
+            st.zone = 'header'
+            st.hcur = 1
+          })
+        }
+      >
         <view width={62} height={62} borderRadius={31} color={filterFocus() ? '#00a4dcff' : '#ffffff17'} border={{ width: 1, color: hex(filterFocus() ? SHEET_ACCENT : NONE) }} />
         <view x={19} y={19} width={24} height={24} src="icons/mus_filter.webp" color={filterFocus() ? '#ffffffff' : '#ffffffcc'} />
       </view>

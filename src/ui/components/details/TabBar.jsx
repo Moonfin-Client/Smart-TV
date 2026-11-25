@@ -3,6 +3,7 @@ import { textWidth } from './measure.js'
 import { themeSpacing, uiFont } from '../../text.js'
 import { hex } from '../../color.js'
 import { shadowColor } from '../../theme.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // The details tab bar: pills butted together on one translucent track, the open tab filled with
 // the accent, the focused one ringed. A bar wider than the page scrolls inside its outline by the
@@ -64,9 +65,19 @@ export default function TabBar(props) {
     notify()
     return true
   }
+  // The Magic Remote's cursor focuses the tab under it, and OK then opens it (app/pointer.js).
+  let self
+  const point = (i) => {
+    pointerFocus(self)
+    if (cur() !== i) {
+      setCur(i)
+      reveal()
+    }
+  }
   return (
     <view
       ref={(n) => {
+        self = n
         n.current = current
         n.select = (id) => {
           const i = tabs().findIndex((tab) => tab.id === id)
@@ -104,8 +115,8 @@ export default function TabBar(props) {
         <view x={-scroll()} width={inner()} height={63}>
           <view width={inner()} height={63}>
             <Index each={pills()}>
-              {(p) => (
-                <view x={p().x} y={4} width={p().w} height={PILL_H}>
+              {(p, i) => (
+                <view x={p().x} y={4} width={p().w} height={PILL_H} onPointerOver={() => point(i)}>
                   <view width={p().w} height={PILL_H} borderRadius={square() ? 0 : 27.5} color={p().on ? t().accent : '#00000000'} />
                   <text
                     x={25}

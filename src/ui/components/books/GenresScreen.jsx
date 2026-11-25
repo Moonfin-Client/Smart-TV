@@ -11,7 +11,7 @@ import BookShelf from './BookShelf.jsx'
 import { ScreenTitle, TabBar } from './BookControls.jsx'
 import { bookCard } from './bookCards.js'
 import { countLabel } from './bookGrid.js'
-import { shelfHeight } from './bookParts.js'
+import { bookPointer, shelfHeight, showsWhole } from './bookParts.js'
 import { ellipsize, tabBarWidth, textWidth } from './bookText.js'
 import { BOOK_FIELDS } from './bookLibraryData.js'
 import { STATION_COLORS, bookMenuItem, genreTitleCount, sortBookGenres, titlesCount } from './bookScreens.js'
@@ -165,6 +165,33 @@ export default function GenresScreen(props) {
     const card = gr.cards[col()]
     if (card) props.host.openItem(card.raw)
   }
+  // The Magic Remote's cursor (app/pointer.js): the order tabs take focus on hover, and a genre's
+  // station or a book while in full view; one the page or its shelf would scroll to takes it on a
+  // click.
+  const point = bookPointer(props, has)
+  const pointAt = (r, c, o) => {
+    const gr = rows()[r]
+    if (!gr || (c >= 0 && !gr.cards[c])) return false
+    const top = gr.y + (c < 0 ? 70 : 0)
+    const whole = o.whole && showsWhole(top, gr.y + ROW_H - top, scrollY(), view())
+    return point(
+      () => {
+        setHeader(false)
+        setRow(r)
+        setCol(c)
+        reveal()
+      },
+      { whole, lit: has() && !header() && row() === r && col() === c, click: o.click },
+    )
+  }
+  const pointTab = (i) =>
+    point(
+      () => {
+        setHeader(true)
+        setHcur(i)
+      },
+      { lit: has() && header() && hcur() === i },
+    )
   const heldItem = () => {
     const gr = !header() && col() >= 0 ? rows()[row()] : null
     return gr && gr.cards[col()] ? bookMenuItem(gr.cards[col()].raw) : null
@@ -265,6 +292,7 @@ export default function GenresScreen(props) {
         active={order()}
         focus={header() && has() ? hcur() : -1}
         look={look()}
+        onPointerTab={(i) => counted() && pointTab(i)}
       />
       <view y={headerH()} width={cw()} height={view()} clipping>
         <view y={-scrollY()} width={cw()} height={Math.max(props.viewH, height())}>
@@ -274,7 +302,13 @@ export default function GenresScreen(props) {
               const here = () => isRow(gr().r)
               return (
                 <view x={60} y={gr().y} width={cw() - 60} height={ROW_H}>
-                  <view y={70} width={345} height={240}>
+                  <view
+                    y={70}
+                    width={345}
+                    height={240}
+                    onPointerOver={() => pointAt(gr().r, -1, { whole: true, click: false })}
+                    onPointerClick={() => pointAt(gr().r, -1, { whole: true, click: true })}
+                  >
                     <view width={345} height={240} borderRadius={24} color={gr().color} />
                     <view x={-3} y={-3} width={351} height={246} borderRadius={27} color={CLEAR} border={{ width: 3, color: hex(look().focus) }} alpha={here() && col() < 0 ? 1 : 0} />
                     <text fontFamily={gr().nameFont} fontSize={36} x={27} y={25} color="#ffffff">
@@ -303,6 +337,7 @@ export default function GenresScreen(props) {
                       viewW={cw() - 60 - 345}
                       look={look()}
                       zoom={props.zoom}
+                      onPointerCard={(i, o) => pointAt(gr().r, i, o)}
                     />
                   </view>
                 </view>

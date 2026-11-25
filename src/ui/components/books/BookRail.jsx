@@ -28,6 +28,18 @@ export default function BookRail(props) {
     const row = lay().rows[cur()]
     if (row) setScrollY(focusScroll(row.y, RAIL_ROW_H, scrollY(), 1080, Math.max(0, lay().height - 1080)))
   }
+  // The Magic Remote's cursor (app/pointer.js): an entry in full view takes focus on hover, one the
+  // rail would scroll to on a click.
+  const point = (key, click) => {
+    const i = (props.entries || []).findIndex((e) => e.key === key)
+    const row = lay().rows[i]
+    if (!row) return false
+    if (!click && (row.y < scrollY() || row.y + RAIL_ROW_H > scrollY() + 1080 || (has() && cur() === i))) return false
+    if (!has()) props.host.pointNav()
+    setCur(i)
+    reveal()
+    return click
+  }
   const move = (step) => {
     const next = cur() + step
     if (next >= 0 && next < (props.entries || []).length) {
@@ -117,6 +129,7 @@ export default function BookRail(props) {
                   <text fontFamily={subFont} fontSize={22} x={326} y={countY} mountX={1} color={on() ? props.look.accent : props.look.os62}>
                     {row().count}
                   </text>
+                  <view width={346} height={64} onPointerOver={() => point(row().k)} onPointerClick={() => point(row().k, true)} />
                 </view>
               )
             }}

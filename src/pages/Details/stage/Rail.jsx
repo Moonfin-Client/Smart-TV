@@ -8,6 +8,7 @@ import { highMs } from '../../../ui/tier.js'
 import { focusNav } from '../../../app/focus.js'
 import { holdPress } from '../../../utils/longPress.js'
 import { tx } from '../../../ui/fx.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // A titled row of Stage's cards. Kinds:
 //   poster  250x375 art, 1.12 from its foot when focused under a 5px ring, title and subtitle under it
@@ -164,6 +165,7 @@ export default function StageRail(props) {
     if (props.onRailFocus) props.onRailFocus(m.id, { y: lay().trackY + c.y, h: c.person ? 161 : c.ah }, cur())
     if (m.n - cur() <= 8 && props.onRailNearEnd) props.onRailNearEnd(m.id)
   }
+  let self
   const move = (i) => {
     setCur(i)
     reveal()
@@ -178,6 +180,7 @@ export default function StageRail(props) {
   return (
     <view
       ref={(n) => {
+        self = n
         n.draw = draw
         n.contentHeight = contentHeight
         n.current = () => {
@@ -265,7 +268,20 @@ export default function StageRail(props) {
       </text>
       <view x={lay().viewX} y={lay().trackY} width={lay().viewW} height={lay().trackH} clipping>
         <view transition={SLIDE} x={-scroll()} width={lay().contentW} height={lay().trackH}>
-          <view width={lay().contentW} height={lay().trackH}>
+          <view
+            width={lay().contentW}
+            height={lay().trackH}
+            // The rail slides to its focused card, so the Magic Remote's cursor rings a card and a click
+            // focuses it and opens it (app/pointer.js).
+            pointerChildRing
+            onPointerChildClick={(i, child) => {
+              const c = list.at(list.keys()[i])
+              if (!c) return false
+              pointerFocus(self)
+              if (c.idx !== cur()) move(c.idx)
+              return true
+            }}
+          >
             <For each={list.keys()}>
               {(k) => {
                 const c = () => list.at(k)

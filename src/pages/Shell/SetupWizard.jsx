@@ -389,6 +389,10 @@ export default function SetupWizard() {
     })
     keepInView()
   }
+  // The Magic Remote's cursor focuses a control, and OK then uses it (app/pointer.js).
+  const over = (id) => () => {
+    if (!s.picker && s.focusId !== id) focusTo(id)
+  }
   const activate = () => {
     const id = s.focusId
     if (/^opt-/.test(id)) pickOption(id.slice(4))
@@ -537,7 +541,7 @@ export default function SetupWizard() {
             {header().name || ' '}
           </text>
         </view>
-        <view x={header().skipX} y={64}>
+        <view x={header().skipX} y={64} onPointerOver={over('skip')}>
           <text
             fontFamily={regular()}
             fontSize={28}
@@ -571,7 +575,7 @@ export default function SetupWizard() {
                 {(row) => {
                   const o = createMemo(() => rowLook(row(), isFocus(row().id)))
                   return (
-                    <view x={96} y={o().y} width={600} height={60}>
+                    <view x={96} y={o().y} width={600} height={60} onPointerOver={over(row().id)}>
                       <view width={600} height={60} borderRadius={14} color={o().focused ? t().onSurface : NONE} />
                       <view x={24} y={18} width={24} height={24} borderRadius={12} color={NONE} border={{ width: 2, color: hex(o().ring) }} />
                       <view x={30} y={24} width={12} height={12} borderRadius={6} color={t().accent} alpha={o().sel ? 1 : 0} />
@@ -611,7 +615,7 @@ export default function SetupWizard() {
               </Index>
             </view>
 
-            <view alpha={column().section ? 1 : 0} x={96} y={section().y} width={600} height={section().h}>
+            <view alpha={column().section ? 1 : 0} x={96} y={section().y} width={600} height={section().h} onPointerOver={over('playback')}>
               <view
                 width={600}
                 height={section().h}
@@ -670,7 +674,7 @@ export default function SetupWizard() {
             <view width={720} height={trackH()}>
               <Index each={settingRows()}>
                 {(r) => (
-                  <view x={96} y={r().y} width={600} height={r().h}>
+                  <view x={96} y={r().y} width={600} height={r().h} onPointerOver={over(r().id)}>
                     <view
                       width={600}
                       height={r().h}
@@ -808,7 +812,7 @@ export default function SetupWizard() {
           <Index each={captionPath()}>{pathItem}</Index>
         </view>
 
-        <view alpha={s.cur > 0 ? 1 : 0} x={96} y={962}>
+        <view alpha={s.cur > 0 ? 1 : 0} x={96} y={962} onPointerOver={over('back')}>
           <text
             fontFamily={regular()}
             fontSize={28}
@@ -836,7 +840,7 @@ export default function SetupWizard() {
         >
           {$L('Up and down to preview · OK to choose · Back twice to skip')}
         </text>
-        <view x={next().x} y={951} width={next().w} height={73}>
+        <view x={next().x} y={951} width={next().w} height={73} onPointerOver={over('next')}>
           <view
             width={next().w}
             height={73}
@@ -894,7 +898,7 @@ export default function SetupWizard() {
             <view y={-s.pickScroll} width={724} height={pickerLay().contentH}>
               <Index each={pickerLay().rows}>
                 {(o, i) => (
-                  <view y={o().y} width={724} height={o().h}>
+                  <view y={o().y} width={724} height={o().h} onPointerOver={() => s.picker && s.pickIndex !== i && (s.pickIndex = i)}>
                     <view width={724} height={o().h} borderRadius={16} color={isPick(i) ? t().os(0.12) : NONE} />
                     <text
                       fontFamily={o().font}

@@ -2,6 +2,7 @@ import { For, Show, createMemo, createSignal } from 'solid-js'
 import { fontFor, textWidth, faceDy, themeSpacing } from '../../text.js'
 import { theme } from '../../theme.js'
 import { focusActivePage } from '../../../state/pages.js'
+import { focusNav } from '../../../app/focus.js'
 import { getStore } from '../../../state/store.js'
 import { router } from '../../../app/router.js'
 import { audio } from '../../../state/audioPlayer.js'
@@ -116,6 +117,16 @@ export default function Reel(props) {
   }
   // Focus goes back to the page first, so whatever the entry opens returns there afterwards.
   const closeToContent = () => focusActivePage()
+  // The Magic Remote's cursor rings an entry, and a click turns the wheel to it and opens it
+  // (app/pointer.js). The wheel turns under focus, so hover doesn't turn it. The rail opens the wheel
+  // on a click, since the wheel covers the page.
+  const pick = (k) => () => {
+    const i = entries().findIndex((e) => e.key === k)
+    if (i < 0) return false
+    setOnAvatar(false)
+    setCenter(i)
+    return true
+  }
 
   return (
     <view
@@ -158,17 +169,17 @@ export default function Reel(props) {
         return true
       }}
     >
-      <view x={15} width={72} height={1080} alpha={open() ? 0 : 1}>
+      <view x={15} width={72} height={1080} alpha={open() ? 0 : 1} onPointerClick={() => void focusNav()}>
         <For each={DOTS}>{([y, a]) => <view x={33} y={y} width={6} height={6} borderRadius={3} color="#ffffffff" alpha={a} />}</For>
         <view x={3} y={507} width={66} height={66} borderRadius={33} color="#ffffff24" />
         <view x={18} y={522} width={36} height={36} src={restIcon()} color="#ffffffff" />
       </view>
       <view width={1920} height={1080} alpha={open() ? 1 : 0}>
-        <view width={1920} height={1080} color="#0000004d" />
+        <view width={1920} height={1080} color="#0000004d" onPointerClick={() => void closeToContent()} />
         <view width={406} height={1080} colorLeft="#08090bf5" colorRight="#08090be0" />
         <view x={406} width={374} height={1080} colorLeft="#08090be0" colorRight="#08090b00" />
         <view ref={avatarNode} x={38} y={35} width={65} height={65} borderRadius={32.5} color="#ffffffff" alpha={onAvatar() ? 1 : 0} />
-        <view x={42} y={39} width={57} height={57} borderRadius={28.5} color="#2b3440ff">
+        <view x={42} y={39} width={57} height={57} borderRadius={28.5} color="#2b3440ff" onPointerOver={() => open() && setOnAvatar(true)}>
           <text
             letterSpacing={themeSpacing()}
             fontFamily={fontFor(initial(), 'bold')}
@@ -218,7 +229,7 @@ export default function Reel(props) {
         <For each={wheelKeys()}>
           {(k) => {
             const entry = createMemo(() => spoke(k).entry)
-            return <ReelEntry entry={entry()} slot={spoke(k).slot} jump={spoke(k).jump} />
+            return <ReelEntry entry={entry()} slot={spoke(k).slot} jump={spoke(k).jump} onPointerClick={pick(k)} />
           }}
         </For>
       </view>

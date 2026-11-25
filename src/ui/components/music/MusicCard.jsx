@@ -27,6 +27,9 @@ export default function MusicCard(props) {
       pivot={0.5}
       transition={{ scale: { duration: 150, easing: 'ease-out' } }}
       scale={grow() && props.focused ? 1.05 : 1}
+      onPointerOver={props.onPointerOver}
+      onPointerClick={props.onPointerClick}
+      pointerRing={props.pointerRing}
     >
       <view>
         <For each={glows()}>

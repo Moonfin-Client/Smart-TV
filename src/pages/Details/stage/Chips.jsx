@@ -5,6 +5,7 @@ import { byKey } from '../../../ui/components/details/keyed.js'
 import { cssShift, fontFor, themeSpacing, uiFont } from '../../../ui/text.js'
 import { hex } from '../../../ui/color.js'
 import { stageTrackChoices } from './stageRules.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // The audio, subtitle and version pickers as 68px pills with what each is set to. With `shareRow`
 // they split one row between them and leave their names off, for Quick Look's narrow column.
@@ -77,6 +78,12 @@ export default function StageChips(props) {
 
   return (
     <view
+      // The Magic Remote's cursor focuses the chip under it, and OK then uses it (app/pointer.js).
+      onPointerChildOver={(i, child) => {
+        pointerFocus(child.parent)
+        const c = list.at(list.keys()[i])
+        if (c && c.i !== cur()) setCur(c.i)
+      }}
       ref={(n) => {
         n.draw = draw
         n.ids = () => chips().map((c) => c.id)

@@ -70,7 +70,15 @@ export default function ModernCard(props) {
   const dot = () => c().seerrDot
 
   return (
-    <view ref={props.ref} x={props.x || 0} width={props.w} height={c().h} transition={tx(slide())}>
+    <view
+      ref={props.ref}
+      x={props.x || 0}
+      width={props.w}
+      height={c().h}
+      transition={tx(slide())}
+      pointerRing={props.onPointerClick ? radius() || true : undefined}
+      onPointerClick={props.onPointerClick}
+    >
       <view alpha={props.vid ? 0 : 1} transition={tx({ alpha: { duration: L().tier === 'high' ? 300 : 0 } })}>
         <Show when={!c().rest}>
           <view width={props.w} height={c().h} borderRadius={radius()} color={L().placeholder} linearGradient={L().placeholderWash} />

@@ -47,7 +47,7 @@ export default function LoginButton(props) {
   const on = () => (props.focused ? 1 : 0)
   const fade = () => (props.disabled && (kind() === 'outline' || kind() === 'toggle' || kind() === 'action') ? 0.5 : 1)
   return (
-    <view x={props.x || 0} y={props.y || 0} width={width()} height={k().h} alpha={fade()}>
+    <view x={props.x || 0} y={props.y || 0} onPointerOver={props.onPointerOver} width={width()} height={k().h} alpha={fade()}>
       <view width={width()} height={k().h} borderRadius={k().r} color={fill()} />
       <view width={width()} height={k().h} borderRadius={k().r} color={NONE} border={{ width: 1, color: hex(rest()) }} alpha={1 - on()} />
       <view width={width()} height={k().h} borderRadius={k().r} color={NONE} border={{ width: k().ring, color: hex(ring()) }} alpha={on()} />

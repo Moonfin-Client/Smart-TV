@@ -143,6 +143,9 @@ function TrackRow(props) {
 
 // The screen owns the arrows and passes `focus`, the focused row or -1. `view` ([top, bottom] in the
 // list's own coordinates) draws only the rows that reach into it, for a list long enough to scroll.
+// onPointerTrack(i, box) and onPointerTrackClick(i, box) hear the Magic Remote's cursor on a row, the
+// box in the list's coordinates (app/pointer.js). pointerTrackRing rings the row under the cursor,
+// for a list whose focus scrolls the page.
 export default function MusicTrackList(props) {
   const cols = () => (props.columns === 2 ? 2 : 1)
   const colW = () => (cols() === 2 ? (props.w - COL_GAP) / 2 : props.w)
@@ -168,6 +171,14 @@ export default function MusicTrackList(props) {
           return <TrackRow x={p().x} y={p().y} row={p().r} w={colW()} h={p().h} look={props.look} focused={isFocused(p().i)} />
         }}
       </For>
+      <view
+        width={props.w}
+        height={lay().total}
+        pointerItems={() => (props.onPointerTrack || props.onPointerTrackClick ? placed().map((p) => ({ x: p.x, y: p.y, w: colW(), h: p.h, i: p.i })) : [])}
+        onPointerItem={props.onPointerTrack ? (it) => props.onPointerTrack(it.i, it) : undefined}
+        pointerItemRing={props.pointerTrackRing ? 10 : undefined}
+        onPointerItemClick={props.onPointerTrackClick ? (it) => props.onPointerTrackClick(it.i, it) : undefined}
+      />
     </view>
   )
 }

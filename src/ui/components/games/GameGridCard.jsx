@@ -19,6 +19,8 @@ export default function GameGridCard(props) {
       pivot={0.5}
       scale={props.focused ? 1.05 : 1}
       transition={{ scale: { duration: 200, easing: 'ease' } }}
+      onPointerOver={props.onPointerOver}
+      onPointerClick={props.onPointerClick}
     >
       <view width={props.w} height={props.coverH} borderRadius={12} color={props.focused ? (props.neon ? '#ff2e92' : '#ffffff') : c().bg} />
       <view x={3} y={3} width={props.w - 6} height={props.coverH - 6} borderRadius={9} color={c().bg} />

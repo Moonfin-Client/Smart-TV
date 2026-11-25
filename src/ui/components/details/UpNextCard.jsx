@@ -1,6 +1,7 @@
 import { createSignal } from 'solid-js'
 import { uiFont } from '../../text.js'
 import { hex } from '../../color.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // Modern's Next Up card: a 594px glass panel beside the action row with the episode's
 // code and name in the accent, three lines of its overview, its progress and time left, and its
@@ -28,6 +29,8 @@ export default function UpNextCard(props) {
       height={c().h}
       alpha={props.alpha == null ? 1 : props.alpha}
       onFocusChanged={setFocused}
+      // The Magic Remote's cursor focuses it, and OK then presses it (app/pointer.js).
+      onPointerOver={(n) => pointerFocus(n)}
       onEnter={() => {
         if (props.onUpNextSelect) props.onUpNextSelect()
         return true

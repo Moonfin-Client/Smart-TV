@@ -16,6 +16,7 @@ import { trailerHost } from './trailerHost.js'
 import { createBarContext } from './barContext.js'
 import { backdropOf, breakable, frostOf, glowOf, logoOf, shade, loadReleases, releaseOf, restartCarousel, stopCarousel } from './barKit.js'
 import { tx } from '../../fx.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // The default Moonfin media bar: the slide's backdrop over the whole screen, its logo or title in
 // the corner and a frosted info box along the bottom. While a trailer shows, the backdrop and the
@@ -287,6 +288,14 @@ export default function FeaturedBar(props) {
       height={1080}
       alpha={props.alpha === undefined ? 1 : props.alpha}
       onFocusChanged={onFocusChanged}
+      // A click on the banner opens its title, and the arrows and dots page it (app/pointer.js). The
+      // bar spans the screen under Home's rows, so hovering it doesn't take focus from them, and a click
+      // below the banner (between the peek row's cards) isn't the banner's.
+      pointerItems={() => [{ x: 0, y: 0, w: 1920, h: bannerH() }]}
+      onPointerItemClick={() => {
+        pointerFocus(bar.root)
+        return true
+      }}
       onLeft={() => {
         if (cfg().left) focusNav()
         else go(-1)
@@ -316,7 +325,20 @@ export default function FeaturedBar(props) {
 
       <view>
         <Index each={arrows()}>
-          {(a) => <CarouselArrow ax={a().x} ay={a().y} icon={a().icon} frost={frost()} ink={cfg().arrowInk} radius={cfg().arrowRadius} />}
+          {(a) => (
+            <CarouselArrow
+              ax={a().x}
+              ay={a().y}
+              icon={a().icon}
+              frost={frost()}
+              ink={cfg().arrowInk}
+              radius={cfg().arrowRadius}
+              onPointerClick={() => {
+                pointerFocus(bar.root)
+                go(a().icon === 'chevron_left' ? -1 : 1)
+              }}
+            />
+          )}
         </Index>
       </view>
 
@@ -510,8 +532,15 @@ export default function FeaturedBar(props) {
         />
         <view>
           <Index each={dots()}>
-            {(d) => (
+            {(d, i) => (
               <view
+                onPointerClick={() => {
+                  pointerFocus(bar.root)
+                  if (count() < 2 || i === cur()) return
+                  setCur(i)
+                  slideChanged()
+                  restart()
+                }}
                 transition={DOT_MOVE}
                 x={d().x}
                 y={d().y}

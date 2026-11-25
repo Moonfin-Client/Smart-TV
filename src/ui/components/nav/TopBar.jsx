@@ -4,6 +4,7 @@ import { theme, rgba, glowShadow } from '../../theme.js'
 import { hex } from '../../color.js'
 import { highMs } from '../../tier.js'
 import { focusActivePage } from '../../../state/pages.js'
+import { focusNav } from '../../../app/focus.js'
 import { getStore } from '../../../state/store.js'
 import { router } from '../../../app/router.js'
 import { audio } from '../../../state/audioPlayer.js'
@@ -184,10 +185,26 @@ export default function TopBar(props) {
       if (libsOpen() && !inLibs(cur())) closeLibs()
     }, 100)
   }
+  // The Magic Remote's cursor focuses the nav and the item under it, and OK then opens it
+  // (app/pointer.js).
+  let pointIn = -1
+  const point = (i) => {
+    if (!open()) {
+      pointIn = i
+      if (!focusNav()) pointIn = -1
+      return
+    }
+    if (cur() !== i) {
+      setCur(i)
+      afterMove()
+    }
+  }
   const onFocusChanged = (has) => {
     if (has) {
       // The bar always enters on Home.
-      setCur(1)
+      // (or on the item under the Magic Remote's cursor).
+      setCur(pointIn >= 0 ? pointIn : 1)
+      pointIn = -1
       setOpen(true)
       keepInView()
     } else {
@@ -281,7 +298,7 @@ export default function TopBar(props) {
       onEnter={enter}
       onBack={back}
     >
-      <NavAvatar ref={(n) => (nodes.user = n)} x={62} y={10} focused={isOn(0)} opacity={userOpacity()} />
+      <NavAvatar ref={(n) => ((nodes.user = n), (n.onPointerOver = () => point(0)))} x={62} y={10} focused={isOn(0)} opacity={userOpacity()} />
       <view>
         <For each={neonGlow()}>
           {(n) => (
@@ -316,7 +333,7 @@ export default function TopBar(props) {
               const at = createMemo(() => pill(k), undefined, { equals: sameFields })
               return (
                 <TopBarPill
-                  ref={(n) => (nodes[k] = n)}
+                  ref={(n) => ((nodes[k] = n), (n.onPointerOver = () => point(at().i)))}
                   x={at().x}
                   y={at().y}
                   item={at()}

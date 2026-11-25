@@ -2,6 +2,7 @@ import { For, createSelector, createSignal } from 'solid-js'
 import { hex } from '../../../ui/color.js'
 import { byKey } from '../../../ui/components/details/keyed.js'
 import { plumbIndex } from './scroll.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // A line of rounded buttons on Classic's own screens: the person's Favorite and Display, their
 // filmography tabs, and the playlist's sort and filter pills. Each pill carries its own resting and
@@ -37,6 +38,15 @@ export default function ClassicPills(props) {
 
   return (
     <view
+      // The Magic Remote's cursor focuses the pill under it, and OK then opens it (app/pointer.js).
+      onPointerChildOver={(i, child) => {
+        const p = keyed.at(keyed.keys()[i])
+        if (!p) return
+        pointerFocus(child.parent)
+        if (p.i === cur()) return
+        setCur(p.i)
+        if (props.onPillFocus) props.onPillFocus(props.zone, current())
+      }}
       ref={(n) => {
         n.current = current
         n.select = (i) => setCur(Math.max(0, Math.min(i, pills().length - 1)))

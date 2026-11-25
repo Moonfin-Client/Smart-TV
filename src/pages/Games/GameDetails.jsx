@@ -345,6 +345,27 @@ export default function GameDetails(props) {
     ),
   )
 
+  // The Magic Remote's cursor (app/pointer.js): a button takes focus on hover, and a related game in
+  // full view; one the page or the row would scroll to takes it on a click.
+  const blocked = () => st.picker || st.unsupported
+  const pointButton = (id) => {
+    const i = buttons().findIndex((b) => b.id === id)
+    if (blocked() || i < 0 || (st.zone === 'actions' && st.cur === i)) return
+    st.zone = 'actions'
+    st.cur = i
+  }
+  const pointRelated = (i, click) => {
+    const c = relatedPlaced()[i]
+    if (blocked() || !c) return false
+    const x = 96 + c.x - st.rowX
+    const bottom = pos().related + 53 + c.h - st.scrollY
+    const whole = x >= 0 && x + c.w <= 1920 && bottom <= 1080
+    if (!click && (!whole || (st.zone === 'related' && st.rcur === i))) return false
+    st.zone = 'related'
+    st.rcur = i
+    revealRelated()
+    return click
+  }
   const relatedFocus = (i) => st.pageFocused && st.zone === 'related' && i === st.rcur
   return (
     <view
@@ -418,7 +439,7 @@ export default function GameDetails(props) {
             {(k) => {
               const b = btns.item(k)
               return (
-                <view x={96 + b().x} y={pos().actions + 3} width={b().w} height={72}>
+                <view x={96 + b().x} y={pos().actions + 3} width={b().w} height={72} onPointerOver={() => pointButton(b().id)}>
                   <view width={b().w} height={72} pivot={0.5} scale={b().focused ? 1.05 : 1} transition={{ scale: { duration: 200, easing: 'ease-out' } }}>
                     <view width={b().w} height={72} borderRadius={6} color="#00000000" shadow={BUTTON_SHADOW} alpha={b().focused ? 1 : 0} />
                     <view width={b().w} height={72} borderRadius={6} color={b().fill} alpha={b().fillAlpha} />
@@ -471,7 +492,9 @@ export default function GameDetails(props) {
             {$L('More in {system}').replace('{system}', (st.current && st.current.system) || '')}
           </text>
           <view y={53} width={rowW()} height={rowH()} x={-st.rowX} transition={{ x: { duration: 200, easing: 'ease-out' } }}>
-            <For each={relatedPlaced()}>{(c) => <GameCard x={c.x} card={c} focused={relatedFocus(c.i)} />}</For>
+            <For each={relatedPlaced()}>
+              {(c) => <GameCard x={c.x} card={c} focused={relatedFocus(c.i)} onPointerOver={() => pointRelated(c.i, false)} onPointerClick={() => pointRelated(c.i, true)} />}
+            </For>
           </view>
         </view>
       </view>

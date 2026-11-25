@@ -10,7 +10,8 @@ const GLOW = { color: shadowColor('#ffffff40'), x: 0, y: 0, blur: 14, spread: 1 
 const DROP = { color: shadowColor('#00000059'), x: 0, y: 8, blur: 18, spread: 0 }
 
 // The screen owns the arrows: `tabs` is [{ id, label }], `active` the filled tab's id, and `focus`
-// the index ringed or -1. The bar clips its own glow.
+// the index ringed or -1. The bar clips its own glow. onPointerTab(i) hears the Magic Remote's cursor
+// on a tab, and onPointerTabClick(i), when given, a click on one (app/pointer.js).
 export default function MusicTabBar(props) {
   const look = () => props.look
   // Pixel themes square off the bar and its tabs.
@@ -54,6 +55,13 @@ export default function MusicTabBar(props) {
           )}
         </Index>
       </view>
+      <view
+        width={barW()}
+        height={63}
+        pointerItems={() => (props.onPointerTab ? placed().map((tab) => ({ x: tab.x, y: 4, w: tab.w, h: 55 })) : [])}
+        onPointerItem={(_, i) => props.onPointerTab(i)}
+        onPointerItemClick={props.onPointerTabClick ? (_, i) => props.onPointerTabClick(i) : undefined}
+      />
     </view>
   )
 }

@@ -230,6 +230,13 @@ export function LyricsPanel(props) {
                   )
                 }}
               </For>
+              <view
+                width={props.w}
+                height={Math.max(props.h, flowH())}
+                pointerItems={() => (props.onPointerLine ? flow().map((ln) => ({ x: 0, y: ln.y, w: ln.maxW, h: ln.h })) : [])}
+                pointerItemRing={10}
+                onPointerItemClick={(_, i) => props.onPointerLine(i)}
+              />
             </view>
           </view>
         </Show>
@@ -256,6 +263,13 @@ export function LyricsPanel(props) {
                   </view>
                 )}
               </For>
+              <view
+                width={props.w}
+                height={Math.max(props.h, boxesH())}
+                pointerItems={() => (props.onPointerLine ? boxes().map((bx) => ({ x: 0, y: bx.y, w: bx.boxW, h: bx.boxH })) : [])}
+                pointerItemRing={10}
+                onPointerItemClick={(_, i) => props.onPointerLine(i)}
+              />
             </view>
           </view>
         </Show>
@@ -335,6 +349,13 @@ export function QueuePanel(props) {
             return <QueueRow row={r()} w={rowW()} focused={isFocused(r().i)} />
           }}
         </For>
+        <view
+          width={rowW()}
+          height={Math.max(props.h, 8 + (props.rows || []).length * 114)}
+          pointerItems={() => (props.onPointerRow ? (props.rows || []).map((r) => ({ x: 0, y: 8 + r.i * 114, w: rowW(), h: 110 })) : [])}
+          pointerItemRing={16}
+          onPointerItemClick={(_, i) => props.onPointerRow(i)}
+        />
       </view>
       <view>
         <Show when={!(props.rows || []).length}>
@@ -351,7 +372,7 @@ function DockButton(props) {
   const b = () => props.btn
   const tipW = () => Math.ceil(textWidth(b().label, 18, 'bold')) + 30 + 4
   return (
-    <view x={b().x} width={84} height={84}>
+    <view x={b().x} width={84} height={84} onPointerOver={props.onPointerOver}>
       <view width={84} height={84} borderRadius={42} color="#00a4dc2e" alpha={b().selected && !props.focused ? 1 : 0} />
       <view width={84} height={84} borderRadius={42} color="#ffffff38" border={{ width: 3, color: 0xffffffff }} alpha={props.focused ? 1 : 0} />
       <view x={21} y={21} width={42} height={42} src={'icons/' + b().icon + '.webp'} color={b().active ? ACCENT : '#ffffffff'} alpha={b().disabled ? 0.3 : 1} />
@@ -372,7 +393,9 @@ export function Dock(props) {
   const isFocused = createSelector(() => props.focus)
   return (
     <view y={props.y} width={1920} height={84}>
-      <Index each={props.buttons}>{(db) => <DockButton btn={db()} focused={isFocused(db().i)} />}</Index>
+      <Index each={props.buttons}>
+        {(db) => <DockButton btn={db()} focused={isFocused(db().i)} onPointerOver={props.onPointerButton ? () => props.onPointerButton(db().i) : undefined} />}
+      </Index>
     </view>
   )
 }
@@ -400,6 +423,7 @@ export function SeekBar(props) {
         shadow={THUMB_SHADOW}
         scale={props.focused ? 1.3 : 1}
       />
+      <view y={-17} width={1872} height={40} onPointerOver={props.onPointerOver} onPointerClick={props.onPointerClick} />
     </view>
   )
 }

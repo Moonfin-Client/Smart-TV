@@ -358,6 +358,20 @@ export default function CalAgenda(props) {
     my.shown = -1
     build()
   }
+  // The Magic Remote's cursor (app/pointer.js): the tabs, Retry and the preview's buttons take focus
+  // on hover. The list centers its focused row, so the cursor rings a row and a click focuses it
+  // and opens it. Hover also takes focus back from the nav.
+  let self = null
+  const point = (fn) => {
+    if (!my.s) return
+    batch(fn)
+    if (!has() && self) self.setFocus()
+  }
+  const pointRow = (i) => {
+    if (!my.s || !my.list[i]) return false
+    point(() => focusRow(i))
+    return true
+  }
   const press = () => {
     const actions = calendarActions(router, my.s)
     if (st.zone === 'retry') return props.reload()
@@ -410,7 +424,10 @@ export default function CalAgenda(props) {
 
   return (
     <view
-      ref={(n) => props.ref && props.ref(n)}
+      ref={(n) => {
+        self = n
+        if (props.ref) props.ref(n)
+      }}
       width={1920}
       height={1080}
       color={st.pg}
@@ -471,6 +488,7 @@ export default function CalAgenda(props) {
                 ring={st.ring}
                 fill={st.fill}
                 ink={st.ink}
+                onPointerOver={() => point(() => focusTab(t().at))}
               />
             )
           }}
@@ -513,11 +531,27 @@ export default function CalAgenda(props) {
             border={{ width: 3, color: hex(st.ring) }}
             alpha={st.zone === 'list' && has() ? 1 : 0}
           />
+          <view
+            width={st.listW}
+            height={Math.max(st.listH, st.contentH)}
+            pointerItems={() => my.rowsAt.map((it) => ({ x: 0, y: it.y, w: st.listW - 13.36, h: it.h }))}
+            pointerItemRing={16.7}
+            onPointerItemClick={(_, i) => pointRow(i)}
+          />
         </view>
       </view>
       <view>
         <Show when={st.message}>
-          {(m) => <CalMessage m={m()} retryFocused={st.zone === 'retry' && has()} ring={st.ring} fill={st.fill} ink={st.ink} />}
+          {(m) => (
+            <CalMessage
+              m={m()}
+              retryFocused={st.zone === 'retry' && has()}
+              ring={st.ring}
+              fill={st.fill}
+              ink={st.ink}
+              onPointerRetry={() => point(() => (st.zone = 'retry'))}
+            />
+          )}
         </Show>
       </view>
 
@@ -566,6 +600,12 @@ export default function CalAgenda(props) {
                     ring={st.ring}
                     fill={st.fill}
                     ink={st.ink}
+                    onPointerOver={() =>
+                      point(() => {
+                        st.zone = 'preview'
+                        st.btnAt = b().at
+                      })
+                    }
                   />
                 )
               }}

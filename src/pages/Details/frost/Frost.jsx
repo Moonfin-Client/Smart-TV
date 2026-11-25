@@ -127,6 +127,8 @@ export default function Frost(props) {
   let groupsBottom = 0
   let root = null
   let toolbar = null
+  // The stop keys behind the boxes the pointer last looked through.
+  let pointed = []
   let readMore = null
 
   // Each focus key's look reads this, so a move changes only the two stops involved.
@@ -489,19 +491,26 @@ export default function Frost(props) {
   const takeFocus = () => {
     if (root && activeElement() !== root) root.setFocus()
   }
-  // Focus lands, then its list brings it two tenths of the way down.
-  const focusKey = (key) => {
+  // Focus lands, then its list brings it two tenths of the way down. From the Magic Remote's cursor
+  // (`still`) the list moves only as far as it must, so the content doesn't run from under the cursor.
+  const focusKey = (key, still) => {
     if (!keys[key]) return false
     setFk(key)
     takeFocus()
     const box = placeHighlight(key)
-    if (box) {
+    if (box && still) {
+      // Just far enough to show all of it.
+      const a = untrack(area)
+      const at = untrack(cscroll)
+      const to = Math.min(box.y, Math.max(at, box.y + box.h - a.h))
+      if (to !== at) setCscroll(Math.max(0, Math.min(to, untrack(bodyH) - a.h)))
+    } else if (box) {
       const a = untrack(area)
       const room = a.h - box.h
       setCscroll(Math.max(0, Math.min(box.y - room * 0.2, untrack(bodyH) - a.h)))
     }
     // Only the facts run past the window's foot, so they're the one place the window itself scrolls.
-    if (key === 'details:0' || key.indexOf(':about') > 0) {
+    if (!still && (key === 'details:0' || key.indexOf(':about') > 0)) {
       const wh = untrack(win).h
       setWscroll(focusScroll(168, groupsBottom - 168, untrack(wscroll), wh, windowMax()))
     }
@@ -636,6 +645,17 @@ export default function Frost(props) {
       width={1920}
       height={1080}
       alpha={painted() ? 1 : 0}
+      // The Magic Remote's cursor on the toolbar focuses it (app/pointer.js).
+      onPointerFocus={(n) => {
+        for (let p = n; p; p = p.parent) {
+          if (p === toolbar) {
+            toActions()
+            return true
+          }
+        }
+        takeFocus()
+        return true
+      }}
       color="#0b0d10ff"
       onFocusChanged={setFocused}
       onUp={() => step('up')}
@@ -741,7 +761,21 @@ export default function Frost(props) {
                 </view>
               </view>
               <view alpha={area().show} x={area().x} y={area().y} width={area().w} height={area().h} clipping>
-                <view transition={tx({ y: { duration: highMs(220), easing: 'ease-out' } })} y={-cscroll()} width={area().w} height={bodyH()}>
+                <view
+                  transition={tx({ y: { duration: highMs(220), easing: 'ease-out' } })}
+                  y={-cscroll()}
+                  width={area().w}
+                  height={bodyH()}
+                  // The Magic Remote's cursor focuses the stop under it, and OK then opens it (app/pointer.js).
+                  pointerItems={() => {
+                    pointed = Object.keys(boxes)
+                    return pointed.map((k) => boxes[k])
+                  }}
+                  onPointerItem={(it, i) => {
+                    const k = pointed[i]
+                    if (k && (untrack(fk) !== k || activeElement() !== root)) focusKey(k, true)
+                  }}
+                >
                   <view alpha={hlOn()} x={hl().x} y={hl().y} width={hl().w} height={hl().h} borderRadius={hl().r} color={ink('platter', '#ffffff24')} />
                   <Draw list={body()} w={area().w} h={bodyH()} />
                   <view width={area().w} height={bodyH()}>
@@ -852,7 +886,16 @@ export default function Frost(props) {
                 const t = () => tabRows.at(k)
                 const on = () => isOn(`tab:${k}`)
                 return (
-                  <view transition={tx({ scale: { duration: fx() } })} x={t().x} y={9} width={t().w} height={72} pivot={0.5} scale={on() ? 1.04 : 1}>
+                  <view
+                    transition={tx({ scale: { duration: fx() } })}
+                    x={t().x}
+                    y={9}
+                    width={t().w}
+                    height={72}
+                    pivot={0.5}
+                    scale={on() ? 1.04 : 1}
+                    onPointerOver={() => (untrack(fk) !== `tab:${k}` || activeElement() !== root) && focusKey(`tab:${k}`, true)}
+                  >
                     <view width={t().w} height={72} borderRadius={36} color={on() ? t().focusBg : t().selected ? t().selBg : '#00000000'} />
                     <view x={27} y={19.5} width={33} height={33} src={t().icon} color={ink('text', '#ffffffff')} />
                     <text x={75} y={t().ty} fontFamily={semi()} fontSize={24} lineHeight={33} letterSpacing={sp()} color={ink('text', '#ffffffff')}>

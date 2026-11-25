@@ -40,6 +40,7 @@ import {
   ALL_FAVORITE_TABS, FAVORITE_TABS, FAVORITE_TAB_FIELDS, FAVORITE_TAB_PAGE_SIZE, FAVORITE_TAB_TYPES, WATCHLIST_TAB, bucketByTab,
   cardMetrics, currentCard, favoriteCardImage, swapRequestCard, visibleTabs, watchlistCards, withRequestDetail,
 } from './favoriteTabs.js'
+import { cardSubtitle } from './libraryModel.js'
 import { routeForItem } from '../../state/libraryRoutes.js'
 import * as settings from '../../state/settings.js'
 
@@ -110,6 +111,12 @@ const clientSideSort = (arr, key) => {
     }
   })
 }
+
+// The grid's columns span 1832px from x=44, so a card's box starts at 48 and ends at 1872, in line
+// with the tabs and the focused item's info. The clipping view around them reaches 24px further each
+// side, room for the focus zoom of the first and last columns.
+const GRID_X = 24
+const GRID_W = 1832
 
 // Favorites' sort sheet is roomier than Genres', and the options it isn't on are dimmer.
 const FAV_SHEET = { titleGap: 32, labelGap: 16, radioH: 54, restInk: '#ffffffcc' }
@@ -361,20 +368,20 @@ export default function Favorites(props) {
     batch(() => {
       const type = cardType()
       const m = cardMetrics(type, my.size)
-      const g = virtualGridLayout(1880, m.itemSize.minWidth, m.itemSize.minHeight, 20)
+      const g = virtualGridLayout(GRID_W, m.itemSize.minWidth, m.itemSize.minHeight, 20)
+      const s = untrack(() => settings.all())
+      const showText = s.libraryCardTitles !== false
+      const detailed = s.useDetailedSubHeadings !== false
+      // The card's box sits 4px in from each side of its column, room for the focus zoom at the
+      // grid's edges, so cards are 28px apart. A square or round picture is as tall as it is wide.
+      const cardW = g.itemWidth - 14
+      const posterH = type === 'square' || type === 'circle' ? cardW : m.posterHeight
       st.horizontal = my.direction === 'horizontal'
       // The grid's content starts under its own 10px padding: 404 in the Home view, and 157 in the
       // Library view, under the toolbar that ends at 147.
       st.gridTop = st.home ? 404 : 157
       st.viewH = st.home ? 1080 - 404 - 10 : 1080 - 157 - 49 - 10
-      st.cols = st.horizontal ? Math.max(1, Math.floor((st.viewH + 20) / (g.itemHeight + 20))) : g.columns
       st.tileW = g.stepX
-      st.tileH = g.stepY
-      const t = theme()
-      st.opts = {
-        cardW: g.itemWidth - 20, posterH: m.posterHeight, ms: focusMs(200), slide: slideMs(200),
-        watchedBg: t.badgeWatched, onBadge: t.onBadge,
-      }
       const server = getServerUrl()
       const items = shownItems()
       // A card filled in after it took focus shows at once, and one that left the list takes the
@@ -397,9 +404,27 @@ export default function Favorites(props) {
           server: serverName, serverFont: fontFor(serverName, 'medium'),
           serverW: serverName ? Math.min(180, Math.ceil(textWidth(serverName, 18, 'medium')) + 20) : 0,
         }
+        if (showText) {
+          // The renderer ends a line too long for the card with an ellipsis, so the text isn't
+          // measured here. Double spaces in the subtitle fold into one.
+          card.title = it.Name || ''
+          card.titleFont = fontFor(card.title, 'bold')
+          card.subtitle = (cardSubtitle(it, false, detailed) || '').replace(/\s+/g, ' ')
+          card.subtitleFont = fontFor(card.subtitle, 'regular')
+        }
         built.set(it, { i, type, server, unified: my.unified, v, card })
         return card
       })
+      // The cell holds the poster in its 3px border, the lines under it, and 20px to the next row.
+      const textH = showText ? (st.cards.some((c) => c.subtitle) ? 61 : 35) : 0
+      const itemH = posterH + 6 + textH
+      st.cols = st.horizontal ? Math.max(1, Math.floor((st.viewH + 20) / (itemH + 20))) : g.columns
+      st.tileH = itemH + 20
+      const t = theme()
+      st.opts = {
+        cardW, posterH, showText, textH, ms: focusMs(200), slide: slideMs(200),
+        watchedBg: t.badgeWatched, onBadge: t.onBadge,
+      }
       st.emptyText = !st.loading && !items.length ? (st.home ? $L('No favorites yet') : $L('No favorites found')) : ''
       if (!st.home) {
         const filter = TYPE_FILTERS.find((x) => x.key === my.typeKey) || TYPE_FILTERS[0]
@@ -624,6 +649,18 @@ export default function Favorites(props) {
     <view
       width={1920}
       height={1080}
+      // The grid or the toolbar, whichever the Magic Remote's cursor focuses (app/pointer.js).
+      onPointerFocus={(n) => {
+        if (st.panel) return true
+        for (let p = n; p; p = p.parent) {
+          if (p === grid || p === chromeRef) {
+            my.zone = p === grid ? 'grid' : 'chrome'
+            focusZone()
+            return true
+          }
+        }
+        return false
+      }}
       forwardFocus={() => {
         focusZone()
         return true
@@ -685,29 +722,31 @@ export default function Favorites(props) {
         <Show when={gridKey()} keyed>
           {() => (
             <Kept gone={() => (grid = null)}>
-              <Grid
-                ref={(n) => (grid = n)}
-                items={st.cards}
-                tile={FavoriteTile}
-                cols={st.cols}
-                tileW={st.tileW}
-                tileH={st.tileH}
-                gap={20}
-                viewH={st.viewH}
-                viewW={1880}
-                opts={st.opts}
-                horizontal={st.horizontal}
-                slideMs={st.opts.slide}
-                onGridFocus={(card) => {
-                  my.focusedCard = card.raw
-                  showFocused(card.raw)
-                }}
-                onGridEnd={() => {
-                  if (st.home) loadMoreTab()
-                  else if (my.listFetched < my.total) loadList(my.listFetched)
-                }}
-                onGridSelect={onGridSelect}
-              />
+              <view x={GRID_X} width={GRID_W} height={st.viewH}>
+                <Grid
+                  ref={(n) => (grid = n)}
+                  items={st.cards}
+                  tile={FavoriteTile}
+                  cols={st.cols}
+                  tileW={st.tileW}
+                  tileH={st.tileH}
+                  gap={20}
+                  viewH={st.viewH}
+                  viewW={GRID_W}
+                  opts={st.opts}
+                  horizontal={st.horizontal}
+                  slideMs={st.opts.slide}
+                  onGridFocus={(card) => {
+                    my.focusedCard = card.raw
+                    showFocused(card.raw)
+                  }}
+                  onGridEnd={() => {
+                    if (st.home) loadMoreTab()
+                    else if (my.listFetched < my.total) loadList(my.listFetched)
+                  }}
+                  onGridSelect={onGridSelect}
+                />
+              </view>
             </Kept>
           )}
         </Show>

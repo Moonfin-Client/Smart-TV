@@ -233,6 +233,7 @@ export default function PanelDialog(props) {
     <view
       ref={props.ref}
       width={1920}
+      pointerModal
       height={1080}
       onUp={() => {
         move(0, -1)
@@ -281,7 +282,15 @@ export default function PanelDialog(props) {
         />
         <view width={laid().w} height={laid().h} borderRadius={24} color="#1e1e28f7" border={{ width: 1, color: hex('#ffffff1f') }} />
         <view x={1} y={1} width={laid().w - 2} height={laid().h - 2} clipping>
-        <view x={-1} y={-1 - scroll()} width={laid().w} height={laid().fullH}>
+        <view
+          x={-1}
+          y={-1 - scroll()}
+          width={laid().w}
+          height={laid().fullH}
+          // The Magic Remote's cursor focuses the control under it, and OK then picks it (app/pointer.js).
+          pointerItems={() => laid().focusables}
+          onPointerItem={(it, i) => !it.disabled && cur() !== i && setCur(i)}
+        >
         <Rects list={boxes()} />
         <view
           alpha={focus() && focus().fill ? 1 : 0}

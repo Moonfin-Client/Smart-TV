@@ -3,6 +3,7 @@ import { uiFont, fontFor, textWidth, faceDy, themeSpacing } from '../../text.js'
 import { theme } from '../../theme.js'
 import { highMs } from '../../tier.js'
 import { focusActivePage } from '../../../state/pages.js'
+import { focusNav } from '../../../app/focus.js'
 import * as settings from '../../../state/settings.js'
 import { getStore } from '../../../state/store.js'
 import { router } from '../../../app/router.js'
@@ -178,10 +179,26 @@ export default function Tabline(props) {
       if (libsOpen() && !inLibs(cur())) closeLibs()
     }, 100)
   }
+  // The Magic Remote's cursor focuses the nav and the item under it, and OK then opens it
+  // (app/pointer.js).
+  let pointIn = -1
+  const point = (i) => {
+    if (!open()) {
+      pointIn = i
+      if (!focusNav()) pointIn = -1
+      return
+    }
+    if (cur() !== i) {
+      setCur(i)
+      afterMove()
+    }
+  }
   const onFocusChanged = (has) => {
     if (has) {
       // The bar always enters on Home.
-      setCur(0)
+      // (or on the item under the Magic Remote's cursor).
+      setCur(pointIn >= 0 ? pointIn : 0)
+      pointIn = -1
       setOpen(true)
       keepInView()
     } else {
@@ -294,7 +311,7 @@ export default function Tabline(props) {
               const at = createMemo(() => tab(k), undefined, { equals: sameFields })
               return (
                 <TablineTab
-                  ref={(n) => (nodes[k] = n)}
+                  ref={(n) => ((nodes[k] = n), (n.onPointerOver = () => point(at().i)))}
                   x={at().x}
                   tab={at()}
                   w={at().w}
@@ -308,7 +325,7 @@ export default function Tabline(props) {
           </For>
         </view>
       </view>
-      <view ref={(n) => (nodes.search = n)} x={searchX()} y={42} width={54} height={54}>
+      <view ref={(n) => ((nodes.search = n), (n.onPointerOver = () => point(searchIndex())))} x={searchX()} y={42} width={54} height={54}>
         <view width={54} height={54} borderRadius={27} color="#ffffffff" alpha={searchOn() ? 1 : 0} />
         <view x={9} y={9} width={36} height={36} src="icons/nav_search.webp" color={searchOn() ? '#101010ff' : '#ffffffd9'} />
       </view>
@@ -324,7 +341,7 @@ export default function Tabline(props) {
       >
         {clock()}
       </text>
-      <NavAvatar ref={(n) => (nodes.user = n)} x={1738} y={33} focused={isOn(userIndex())} opacity={userOpacity(tried())} />
+      <NavAvatar ref={(n) => ((nodes.user = n), (n.onPointerOver = () => point(userIndex())))} x={1738} y={33} focused={isOn(userIndex())} opacity={userOpacity(tried())} />
       <view>
         <Show when={!props.preview}>
           <MiniPlayer ref={(m) => (mini = m)} barBottom={105} surface={theme().navFill} ink={theme().onSurface} />

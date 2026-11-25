@@ -244,6 +244,7 @@ export default function SectionModal(props) {
       }}
       alpha={visible() ? 1 : 0}
       width={1920}
+      pointerModal
       height={1080}
       forwardFocus={() => {
         const c = laid().cells[cur()]
@@ -329,7 +330,15 @@ export default function SectionModal(props) {
       <view x={174} y={82 + head().headerH - 1} width={1574} height={1} color="#ffffff14" />
 
       <view x={198} y={viewTop()} width={1526} height={viewH()} clipping>
-        <view transition={SCROLL} y={-scroll()} width={1526} height={Math.max(viewH(), laid().h)}>
+        <view
+          transition={SCROLL}
+          y={-scroll()}
+          width={1526}
+          height={Math.max(viewH(), laid().h)}
+          // The Magic Remote's cursor focuses the cell under it, and OK then opens it (app/pointer.js).
+          pointerItems={() => laid().cells}
+          onPointerItem={(it, i) => cur() !== i && moveTo(i)}
+        >
           <view>
             <For each={rects.keys()}>
               {(k) => (

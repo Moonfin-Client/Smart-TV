@@ -28,7 +28,18 @@ export default function CalMessage(props) {
         </text>
         <view>
           <For each={m().retry}>
-            {(b) => <CalPill x={b.x} y={b.y} p={b} focused={props.retryFocused} ring={props.ring} fill={props.fill} ink={props.ink} />}
+            {(b) => (
+              <CalPill
+                x={b.x}
+                y={b.y}
+                p={b}
+                focused={props.retryFocused}
+                ring={props.ring}
+                fill={props.fill}
+                ink={props.ink}
+                onPointerOver={props.onPointerRetry}
+              />
+            )}
           </For>
         </view>
       </view>

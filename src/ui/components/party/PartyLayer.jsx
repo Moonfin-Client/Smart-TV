@@ -434,6 +434,20 @@ export default function PartyLayer(props) {
     ),
   )
 
+  // The Magic Remote's cursor (app/pointer.js): a key in full view on the bar takes focus on hover, one
+  // the bar would scroll to on a click. While the bar has focus only it takes the pointer.
+  const pointKey = (i, click) => {
+    const k = my.keys[i]
+    if (my.typing || !k) return false
+    const x = k.x - scroll()
+    if (!click && (x < 0 || x + k.w > ROW_W || my.cur === i)) return false
+    if (my.cur !== i) {
+      my.cur = i
+      setFocusIdx(i)
+      setScroll(barScroll(my.keys, i, ROW_W))
+    }
+    return click
+  }
   const handle = (fn) => () => {
     fn()
     return true
@@ -442,6 +456,7 @@ export default function PartyLayer(props) {
     <view
       ref={root}
       width={1920}
+      pointerModal
       height={1080}
       onLeft={handle(() => !my.typing && moveBar(-1))}
       onRight={handle(() => !my.typing && moveBar(1))}
@@ -568,6 +583,8 @@ export default function PartyLayer(props) {
                 height={k().h}
                 borderRadius={k().r}
                 color={k().i === focusIdx() && k().kind !== 'type' ? '#ffffff' : '#2a2a2a'}
+                onPointerOver={() => pointKey(k().i, false)}
+                onPointerClick={() => pointKey(k().i, true)}
               >
                 <view x={17} y={17} width={50} height={50} src={k().src} alpha={k().src ? 1 : 0} />
                 <text

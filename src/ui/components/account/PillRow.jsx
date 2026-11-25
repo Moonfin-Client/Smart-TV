@@ -69,7 +69,7 @@ export default function PillRow(props) {
           const on = () => isCur(i())
           const ink = () => (p.danger ? '#fca5a5ff' : on() ? c().accent : c().base + 'd9')
           return (
-            <view x={laid()[p.id].x} width={laid()[p.id].w} height={H}>
+            <view x={laid()[p.id].x} width={laid()[p.id].w} height={H} onPointerOver={() => props.onPointerPill && props.onPointerPill(p.id)}>
               <view width={laid()[p.id].w} height={H} borderRadius={36.73} color={p.danger ? (on() ? '#f871711f' : NONE) : c().base + '0f'} />
               <view
                 width={laid()[p.id].w}

@@ -23,6 +23,9 @@ export default function BookCard(props) {
       pivot={0.5}
       transition={{ scale: { duration: 150, easing: 'ease-out' } }}
       scale={props.focused && props.zoom !== false ? 1.05 : 1}
+      onPointerOver={props.onPointerOver}
+      onPointerClick={props.onPointerClick}
+      pointerRing={props.pointerRing}
     >
       <view>
         <Show when={props.focused}>

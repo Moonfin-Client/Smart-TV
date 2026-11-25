@@ -1,3 +1,4 @@
+import { activeElement } from '@solidtv/solid'
 import $L from '../../services/i18n.js'
 import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup, onMount, untrack } from 'solid-js'
 import Keyboard from '../../ui/components/Keyboard.jsx'
@@ -407,6 +408,13 @@ export default function Search(props) {
   const setZone = (z) => {
     setZoneSig(z)
     focusZone()
+  }
+  // The Magic Remote's cursor focuses the field, the voice button and the recent searches, and OK
+  // then uses them (app/pointer.js).
+  const pointAt = (z, recentAt) => {
+    if (kbOpen() || nativeOpen()) return
+    if (z === 'recent') setRecentCur(recentAt)
+    if (zone() !== z || (self && activeElement() !== self)) setZone(z)
   }
   // Where leaving the field downward lands, which is also where the keyboard hands focus when
   // it's dismissed upward. False when there is nothing below the field yet.
@@ -865,6 +873,21 @@ export default function Search(props) {
       onLeft={onLeft}
       onRight={onRight}
       onEnter={onEnter}
+      // The part the Magic Remote's cursor focuses becomes the zone (app/pointer.js).
+      onPointerFocus={(n) => {
+        if (kbOpen()) return true
+        for (let p = n; p; p = p.parent) {
+          if (p === tabsRef) return setZone('tabs') || true
+          if (p === gridRef) return setZone('content') || true
+          const at = rows().findIndex((r) => rowRefs[r.key] === p)
+          if (at >= 0) {
+            setRowIndex(at)
+            setZone('content')
+            return true
+          }
+        }
+        return false
+      }}
     >
       {/* Sized to the content, so the renderer keeps drawing it however far it scrolls. */}
       <view y={musicTop() - scroll()} width={1920} height={Math.max(1080, contentH())}>
@@ -958,7 +981,15 @@ export default function Search(props) {
             <text fontFamily={boldFont} fontSize={24} lineHeight={33} x={left() + 100} y={310 + shift24} color="#ffffffe6">
               {$L('Recent Searches')}
             </text>
-            <view x={1820 - clearW} y={308} width={clearW} height={37} borderRadius={6} color={clearFocused() ? '#00a4dc' : '#00a4dc00'}>
+            <view
+              x={1820 - clearW}
+              y={308}
+              width={clearW}
+              height={37}
+              borderRadius={6}
+              color={clearFocused() ? '#00a4dc' : '#00a4dc00'}
+              onPointerOver={() => pointAt('recent', -1)}
+            >
               <text fontFamily={font} fontSize={16} x={21} y={9} color={clearFocused() ? '#ffffffe6' : '#ffffff99'}>
                 {clearLabel}
               </text>
@@ -974,6 +1005,7 @@ export default function Search(props) {
                 width={chip.w}
                 height={47}
                 borderRadius={24}
+                onPointerOver={() => pointAt('recent', chip.i)}
                 color={chipFocused(chip.i) ? '#00a4dc' : '#ffffff1a'}
                 border={{ width: 1, color: hex(chipFocused(chip.i) ? '#00a4dc' : '#ffffff26') }}
               >
@@ -1024,12 +1056,14 @@ export default function Search(props) {
             </text>
           </Show>
         </view>
+        <view width={FIELD.w} height={FIELD.h} onPointerOver={() => pointAt('field')} />
         <view
           x={584}
           y={17}
           width={44}
           height={44}
           borderRadius={22}
+          onPointerOver={() => pointAt('voice')}
           color={zone() === 'voice' ? t().inputFocused : '#ffffff00'}
           border={{ width: 3, color: hex(zone() === 'voice' ? t().focus : '#ffffff00') }}
         >

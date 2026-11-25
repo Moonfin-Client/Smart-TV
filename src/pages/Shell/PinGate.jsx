@@ -155,8 +155,12 @@ export default function PinGate(props) {
     kb.open({ value: pin(), purpose: 'numeric', password: true, maxLength: 4 })
     kb.setFocus()
   }
+  // The Magic Remote's cursor focuses a control, and OK then presses it (app/pointer.js).
+  const over = (id) => () => {
+    if (!keyboardOpen() && focusId() !== id) setFocusId(id)
+  }
   const button = (id, label, x, w, rest) => (
-    <view x={x()} width={w()} height={lay().bh}>
+    <view x={x()} width={w()} height={lay().bh} onPointerOver={over(id)}>
       <view width={w()} height={lay().bh} borderRadius={12} color={focusId() === id ? '#4783fff2' : rest} border={BUTTON_BORDER} />
       <text
         fontFamily={titleFont}
@@ -274,6 +278,7 @@ export default function PinGate(props) {
             placeholder={$L('4 digits')}
             secret
             focused={focusId() === 'input'}
+            onPointerOver={over('input')}
             editing={keyboardOpen()}
           />
           <text
@@ -289,7 +294,7 @@ export default function PinGate(props) {
           >
             {message() || ' '}
           </text>
-          <view x={33} y={lay().rememberY} alpha={remember() !== null && !keyboardOpen() ? 1 : 0}>
+          <view x={33} y={lay().rememberY} alpha={remember() !== null && !keyboardOpen() ? 1 : 0} onPointerOver={over('remember')}>
             <view
               width={lay().rememberW}
               height={lay().rememberH}

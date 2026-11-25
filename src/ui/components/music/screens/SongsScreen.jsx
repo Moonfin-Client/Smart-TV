@@ -1,7 +1,7 @@
 import $L from '../../../../services/i18n.js'
 import { For, Show, createMemo, onCleanup } from 'solid-js'
 import MusicTrackList, { trackRows, trackLayout } from '../MusicTrackList.jsx'
-import { ScreenHeader, headerHeight, keepInView, contentWidth } from '../screenParts.jsx'
+import { ScreenHeader, pointerIn, wholeInView, headerHeight, keepInView, contentWidth } from '../screenParts.jsx'
 import { lineY } from '../../books/bookGrid.js'
 import { uiFont } from '../../../text.js'
 import { hex } from '../../../color.js'
@@ -28,7 +28,7 @@ function Mix(props) {
   const fill = () => (m().color ? m().color + 'ff' : look().accent)
   const ink = () => (m().color ? '#ffffffff' : look().onAccent)
   return (
-    <view x={m().x} width={m().w} height={225}>
+    <view x={m().x} width={m().w} height={225} onPointerOver={props.onPointerOver} onPointerClick={props.onPointerClick}>
       <view x={-3} y={-3} width={m().w + 6} height={231} borderRadius={27} color={NONE} border={{ width: 3, color: hex(look().focus) }} alpha={props.focused ? 1 : 0} />
       <view width={m().w} height={225} borderRadius={24} color={fill()} />
       <text fontFamily={uiFont('bold')} fontSize={18} letterSpacing={1.8} x={30} y={27 + lineY(0, 33, 18)} color={ink()} alpha={0.85}>
@@ -100,6 +100,21 @@ export default function SongsScreen(props) {
     st.zone = 'mixes'
     st.mcur = i
     st.scrollY = 0
+  }
+  // The Magic Remote's cursor (app/pointer.js): the header takes focus on hover, and so do a mix and
+  // a song while in full view (a mix brings the page back to the top); otherwise a click does.
+  const point = pointerIn(st, my, props)
+  const pointMix = (i, click) => {
+    if (!click && (st.scrollY !== 0 || (st.active && st.zone === 'mixes' && st.mcur === i))) return false
+    point(() => focusMixes(i))
+    return click
+  }
+  const pointSong = (l, i, box, click) => {
+    const top = listsTop + 64 + box.y
+    const cur = l === 0 ? st.lcur : st.rcur
+    if (!click && (!wholeInView(st.scrollY, VIEW_H - headerH, top, top + box.h) || (st.active && st.zone === 'list' + l && cur === i))) return false
+    point(() => focusList(l, i))
+    return click
   }
   ;(async () => {
     const id = props.library && props.library.Id
@@ -195,7 +210,13 @@ export default function SongsScreen(props) {
       <view y={headerH} width={vw} height={VIEW_H - headerH} clipping>
         <view y={-st.scrollY} width={vw} height={2000} alpha={st.count > 0 ? 1 : 0}>
           <view y={24} width={vw} height={225}>
-            <For each={mixes}>{(mx) => <Mix mix={mx} look={look()} focused={st.active && st.zone === 'mixes' && st.mcur === mx.i} />}</For>
+            <For each={mixes}>{(mx) => <Mix
+                  mix={mx}
+                  look={look()}
+                  focused={st.active && st.zone === 'mixes' && st.mcur === mx.i}
+                  onPointerOver={() => pointMix(mx.i, false)}
+                  onPointerClick={() => pointMix(mx.i, true)}
+                />}</For>
           </view>
           <view width={vw} height={2000}>
             <For each={lists()}>
@@ -204,7 +225,15 @@ export default function SongsScreen(props) {
                   <text fontFamily={uiFont('bold')} fontSize={28} y={lineY((56 - 33) / 2, 33, 28)} color={look().onSurface}>
                     {l.title}
                   </text>
-                  <MusicTrackList y={64} rows={l.rows} focus={focusOf(l.i)} w={listW} look={look()} />
+                  <MusicTrackList
+                    y={64}
+                    rows={l.rows}
+                    focus={focusOf(l.i)}
+                    w={listW}
+                    look={look()}
+                    onPointerTrack={(i, box) => pointSong(l.i, i, box, false)}
+                    onPointerTrackClick={(i, box) => pointSong(l.i, i, box, true)}
+                  />
                 </view>
               )}
             </For>
@@ -218,7 +247,14 @@ export default function SongsScreen(props) {
           </Show>
         </view>
       </view>
-      <ScreenHeader title={$L('Songs')} count={countText()} controls={controls} focus={st.active && st.zone === 'header' ? 0 : -1} look={look()} />
+      <ScreenHeader
+        title={$L('Songs')}
+        count={countText()}
+        controls={controls}
+        focus={st.active && st.zone === 'header' ? 0 : -1}
+        look={look()}
+        onPointerStop={() => point(() => (st.zone = 'header'))}
+      />
     </view>
   )
 }

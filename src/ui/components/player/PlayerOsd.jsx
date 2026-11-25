@@ -7,6 +7,7 @@ import { keyed } from '../library/pageKit.js'
 import TrickplayPreview from './TrickplayPreview.jsx'
 import SubtitleFetchIndicator from './SubtitleFetchIndicator.jsx'
 import { BAR, BTN, LIVE_BTN, bottomLayout, buttonXs, logoCrop, logoHeight, topLayout } from './osdLayout.js'
+import { localPoint } from '../../../app/pointer.js'
 
 const ACTIVE = '#00a4dc'
 const CLEAR = '#00000000'
@@ -136,6 +137,15 @@ export default function PlayerOsd(props) {
   const liveProgress = () => (props.live && props.live.progress) || 0
   const liveWindow = () => !!(props.live && props.live.window)
 
+  // The Magic Remote's cursor focuses a button or the bar, and OK then uses it (app/pointer.js).
+  const point = (r, id) => {
+    if (props.onOsdPointer) props.onOsdPointer()
+    if (r === 'progress' && isLive()) return
+    if (row() !== r) setRow(r)
+    if (r !== 'bottom') return
+    const i = list().findIndex((b) => b.id === id)
+    if (i >= 0 && i !== cur()) moveTo(i)
+  }
   const moveTo = (i) => {
     const x = (btns()[i] || {}).x || 0
     // Already there: the showing ring only needs to sit on the button, which a new model can move.
@@ -370,6 +380,19 @@ export default function PlayerOsd(props) {
         >
           {slot('above', 2) || ' '}
         </text>
+        {/* The bar's reach for the Magic Remote's cursor, wider than the bar: hover focuses it and a
+            click seeks to where it lands (app/pointer.js). */}
+        <view
+          x={BAR.X}
+          y={lay().barY - 17}
+          width={BAR.W}
+          height={40}
+          onPointerOver={() => point('progress')}
+          onPointerClick={(n, p) => {
+            point('progress')
+            if (props.onSeekAt) props.onSeekAt(Math.max(0, Math.min(1, localPoint(n, p).x / BAR.W)))
+          }}
+        />
         <view x={24} y={lay().barY} width={1872} height={6} borderRadius={3} color={props.barColors ? props.barColors.track : t().rangeTrack}>
           <view height={6} borderRadius={3} width={1872 * (props.buffered || 0)} color={t().rangeTrack.slice(0, 7) + 'cc'} />
           <view height={6} borderRadius={3} width={1872 * (props.progress || 0)} color={props.barColors ? props.barColors.fill : t().rangeProgress} />
@@ -482,7 +505,7 @@ export default function PlayerOsd(props) {
             {(k) => {
               const b = kept.item(k)
               return (
-                <view x={b().x} width={size()} height={size()} alpha={b().alpha}>
+                <view x={b().x} width={size()} height={size()} alpha={b().alpha} onPointerOver={() => point('bottom', k)}>
                   <view alpha={b().chip ? 1 : 0} width={size()} height={size()} borderRadius={size() / 2} color="#ffffff24" border={CHIP_BORDER} />
                   <view x={b().ix} y={b().ix} width={b().is} height={b().is} src={b().src} color={b().color} />
                 </view>

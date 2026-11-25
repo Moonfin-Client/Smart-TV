@@ -10,6 +10,7 @@ import { hex } from '../../color.js'
 import { textWidth } from './measure.js'
 import { byKey } from './keyed.js'
 import { holdPress } from '../../../utils/longPress.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // The open tab's content on Modern: media cards, cast photos, chapter and extra stills, studio logos,
 // review cards, episode rows and track rows, at the places pages/Details/modern/tabs.js gives them.
@@ -137,6 +138,17 @@ export default function TabCells(props) {
 
   return (
     <view
+      // The Magic Remote's cursor focuses the cell under it, and OK then opens it (app/pointer.js).
+      pointerItems={() => focusable().map((c) => ({ x: c.x, y: c.y, w: c.w, h: c.kind === 'card' ? c.cardH || c.h : c.h }))}
+      onPointerItem={(it, i, n) => {
+        const c = focusable()[i]
+        if (!c) return
+        pointerFocus(n)
+        if (cur() !== c.idx) {
+          setCur(c.idx)
+          notify()
+        }
+      }}
       ref={(n) => {
         n.current = current
         n.setCur = (i) => {

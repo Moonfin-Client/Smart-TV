@@ -410,12 +410,12 @@ export default function Settings(props) {
     else if (topEl) topEl.setFocus()
   }
   // Focus on the list, on [sid] when it's there, else where it was or its first row.
-  const focusList = (sid) => {
+  const focusList = (sid, still) => {
     if (!listRef) return
     setZone('list')
     listRef.setFocus()
     listRef.setActive(true)
-    if (sid && listRef.stopBySid(sid)) listRef.focusSid(sid)
+    if (sid && listRef.stopBySid(sid)) listRef.focusSid(sid, false, still)
     else if (sid === null || !listRef.stopBySid(listRef.getSid())) listRef.focusFirst()
     else listRef.focusSid(listRef.getSid())
   }
@@ -425,6 +425,9 @@ export default function Settings(props) {
     setTrying(null)
     if (topEl) topEl.setFocus()
   }
+  // The Magic Remote's cursor focuses the pills, the search field and the list's settings, and OK
+  // then uses them (app/pointer.js), but not past a dialog or the keyboard.
+  const pointable = () => ['list', 'pill', 'search', 'chips'].indexOf(zone()) >= 0
   const toSearch = () => {
     setZone('search')
     if (topEl) topEl.setFocus()
@@ -911,6 +914,10 @@ export default function Settings(props) {
       <view width={COLUMN_W} height={colH()} borderRadius={corners} color={p().page} />
       <SettingsList
         ref={(n) => (listRef = n)}
+        onListPointer={(sid) => {
+          if (!pointable()) return
+          if (zone() !== 'list' || listRef.getSid() !== sid) focusList(sid, true)
+        }}
         x={enterX()}
         xMs={enterMs()}
         title={screen().title}
@@ -1083,6 +1090,12 @@ export default function Settings(props) {
           <For each={top().pill}>
             {(it) => (
               <view
+                onPointerOver={() => {
+                  if (!pointable()) return
+                  const c = categories()[it.i]
+                  if (c) setCategory(c.id)
+                  if (zone() !== 'pill') toPill()
+                }}
                 x={it.x}
                 y={8.35}
                 width={it.w}
@@ -1106,7 +1119,14 @@ export default function Settings(props) {
           </For>
         </view>
         </view>
-        <view x={top().searchX + 26.71} y={40.07} width={Math.max(0, top().searchW - 53.43)} height={80.14} alpha={top().kids ? 0 : 1}>
+        <view
+          x={top().searchX + 26.71}
+          y={40.07}
+          width={Math.max(0, top().searchW - 53.43)}
+          height={80.14}
+          alpha={top().kids ? 0 : 1}
+          onPointerOver={() => pointable() && zone() !== 'search' && toSearch()}
+        >
           <view
             width={Math.max(0, top().searchW - 53.43)}
             height={80.14}
@@ -1151,6 +1171,7 @@ export default function Settings(props) {
           onPickScene={setScene}
           onLeaveChips={onLeaveChips}
           onChipsUp={onChipsUp}
+          onPointerChips={toChips}
         />
       </view>
 

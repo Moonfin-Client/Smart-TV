@@ -62,6 +62,7 @@ function RoundButton(props) {
       <view x={-3} y={-3} width={66} height={66} borderRadius={33} color={NONE} border={{ width: 3, color: hex(props.look.focus) }} alpha={props.focused ? 1 : 0} />
       <view width={60} height={60} borderRadius={30} color="#00000059" />
       <view x={15} y={15} width={30} height={30} src={props.icon} />
+      <view width={60} height={60} onPointerOver={props.onPointerOver} onPointerClick={props.onPointerClick} />
     </view>
   )
 }
@@ -73,6 +74,7 @@ function SeeAll(props) {
       <text fontFamily={uiFont()} fontSize={18} x={12} y={lineY(8, 33, 18)} color={props.look.os(0.7)}>
         {props.label}
       </text>
+      <view width={props.w} height={49} onPointerOver={props.onPointerOver} onPointerClick={props.onPointerClick} />
     </view>
   )
 }
@@ -89,7 +91,18 @@ function Shelf(props) {
     <view y={props.y} width={props.viewW} height={264} clipping>
       <view x={-props.sx} width={props.x0 + props.cards.length * SHELF_STEP + 60} height={264}>
         <For each={cards()}>
-          {(cd) => <MusicCard x={props.x0 + cd.idx * SHELF_STEP} y={5} card={cd} size={SHELF_CARD} look={props.look} focused={sel(cd.idx)} />}
+          {(cd) => (
+            <MusicCard
+              x={props.x0 + cd.idx * SHELF_STEP}
+              y={5}
+              card={cd}
+              size={SHELF_CARD}
+              look={props.look}
+              focused={sel(cd.idx)}
+              pointerRing={props.onPointerCard ? 12 : undefined}
+              onPointerClick={props.onPointerCard ? () => props.onPointerCard(cd.idx) : undefined}
+            />
+          )}
         </For>
       </view>
     </view>
@@ -342,6 +355,29 @@ export default function ImmersiveMusic(props) {
     xs[i] = keepInView(st.shelfX[i] || 0, x, x + SHELF_CARD, 1920, contentW - 1920)
     st.shelfX = xs
   }
+  // The Magic Remote's cursor (app/pointer.js). Focus scrolls the page to the focused section, so a
+  // control takes focus on hover only while its section is where the page already sits; otherwise a
+  // click focuses it and presses it. The shelves glide to their focused card, so a card rings and
+  // takes focus on a click.
+  const point = (fn) => {
+    my.landed = true
+    fn()
+    if (!st.active && root) root.setFocus()
+  }
+  const sits = (node) => Math.max(0, Math.min(Math.max(0, contentH() - 1080), nodeTop(node) - SCROLL_PAD)) === st.scrollY
+  const pointNode = (node, set, click, lit) => {
+    if (st.filterOn || (!click && (!sits(node) || lit))) return false
+    point(() => {
+      focusNode(node)
+      if (set) set()
+    })
+    return click
+  }
+  const over = (node, set, lit) => () => pointNode(node, set, false, lit && lit())
+  const click = (node, set) => () => pointNode(node, set, true)
+  const header = (i) => () => {
+    st.hcur = i
+  }
   const openFilter = () => {
     st.filterOn = true
     if (filterRef) filterRef.setFocus()
@@ -500,15 +536,43 @@ export default function ImmersiveMusic(props) {
           </Show>
         </view>
 
-        <RoundButton x={48} icon="icons/nav_home.webp" look={look()} focused={at('header') && st.hcur === 0} />
+        <RoundButton
+          x={48}
+          icon="icons/nav_home.webp"
+          look={look()}
+          focused={at('header') && st.hcur === 0}
+          onPointerOver={over('tabs', header(0), () => at('header') && st.hcur === 0)}
+          onPointerClick={click('tabs', header(0))}
+        />
         <text fontFamily={uiFont('bold')} fontSize={24} x={124} y={31 + 4.3} color="#ffffffff">
           {libNameShown()}
         </text>
         <view x={tabsX()} y={16} width={tabBarWidth(TABS, highlight())} height={63} clipping>
-          <MusicTabBar tabs={TABS} active={highlight()} focus={tabFocus()} look={look()} />
+          <MusicTabBar
+            tabs={TABS}
+            active={highlight()}
+            focus={tabFocus()}
+            look={look()}
+            onPointerTab={(i) => over('tabs', header(i + 1), () => tabFocus() === i)()}
+            onPointerTabClick={(i) => click('tabs', header(i + 1))()}
+          />
         </view>
-        <RoundButton x={1744} icon="icons/nav_search.webp" look={look()} focused={at('header') && st.hcur === H_SEARCH} />
-        <RoundButton x={1812} icon="icons/mus_filter.webp" look={look()} focused={at('header') && st.hcur === H_FILTER} />
+        <RoundButton
+          x={1744}
+          icon="icons/nav_search.webp"
+          look={look()}
+          focused={at('header') && st.hcur === H_SEARCH}
+          onPointerOver={over('tabs', header(H_SEARCH), () => at('header') && st.hcur === H_SEARCH)}
+          onPointerClick={click('tabs', header(H_SEARCH))}
+        />
+        <RoundButton
+          x={1812}
+          icon="icons/mus_filter.webp"
+          look={look()}
+          focused={at('header') && st.hcur === H_FILTER}
+          onPointerOver={over('tabs', header(H_FILTER), () => at('header') && st.hcur === H_FILTER)}
+          onPointerClick={click('tabs', header(H_FILTER))}
+        />
 
         <view width={1920} height={topH()} alpha={hero() ? 1 : 0}>
           <view x={48} y={heroBox().artY} width={300} height={300}>
@@ -541,7 +605,15 @@ export default function ImmersiveMusic(props) {
               </text>
             </Show>
           </view>
-          <HeroButtons x={388} y={heroBox().buttonsY} buttons={buttons()} focus={at('buttons') ? st.bcur : -1} look={look()} />
+          <HeroButtons
+            x={388}
+            y={heroBox().buttonsY}
+            buttons={buttons()}
+            focus={at('buttons') ? st.bcur : -1}
+            look={look()}
+            onPointerButton={(i) => over('play', () => (st.bcur = i), () => at('buttons') && st.bcur === i)()}
+            onPointerButtonClick={(i) => click('play', () => (st.bcur = i))()}
+          />
         </view>
         <view width={1920} height={Math.max(1080, contentH())}>
           <Show when={hero() && shownTracks().length}>
@@ -549,7 +621,16 @@ export default function ImmersiveMusic(props) {
               <text fontFamily={uiFont('bold')} fontSize={16} letterSpacing={1} x={20} y={16 + 6} color="#ffffffb3">
                 {$L('FROM THIS ALBUM')}
               </text>
-              <MusicTrackList x={12} y={55} rows={albumRows()} focus={at('tracks') ? st.tcur : -1} w={456} look={look()} />
+              <MusicTrackList
+                x={12}
+                y={55}
+                rows={albumRows()}
+                focus={at('tracks') ? st.tcur : -1}
+                w={456}
+                look={look()}
+                onPointerTrack={(i) => over('play', () => ((st.zone = 'tracks'), (st.tcur = i)), () => at('tracks') && st.tcur === i)()}
+                onPointerTrackClick={(i) => click('play', () => ((st.zone = 'tracks'), (st.tcur = i)))()}
+              />
             </view>
           </Show>
         </view>
@@ -581,6 +662,8 @@ export default function ImmersiveMusic(props) {
                   size={LATEST_SIDE}
                   look={look()}
                   focused={latestSel(cd.idx)}
+                  onPointerOver={over('latest', () => (st.lcur = cd.idx), () => latestSel(cd.idx))}
+                  onPointerClick={click('latest', () => (st.lcur = cd.idx))}
                 />
               )}
             </For>
@@ -591,18 +674,42 @@ export default function ImmersiveMusic(props) {
           <text fontFamily={uiFont('bold')} fontSize={28} x={48} y={28 + 11.5 + 2.5} color={look().onSurface}>
             {$L('Last Played')}
           </text>
-          <MusicTrackList x={48} y={92} rows={lastRows()} focus={at('last') ? st.pcur : -1} w={1824} look={look()} />
+          <MusicTrackList
+            x={48}
+            y={92}
+            rows={lastRows()}
+            focus={at('last') ? st.pcur : -1}
+            w={1824}
+            look={look()}
+            onPointerTrack={(i) => over('last', () => (st.pcur = i), () => at('last') && st.pcur === i)()}
+            onPointerTrackClick={(i) => click('last', () => (st.pcur = i))()}
+          />
         </view>
 
         <view y={secY('genres')} width={1920} height={188} alpha={genreTiles().length ? 1 : 0}>
           <text fontFamily={uiFont('bold')} fontSize={28} x={48} y={28 + 11.5 + 2.5} color={look().onSurface}>
             {$L('Browse By Genre')}
           </text>
-          <SeeAll x={1872 - seeAllW()} w={seeAllW()} label={$L('See All')} look={look()} focused={at('genresAll')} />
+          <SeeAll
+            x={1872 - seeAllW()}
+            w={seeAllW()}
+            label={$L('See All')}
+            look={look()}
+            focused={at('genresAll')}
+            onPointerOver={over('genres', () => (st.zone = 'genresAll'), () => at('genresAll'))}
+            onPointerClick={click('genres', () => (st.zone = 'genresAll'))}
+          />
           <view>
             <For each={genreTiles()}>
               {(gt) => (
-                <view x={gt.x} y={92} width={GENRE_W} height={96}>
+                <view
+                  x={gt.x}
+                  y={92}
+                  width={GENRE_W}
+                  height={96}
+                  onPointerOver={over('genres', () => (st.gcur = gt.i), () => genreSel(gt.i))}
+                  onPointerClick={click('genres', () => (st.gcur = gt.i))}
+                >
                   <view x={-3} y={-3} width={GENRE_W + 6} height={102} borderRadius={17} color={NONE} border={{ width: 3, color: hex(look().focus) }} alpha={genreSel(gt.i) ? 1 : 0} />
                   <view width={GENRE_W} height={96} borderRadius={14} color={gt.color} />
                   <text fontFamily={gt.font} fontSize={18} x={12} y={lineY(96 - 12 - 33, 33, 18)} color="#ffffffff">
@@ -628,6 +735,8 @@ export default function ImmersiveMusic(props) {
                   look={look()}
                   alpha={sh.seeAll ? 1 : 0}
                   focused={at('shelfAll') && st.shelf === sh.i}
+                  onPointerOver={() => sh.seeAll && over('row:' + sh.i, () => (st.zone = 'shelfAll'), () => at('shelfAll') && st.shelf === sh.i)()}
+                  onPointerClick={() => sh.seeAll && click('row:' + sh.i, () => (st.zone = 'shelfAll'))()}
                 />
                 <Shelf
                   y={90}
@@ -637,6 +746,7 @@ export default function ImmersiveMusic(props) {
                   look={look()}
                   sx={st.shelfX[sh.i] || 0}
                   focus={at('shelf') && st.shelf === sh.i ? st.shelfCur[sh.i] || 0 : -1}
+                  onPointerCard={(idx) => click('row:' + sh.i, () => setShelfCur(sh.i, idx))()}
                 />
               </view>
             )}

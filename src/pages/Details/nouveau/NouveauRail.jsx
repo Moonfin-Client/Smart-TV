@@ -5,6 +5,7 @@ import { holdPress } from '../../../utils/longPress.js'
 import { byKey } from '../../../ui/components/details/keyed.js'
 import StillLabels from '../../../ui/components/details/StillLabels.jsx'
 import { railShift } from './geometry.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // One Nouveau rail: a heading and a track of cards clipped to the page's width, which slides to keep
 // the focused card 50px clear of either edge.
@@ -108,6 +109,15 @@ export default function NouveauRail(props) {
     reveal()
     notify()
   }
+  // The rail slides to its focused card, so the Magic Remote's cursor rings a card and a click focuses
+  // it and opens it (app/pointer.js).
+  const pick = (list, i) => {
+    const c = list.at(list.keys()[i])
+    if (!c) return false
+    pointerFocus(node)
+    if (c.idx !== cur()) go(c.idx)
+    return true
+  }
   // A rail starts on its start card, scrolled so it sits 50px in.
   const reset = () => {
     setHalf('art')
@@ -197,7 +207,7 @@ export default function NouveauRail(props) {
       </text>
       <view y={r().trackY} width={w()} height={r().trackH} clipping>
         <view transition={SLIDE} x={-shift()} y={20} width={trackW()} height={cardH()}>
-          <view width={trackW()} height={cardH()}>
+          <view width={trackW()} height={cardH()} pointerChildRing onPointerChildClick={(i) => pick(posters, i)}>
             <For each={posters.keys()}>
               {(k) => {
                 const c = () => posters.at(k)
@@ -280,7 +290,7 @@ export default function NouveauRail(props) {
               }}
             </For>
           </view>
-          <view width={trackW()} height={cardH()}>
+          <view width={trackW()} height={cardH()} pointerChildRing onPointerChildClick={(i) => pick(landscapes, i)}>
             <For each={landscapes.keys()}>
               {(k) => {
                 const c = () => landscapes.at(k)
@@ -376,7 +386,7 @@ export default function NouveauRail(props) {
               }}
             </For>
           </view>
-          <view width={trackW()} height={cardH()}>
+          <view width={trackW()} height={cardH()} pointerChildRing onPointerChildClick={(i) => pick(people, i)}>
             <For each={people.keys()}>
               {(k) => {
                 const c = () => people.at(k)
@@ -452,7 +462,7 @@ export default function NouveauRail(props) {
               }}
             </For>
           </view>
-          <view width={trackW()} height={cardH()}>
+          <view width={trackW()} height={cardH()} pointerChildRing onPointerChildClick={(i) => pick(reviews, i)}>
             <For each={reviews.keys()}>
               {(k) => {
                 const c = () => reviews.at(k)

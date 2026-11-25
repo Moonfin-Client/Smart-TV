@@ -391,6 +391,17 @@ export default function Spotlight(props) {
   return (
     <view
       ref={root}
+      // The part the Magic Remote's cursor focuses becomes the zone (app/pointer.js).
+      onPointerFocus={(n) => {
+        if (m.zone === 'modal') return true
+        for (let p = n; p; p = p.parent) {
+          const z = p === actions ? 'actions' : p === overview ? 'overview' : ''
+          if (!z) continue
+          if (m.zone !== z) focusZone(z)
+          return true
+        }
+        return false
+      }}
       width={1920}
       height={1080}
       onUp={() => {
@@ -462,7 +473,21 @@ export default function Spotlight(props) {
         <SeerrStatusDownloads x={dl().x} y={dl().y} bars={dl().bars} />
 
         <view x={band().x - 40} y={band().y - 16} width={band().viewW} height={234} clipping>
-          <view x={40 - bscroll()} y={16} width={Math.max(1, cardList().length * STEP)} height={CARD_H + 2}>
+          <view
+            x={40 - bscroll()}
+            y={16}
+            width={Math.max(1, cardList().length * STEP)}
+            height={CARD_H + 2}
+            // The band slides to its focused card, so the Magic Remote's cursor rings a card and a click
+            // focuses it and opens it (app/pointer.js).
+            pointerChildRing
+            onPointerChildClick={(i) => {
+              const c = cards.at(cards.keys()[i])
+              if (!c || m.zone === 'modal') return false
+              focusCard(c.i)
+              return true
+            }}
+          >
             <For each={cards.keys()}>
               {(k) => {
                 const c = () => cards.at(k)

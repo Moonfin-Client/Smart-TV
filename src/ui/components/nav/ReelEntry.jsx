@@ -14,6 +14,8 @@ export default function ReelEntry(props) {
     <view
       width={900}
       height={90}
+      pointerRing={props.onPointerClick ? true : undefined}
+      onPointerClick={props.onPointerClick}
       pivotX={0}
       pivotY={0.5}
       transition={tx({ x: move(), y: move(), scale: move(), alpha: move() })}

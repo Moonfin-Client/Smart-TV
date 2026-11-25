@@ -444,6 +444,31 @@ export default function SeerrSheets(props) {
     }
     return true
   }
+  // The Magic Remote's cursor (app/pointer.js): the top layer's controls, a scrolling body's cut to
+  // its window. One in full view takes focus on hover; one the body would scroll to only on a click,
+  // so it doesn't move under the cursor.
+  const pointSpots = () => {
+    const list = S.picker ? (S.top && S.top.focusables) || NONE : S.layout.focusables
+    const c = !S.picker && S.layout.clip
+    return list.map((f) => {
+      if (!c) return { f, box: f, whole: true }
+      const x = Math.max(c.x, f.x)
+      const y = Math.max(c.y, f.y)
+      const w = Math.min(c.x + c.w, f.x + f.w) - x
+      const h = Math.min(c.y + c.h, f.y + f.h) - y
+      return w > 0 && h > 0 ? { f, box: { x, y, w, h }, whole: w >= f.w - 1 && h >= f.h - 1 } : null
+    })
+  }
+  const pointAt = (i, click) => {
+    const layer = S.picker || S.dialog
+    const s = pointSpots()[i]
+    if (!layer || !s || (!click && !s.whole)) return false
+    if (layer.focus !== s.f.id) {
+      layer.focus = s.f.id
+      render()
+    }
+    return true
+  }
   const press = () => {
     const p = S.picker
     if (p) {
@@ -573,6 +598,13 @@ export default function SeerrSheets(props) {
         </view>
       </view>
       <Layer d={top()} />
+      <view
+        width={1920}
+        height={1080}
+        pointerItems={() => (S.dialog ? pointSpots().map((s) => s && { x: s.box.x, y: s.box.y, w: s.box.w, h: s.box.h }) : NONE)}
+        onPointerItem={(_, i) => pointAt(i, false)}
+        onPointerItemClick={(_, i) => pointAt(i, true)}
+      />
       <view>
         <Show when={kbOn()}>
           <Keyboard overlay ref={(n) => (kb = n)} onKeyboardChange={onKeyboardChange} onKeyboardClose={onKeyboardClose} onKeyboardNative={() => editMessage(true)} />

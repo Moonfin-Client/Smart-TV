@@ -12,7 +12,7 @@ import BookShelf from './BookShelf.jsx'
 import { HeroButtons, ScreenTitle } from './BookControls.jsx'
 import { bookCard } from './bookCards.js'
 import { countLabel } from './bookGrid.js'
-import { faceOf, heroButtons, shelfHeight } from './bookParts.js'
+import { bookPointer, faceOf, heroButtons, shelfHeight, showsWhole } from './bookParts.js'
 import { shuffled } from '../../../utils/shuffled.js'
 import { ellipsize, lineCount, textWidth } from './bookText.js'
 import { authorShelves, authorStats, bookMenuItem, booksByAuthor, isFinished } from './bookScreens.js'
@@ -256,6 +256,44 @@ export default function AuthorsScreen(props) {
       if (next) props.host.readItem(next)
     }
   }
+  // The Magic Remote's cursor (app/pointer.js): an author, the button or a book in full view takes
+  // focus on hover; one its column or shelf would scroll to takes it on a click.
+  const point = bookPointer(props, has)
+  const pointRow = (i, click) =>
+    point(
+      () => {
+        setZone('list')
+        setCur(i)
+        revealList()
+        queueShow()
+      },
+      { whole: showsWhole(18 + i * ROW_H, ROW_H, listY(), listView()), lit: has() && zone() === 'list' && cur() === i, click },
+    )
+  const pointMain = (click) => {
+    const s = spot()
+    return point(
+      () => {
+        setZone('main')
+        revealDetail()
+      },
+      { whole: showsWhole(33 + s.infoY + s.buttonsY, 52, detailY(), listView()), lit: has() && zone() === 'main', click },
+    )
+  }
+  const pointCard = (s, i, o) => {
+    const sh = spot().shelves[s]
+    if (!sh || !sh.cards[i]) return false
+    return point(
+      () => {
+        batch(() => {
+          setZone('shelf')
+          setShelf(s)
+          setCol(i)
+        })
+        revealDetail()
+      },
+      { whole: o.whole && showsWhole(sh.y + 57, shelfHeight(sh.cards, PAD), detailY(), listView()), lit: has() && zone() === 'shelf' && shelf() === s && col() === i, click: o.click },
+    )
+  }
   const up = () => {
     if (zone() === 'list') {
       if (cur() > 0) {
@@ -366,7 +404,7 @@ export default function AuthorsScreen(props) {
                 const ar = rowList.item(k)
                 const lit = () => zone() === 'list' && has() && isCur(ar().i)
                 return (
-                  <view y={ar().y} width={LIST_W} height={ROW_H}>
+                  <view y={ar().y} width={LIST_W} height={ROW_H} onPointerOver={() => pointRow(ar().i, false)} onPointerClick={() => pointRow(ar().i, true)}>
                     {/* The focus fill replaces the shown row's tint. */}
                     <view width={LIST_W} height={ROW_H} borderRadius={18} color={ar().i === shownIndex() && !lit() ? look().accent16 : CLEAR} />
                     <view width={LIST_W} height={ROW_H} borderRadius={18} color={look().os12} alpha={lit() ? 1 : 0} />
@@ -385,6 +423,7 @@ export default function AuthorsScreen(props) {
                     <text fontFamily={textFont} fontSize={19} x={105} y={57} color={look().os65}>
                       {ar().sub}
                     </text>
+                    <view width={LIST_W} height={ROW_H} onPointerOver={() => pointRow(ar().i, false)} onPointerClick={() => pointRow(ar().i, true)} />
                   </view>
                 )
               }}
@@ -437,7 +476,14 @@ export default function AuthorsScreen(props) {
                   }}
                 </For>
               </view>
-              <HeroButtons y={spot().buttonsY} buttons={spot().buttons} focus={zone() === 'main' && has() ? 0 : -1} look={look()} />
+              <HeroButtons
+                y={spot().buttonsY}
+                buttons={spot().buttons}
+                focus={zone() === 'main' && has() ? 0 : -1}
+                look={look()}
+                onPointerButton={() => pointMain(false)}
+                onPointerButtonClick={() => pointMain(true)}
+              />
             </view>
             <view>
               <For each={shelves.keys()}>
@@ -457,6 +503,7 @@ export default function AuthorsScreen(props) {
                         viewW={detailW() + 60}
                         look={look()}
                         zoom={props.zoom}
+                        onPointerCard={(i, o) => pointCard(sh().s, i, o)}
                       />
                     </view>
                   )

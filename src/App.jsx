@@ -53,6 +53,8 @@ import { findEveryCopy } from './services/mergedTitleReads.js'
 import { hasMultipleServers } from './services/multiServerManager.js'
 import * as remoteControl from './services/remoteControl.js'
 import { offerRemoteSearch } from './pages/Search/remoteSearch.js'
+import { startPointer } from './app/pointer.js'
+import PointerRing from './ui/components/PointerRing.jsx'
 
 if (import.meta.env.VITE_LAB) import('./ui/components/shell/lab/Lab.jsx')
 
@@ -438,6 +440,7 @@ const Shell = (props) => {
     loadSavedThemes()
     onAchievementsChange(onAchievements)
     window.addEventListener('keydown', onKey, true)
+    onCleanup(startPointer())
     afterHomeReady().then(preloadDetails)
     startIdle()
     startConnection()
@@ -613,6 +616,7 @@ const Shell = (props) => {
       <NotificationToast lane="remoteNote" note={notes().remoteNote} onNoteDone={app.onNoteDone} />
       <NotificationToast lane="badgeNote" note={notes().badgeNote} onNoteDone={app.onNoteDone} />
       <NotificationToast lane="chatNote" note={notes().chatNote} onNoteDone={app.onNoteDone} />
+      <PointerRing />
       <view>
         <Show when={shell.saver || saverBuilt()}>
           <Screensaver visible={shell.saver} />

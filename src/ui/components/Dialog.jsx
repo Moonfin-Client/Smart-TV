@@ -41,6 +41,10 @@ export default function Dialog(props) {
     if (i >= 0) setCur(i)
   }
   const answer = (id) => props.onDialog && props.onDialog(id)
+  // The Magic Remote's cursor focuses a button, and OK then answers with it (app/pointer.js).
+  const point = (i) => () => {
+    if (opened() && cur() !== i) setCur(i)
+  }
   const step = (dir) => {
     const n = buttons().length
     if (props.variant === 'exit') setCur(n - 1 - cur())
@@ -103,6 +107,7 @@ export default function Dialog(props) {
           <Index each={L().btns}>
             {(b) => (
               <text
+                onPointerOver={point(b().i)}
                 fontFamily={uiFont('medium')}
                 fontSize={23.374}
                 x={b().x + 20.03}
@@ -191,6 +196,7 @@ export default function Dialog(props) {
               const on = () => b().i === focusIdx()
               return (
                 <view
+                  onPointerOver={point(b().i)}
                   x={b().x}
                   y={L().btnY}
                   width={b().w}
@@ -230,6 +236,7 @@ export default function Dialog(props) {
         width={1920}
         height={1080}
         alpha={props.show === false ? 0 : 1}
+        pointerModal
         onFocusChanged={setOpened}
         onLeft={() => step(-1)}
         onRight={() => step(1)}

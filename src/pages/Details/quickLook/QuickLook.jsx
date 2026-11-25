@@ -401,6 +401,17 @@ export default function QuickLook(props) {
   return (
     <view
       ref={(n) => (root = n)}
+      // The part the Magic Remote's cursor focuses becomes the zone (app/pointer.js).
+      onPointerFocus={(n) => {
+        const zones = ['actions', TRACKS_ID].concat(Object.keys(rails))
+        for (let p = n; p; p = p.parent) {
+          const z = zones.find((k) => refFor(k) === p)
+          if (z === undefined) continue
+          if (untrack(zone) !== z) focusZone(z)
+          return true
+        }
+        return false
+      }}
       width={1920}
       height={1080}
       alpha={open() ? 1 : 0}

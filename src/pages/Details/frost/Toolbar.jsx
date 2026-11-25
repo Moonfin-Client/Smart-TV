@@ -6,6 +6,7 @@ import { holdPress } from '../../../utils/longPress.js'
 import { buttonLook, tagFor, toolbarLayout, TAG_H } from './toolbar.js'
 import { wa } from './layout.js'
 import { tx } from '../../../ui/fx.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // Frost's toolbar: Play a pill in the accent, the rest bare 90px icons that take a lighter platter
 // and grow when focused, with the label floating above on a dark tag. The pane is the ornament glass
@@ -60,6 +61,12 @@ export default function Toolbar(props) {
 
   return (
     <view
+      // The Magic Remote's cursor focuses the button under it, and OK then presses it (app/pointer.js).
+      pointerItems={() => laid().placed}
+      onPointerItem={(it, i, n) => {
+        pointerFocus(n)
+        if (cur() !== i) setCur(i)
+      }}
       ref={(n) => {
         n.current = () => buttons()[cur()]
         n.cur = cur

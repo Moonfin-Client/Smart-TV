@@ -213,6 +213,14 @@ export default function LivePreview(props) {
     const chip = chips()[i]
     if (chip && props.onPickScene) props.onPickScene(chip.id)
   }
+  // The chips scroll to the focused one, so the Magic Remote's cursor rings a chip and a click
+  // focuses the chips (onPointerChips) and picks it (app/pointer.js).
+  const clickChip = (i) => {
+    if (!chips()[i]) return false
+    if (!active() && props.onPointerChips) props.onPointerChips()
+    pick(i)
+    return false
+  }
   const leave = () => {
     if (props.onLeaveChips) props.onLeaveChips()
     return true
@@ -292,6 +300,13 @@ export default function LivePreview(props) {
             )
           }}
         </For>
+        <view
+          width={chipRow().boxW + 2 * CHIP_CLIP}
+          height={CHIP_H + 2 * CHIP_CLIP}
+          pointerItems={() => chips().map((c) => ({ x: c.x - chipRow().boxX + CHIP_CLIP, y: CHIP_CLIP, w: c.w, h: CHIP_H, r: 24.18 }))}
+          pointerItemRing
+          onPointerItemClick={(_, i) => clickChip(i)}
+        />
       </view>
 
       <view x={frameX()} y={63.45} width={frameW()} height={frameH()}>

@@ -114,6 +114,21 @@ export default function BrowseDialog(props) {
     setScroll(focusScrollFor(row.y, row.h, scroll(), view(), Math.max(0, contentH() - view())))
   }
 
+  // The Magic Remote's cursor (app/pointer.js): a row in full view takes focus on hover, one the list
+  // would scroll to only on a click, so the list doesn't move under the cursor.
+  const pointAt = (i) => {
+    const r = placed()[i]
+    if (!r || !r.focusable || curIndex() === i || r.y < scroll() || r.y + r.h > scroll() + view()) return
+    setCurId(r.id)
+  }
+  const clickAt = (i) => {
+    const r = placed()[i]
+    if (!r || !r.focusable) return false
+    setCurId(r.id)
+    setScroll(focusScrollFor(r.y, r.h, scroll(), view(), Math.max(0, contentH() - view())))
+    return true
+  }
+
   return (
     <view
       ref={(n) => {
@@ -197,6 +212,13 @@ export default function BrowseDialog(props) {
                 )
               }}
             </For>
+            <view
+              width={632.44}
+              height={contentH()}
+              pointerItems={() => placed().map((r) => (r.focusable ? { x: 0, y: r.y, w: 632.44, h: r.h } : null))}
+              onPointerItem={(_, i) => pointAt(i)}
+              onPointerItemClick={(_, i) => clickAt(i)}
+            />
           </view>
         </view>
       </view>

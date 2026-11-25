@@ -65,6 +65,8 @@ export default function SkipPrompt(props) {
       width={look().w}
       height={look().h}
       alpha={props.show ? 1 : 0}
+      // A click with the Magic Remote's cursor skips (app/pointer.js).
+      onPointerClick={() => props.show && props.skipSegment && props.skipSegment()}
       onFocusChanged={setActive}
       onEnter={() => {
         if (props.skipSegment) props.skipSegment()

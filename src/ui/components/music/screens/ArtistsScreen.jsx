@@ -1,7 +1,7 @@
 import $L from '../../../../services/i18n.js'
 import { For, Index, Show, createMemo, createSelector, onCleanup } from 'solid-js'
 import MusicCard from '../MusicCard.jsx'
-import { ScreenHeader, headerHeight, layoutControls, cardSide, contentWidth, gridRows, rowIndexOf, gridMove, keepInView } from '../screenParts.jsx'
+import { ScreenHeader, pointerIn, wholeInView, headerHeight, layoutControls, cardSide, contentWidth, gridRows, rowIndexOf, gridMove, keepInView } from '../screenParts.jsx'
 import { lineY } from '../../books/bookGrid.js'
 import { uiFont } from '../../../text.js'
 import { hex } from '../../../color.js'
@@ -29,6 +29,7 @@ function Rail(props) {
             <text fontFamily={uiFont('bold')} fontSize={17} x={19} y={lineY(0, 28, 17)} mountX={0.5} color={props.current === l() ? look().accent : look().os(0.7)}>
               {l()}
             </text>
+            <view width={38} height={28} onPointerOver={() => props.onPointerLetter && props.onPointerLetter(i)} />
           </view>
         )}
       </Index>
@@ -169,6 +170,19 @@ export default function ArtistsScreen(props) {
     const viewH = VIEW_H - headerH()
     st.scrollY = keepInView(st.scrollY, top, top + side + 53, viewH, layoutY().end - viewH)
     if (r >= rows().length - 3) loadMore()
+  }
+  // The Magic Remote's cursor (app/pointer.js): the header's stops and the letters take focus on
+  // hover; an artist in full view too, one the grid would scroll to on a click.
+  const point = pointerIn(st, my, props)
+  const pointCard = (i) => {
+    const top = layoutY().tops[rowIndexOf(rows(), i)] || 0
+    if (!wholeInView(st.scrollY, VIEW_H - headerH(), top, top + side + 53)) return
+    if (!(st.active && st.zone === 'grid' && st.cur === i)) point(() => focusIndex(i))
+  }
+  const clickCard = (i) => {
+    if (!st.items[i]) return false
+    point(() => focusIndex(i))
+    return true
   }
   // A letter pages the list in until it turns up, then brings its heading to the top and lands on
   // its first artist.
@@ -317,6 +331,8 @@ export default function ArtistsScreen(props) {
                     size={side}
                     look={look()}
                     focused={gridSel(c.idx)}
+                    onPointerOver={() => pointCard(c.idx)}
+                    onPointerClick={() => clickCard(c.idx)}
                   />
                 )
               }}
@@ -325,7 +341,18 @@ export default function ArtistsScreen(props) {
         </view>
         <view>
           <Show when={st.items.length}>
-            <Rail x={vw - 86} current={currentLetter()} focus={railFocus()} look={look()} />
+            <Rail
+              x={vw - 86}
+              current={currentLetter()}
+              focus={railFocus()}
+              look={look()}
+              onPointerLetter={(i) =>
+                point(() => {
+                  st.zone = 'rail'
+                  st.rcur = i
+                })
+              }
+            />
           </Show>
         </view>
         <view>
@@ -336,7 +363,19 @@ export default function ArtistsScreen(props) {
           </Show>
         </view>
       </view>
-      <ScreenHeader title={$L('Artists')} count={countText()} controls={controls()} focus={headFocus()} look={look()} />
+      <ScreenHeader
+        title={$L('Artists')}
+        count={countText()}
+        controls={controls()}
+        focus={headFocus()}
+        look={look()}
+        onPointerStop={(i) =>
+          point(() => {
+            st.zone = 'header'
+            st.hcur = i
+          })
+        }
+      />
     </view>
   )
 }

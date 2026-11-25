@@ -85,6 +85,14 @@ export default function ProfileCarousel(props) {
     return (
       <view
         zIndex={slot().distance === 0 ? 2 : slot().distance === 1 ? 1 : 0}
+        pointerRing={140.244}
+        onPointerClick={() => {
+          // The Magic Remote's cursor rings a face, and a click turns the carousel to it and picks it
+          // (app/pointer.js). The carousel turns under focus, so hover doesn't move it.
+          if (props.onPointerFace) props.onPointerFace()
+          setCur(clampIndex(fp.index(), items().length))
+          return true
+        }}
         x={960 - HERO / 2 + slot().x * DP}
         y={13.357}
         width={280.488}

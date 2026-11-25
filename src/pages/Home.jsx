@@ -802,6 +802,21 @@ export default function Home(props) {
         focusZone()
         return true
       }}
+      // The bar or the rows, whichever the Magic Remote's cursor focuses (app/pointer.js).
+      onPointerFocus={(n) => {
+        for (let p = n; p; p = p.parent) {
+          if (bar && p === bar) {
+            if (mode() !== 'bar') setMode('bar')
+            focusZone()
+            return true
+          }
+          if (list && p === list) {
+            if (mode() !== 'rows') setMode('rows')
+            return false
+          }
+        }
+        return false
+      }}
       // Up from the first row goes back to the bar, or to a top navbar when there's no bar.
       onUp={() => {
         if (mode() === 'rows' && featured().length && barEnabled()) {

@@ -18,6 +18,7 @@ export default function ChoiceCard(props) {
     <view
       x={props.x || 0}
       y={props.y || 0}
+      onPointerOver={props.onPointerOver}
       width={789.4}
       height={125.5}
       pivot={0.5}

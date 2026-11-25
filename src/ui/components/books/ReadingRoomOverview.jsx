@@ -32,7 +32,7 @@ import { bookCard } from './bookCards.js'
 import { ellipsize, textWidth } from './bookText.js'
 import { loadBookRow } from './bookLibraryData.js'
 import { TITLES, bookMenuItem, formatEyebrow, screenFor } from './bookScreens.js'
-import { genreColor, initialsOf } from './bookParts.js'
+import { bookPointer, genreColor, initialsOf } from './bookParts.js'
 
 const INSET = 80
 const RECENT_COUNT = 20
@@ -54,7 +54,7 @@ const SHELF_PAD = [14, 33, 14, INSET]
 function FanTile(props) {
   const fan = keyed(() => props.tile.fan, (f) => f.k)
   return (
-    <view x={props.x} width={285} height={455}>
+    <view x={props.x} width={285} height={455} pointerRing={13} onPointerClick={props.onPointerClick}>
       <view width={285} height={372} pivot={0.5} transition={{ scale: { duration: 150 } }} scale={props.focused ? 1.03 : 1}>
         <For each={fan.keys()}>
           {(k) => {
@@ -87,6 +87,7 @@ const SeeAll = (props) => (
     <text fontFamily={uiFont()} fontSize={18} x={12} y={15} color={props.on ? '#ffffff' : props.look.os(0.7)}>
       {$L('See All')}
     </text>
+    <view width={79} height={49} pointerRing={19} onPointerClick={props.onPointerClick} />
   </view>
 )
 
@@ -436,6 +437,26 @@ export default function ReadingRoomOverview(props) {
     return null
   }
   const hold = menuHold(heldItem, enter)
+  // The Magic Remote's cursor (app/pointer.js). Each stop scrolls the page to itself, so the search,
+  // the scope tabs, Browse, the authors and the genres take focus on hover only while the page
+  // already sits there, and on a click otherwise. The rows glide to their focused card, so a card,
+  // its Read button or a See All rings and takes focus on a click.
+  const point = bookPointer(props, has)
+  const sits = (s) => (s.kind === 'header' ? 0 : Math.max(0, Math.min(s.y - SCROLL_PAD, Math.max(0, layoutRows().height - props.viewH)))) === scrollY()
+  const pointTo = (kind, c, { all = false, button = false, click = false, slides = false } = {}) => {
+    const n = stopIndex(kind)
+    if (n < 0) return false
+    return point(
+      () => {
+        go(n, c)
+        batch(() => {
+          setSeeAll(all)
+          setOnButton(button)
+        })
+      },
+      { whole: !slides && sits(layoutRows().stops[n]), lit: has() && node() === n && col() === c && seeAll() === all && onButton() === button, click: click || slides },
+    )
+  }
   const key = (fn) => () => {
     fn()
     return true
@@ -486,7 +507,14 @@ export default function ReadingRoomOverview(props) {
           <text fontFamily={textFont} fontSize={25} y={98.9 * header().lines + 13} color={look().os65}>
             {header().stats}
           </text>
-          <view x={1760 - 80 - 434} y={header().h - 73} width={434} height={73}>
+          <view
+            x={1760 - 80 - 434}
+            y={header().h - 73}
+            width={434}
+            height={73}
+            onPointerOver={() => pointTo('header', 0)}
+            onPointerClick={() => pointTo('header', 0, { click: true })}
+          >
             <view width={434} height={73} borderRadius={36.5} color={look().os06} />
             <view
               width={434}
@@ -518,7 +546,16 @@ export default function ReadingRoomOverview(props) {
                   const card = () => here() && !onButton()
                   const btn = () => here() && onButton()
                   return (
-                    <view x={cc().x} width={600} height={361} pivot={0.5} transition={{ scale: { duration: 150, easing: 'ease-out' } }} scale={card() ? 1.02 : 1}>
+                    <view
+                      x={cc().x}
+                      width={600}
+                      height={361}
+                      pivot={0.5}
+                      transition={{ scale: { duration: 150, easing: 'ease-out' } }}
+                      scale={card() ? 1.02 : 1}
+                      pointerRing={20}
+                      onPointerClick={() => pointTo('continue', cc().i, { slides: true })}
+                    >
                       <view width={600} height={361} borderRadius={30} color={SURFACE} />
                       <view width={600} height={361} borderRadius={30} color={CLEAR} border={{ width: 2, color: hex(card() ? '#ffffff' : '#ffffff12') }} />
                       <view x={32} y={32} width={200} height={cc().coverH} borderRadius={13} color={look().os12}>
@@ -545,7 +582,17 @@ export default function ReadingRoomOverview(props) {
                         <text fontFamily={textFont} fontSize={20} y={250} color={look().os(0.7)}>
                           {cc().meta}
                         </text>
-                        <view x={303 - cc().readW} y={230} width={cc().readW} height={67} pivot={0.5} transition={{ scale: { duration: 150 } }} scale={btn() ? 1.06 : 1}>
+                        <view
+                          x={303 - cc().readW}
+                          y={230}
+                          width={cc().readW}
+                          height={67}
+                          pivot={0.5}
+                          transition={{ scale: { duration: 150 } }}
+                          scale={btn() ? 1.06 : 1}
+                          pointerRing={33.5}
+                          onPointerClick={() => pointTo('continue', cc().i, { button: true, slides: true })}
+                        >
                           <view x={-4} y={-4} width={cc().readW + 8} height={75} borderRadius={37.5} color={CLEAR} border={WHITE(4)} alpha={btn() ? 1 : 0} />
                           <view width={cc().readW} height={67} borderRadius={33.5} color={ACCENT} />
                           <view x={17} y={17} width={33} height={33} src="icons/book_play_arrow_rounded.webp" color="#ffffff" />
@@ -571,8 +618,16 @@ export default function ReadingRoomOverview(props) {
             active={activeScope()}
             focus={focusKind() === 'scope' && mixed() && col() < scopeTabs().length ? col() : -1}
             look={look()}
+            onPointerTab={(i) => mixed() && pointTo('scope', i)}
+            onPointerTabClick={(i) => mixed() && pointTo('scope', i, { click: true })}
           />
-          <view x={1920 - 67 - browseW()} width={browseW()} height={67}>
+          <view
+            x={1920 - 67 - browseW()}
+            width={browseW()}
+            height={67}
+            onPointerOver={() => pointTo('scope', mixed() ? scopeTabs().length : 0)}
+            onPointerClick={() => pointTo('scope', mixed() ? scopeTabs().length : 0, { click: true })}
+          >
             <view x={-3} y={-3} width={browseW() + 6} height={73} borderRadius={36.5} color={CLEAR} border={WHITE(3)} alpha={browseFocused() ? 1 : 0} />
             <text fontFamily={textFont} fontSize={23} x={13} y={22} color={browseFocused() ? '#ffffff' : look().os75}>
               {browseLabel()}
@@ -585,7 +640,7 @@ export default function ReadingRoomOverview(props) {
           <text fontFamily={SERIF} fontSize={28} x={80} y={74} color={look().onSurface}>
             {$L('Recently Added')}
           </text>
-          <SeeAll x={1920 - 20 - 79} on={focusKind() === 'recent' && seeAll()} look={look()} />
+          <SeeAll x={1920 - 20 - 79} on={focusKind() === 'recent' && seeAll()} look={look()} onPointerClick={() => pointTo('recent', col(), { all: true, slides: true })} />
           <BookShelf
             y={139}
             cards={recentCards()}
@@ -596,6 +651,8 @@ export default function ReadingRoomOverview(props) {
             viewW={1920}
             look={look()}
             zoom={props.zoom}
+            pointerRing={12}
+            onPointerCard={(i, o) => o.click && pointTo('recent', i, { slides: true })}
           />
         </view>
 
@@ -603,13 +660,21 @@ export default function ReadingRoomOverview(props) {
           <text fontFamily={SERIF} fontSize={28} x={80} y={74} color={look().onSurface}>
             {$L('Series')}
           </text>
-          <SeeAll x={1920 - 20 - 79} on={focusKind() === 'series' && seeAll()} look={look()} />
+          <SeeAll x={1920 - 20 - 79} on={focusKind() === 'series' && seeAll()} look={look()} onPointerClick={() => pointTo('series', col(), { all: true, slides: true })} />
           <view y={139} width={1920} height={483} clipping>
             <view x={-seriesX()} y={14} width={Math.max(1920, INSET + seriesTiles().length * 318)} height={455}>
               <For each={seriesList.keys()}>
                 {(k) => {
                   const sv = seriesList.item(k)
-                  return <FanTile x={sv().x} tile={sv()} look={look()} focused={focusKind() === 'series' && !seeAll() && isCol(sv().i)} />
+                  return (
+                    <FanTile
+                      x={sv().x}
+                      tile={sv()}
+                      look={look()}
+                      focused={focusKind() === 'series' && !seeAll() && isCol(sv().i)}
+                      onPointerClick={() => pointTo('series', sv().i, { slides: true })}
+                    />
+                  )
                 }}
               </For>
             </view>
@@ -626,7 +691,14 @@ export default function ReadingRoomOverview(props) {
                 {(k) => {
                   const ap = authorList.item(k)
                   return (
-                    <view x={ap().x} y={ap().y} width={410} height={107}>
+                    <view
+                      x={ap().x}
+                      y={ap().y}
+                      width={410}
+                      height={107}
+                      onPointerOver={() => pointTo('authors', ap().i)}
+                      onPointerClick={() => pointTo('authors', ap().i, { click: true })}
+                    >
                       <view width={410} height={107} borderRadius={53.5} color={SURFACE} />
                       <view width={410} height={107} borderRadius={53.5} color={CLEAR} border={WHITE(3)} alpha={focusKind() === 'authors' && isCol(ap().i) ? 1 : 0} />
                       <view x={16} y={13.5} width={80} height={80} borderRadius={40} color={look().os12}>
@@ -653,13 +725,20 @@ export default function ReadingRoomOverview(props) {
             <text fontFamily={SERIF} fontSize={28} y={74} color={look().onSurface}>
               {$L('Genres')}
             </text>
-            <SeeAll x={840 - 79} on={focusKind() === 'genres' && seeAll()} look={look()} />
+            <SeeAll x={840 - 79} on={focusKind() === 'genres' && seeAll()} look={look()} onPointerClick={() => pointTo('genres', col(), { all: true, click: true })} />
             <view y={143} width={840} height={400}>
               <For each={genreList.keys()}>
                 {(k) => {
                   const gt = genreList.item(k)
                   return (
-                    <view x={gt().x} y={gt().y} width={gt().w} height={170}>
+                    <view
+                      x={gt().x}
+                      y={gt().y}
+                      width={gt().w}
+                      height={170}
+                      onPointerOver={() => pointTo('genres', gt().i)}
+                      onPointerClick={() => pointTo('genres', gt().i, { click: true })}
+                    >
                       <view width={gt().w} height={170} borderRadius={27} color={gt().color} />
                       <view
                         width={gt().w}

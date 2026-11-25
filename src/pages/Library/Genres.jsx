@@ -341,6 +341,18 @@ export default function Genres(props) {
     <view
       width={1920}
       height={1080}
+      // The grid or the toolbar, whichever the Magic Remote's cursor focuses (app/pointer.js).
+      onPointerFocus={(n) => {
+        if (st.panel) return true
+        for (let p = n; p; p = p.parent) {
+          if (p === grid || p === chromeRef) {
+            my.zone = p === grid ? 'grid' : 'chrome'
+            focusZone()
+            return true
+          }
+        }
+        return false
+      }}
       forwardFocus={() => {
         focusZone()
         return true

@@ -146,6 +146,18 @@ export default function Books(props) {
     },
     onStripOpen: (entry) => host.onRailOpen(entry),
     onSearch: () => router.to('/search'),
+    // The Magic Remote's cursor moved onto the nav or the screen, which takes focus as it is, without
+    // landing (app/pointer.js).
+    pointNav: () => {
+      if (zone() === 'nav' && !dialog()) return
+      setZone('nav')
+      focusZone()
+    },
+    pointScreen: () => {
+      if (zone() === 'screen' && !dialog()) return
+      setZone('screen')
+      focusZone()
+    },
     onRailRight: () => {
       setZone('screen')
       focusZone(true)

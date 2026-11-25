@@ -1,7 +1,7 @@
 import $L from '../../../../services/i18n.js'
 import { For, Show, createMemo, createSelector, onCleanup } from 'solid-js'
 import MusicCard from '../MusicCard.jsx'
-import { ScreenHeader, headerHeight, keepInView, contentWidth } from '../screenParts.jsx'
+import { ScreenHeader, pointerIn, wholeInView, headerHeight, keepInView, contentWidth } from '../screenParts.jsx'
 import { lineY } from '../../books/bookGrid.js'
 import { uiFont, fontFor, textWidth } from '../../../text.js'
 import { hex } from '../../../color.js'
@@ -27,7 +27,7 @@ function Station(props) {
   const chip = $L('Shuffle')
   const chipW = Math.ceil(15 + 30 + 9 + textWidth(chip, 21, 'bold') + 21)
   return (
-    <view x={60} y={10} width={345} height={240}>
+    <view x={60} y={10} width={345} height={240} onPointerOver={props.onPointerOver} onPointerClick={props.onPointerClick}>
       <view x={-3} y={-3} width={351} height={246} borderRadius={27} color={NONE} border={{ width: 3, color: hex(look().focus) }} alpha={props.focused ? 1 : 0} />
       <view width={345} height={240} borderRadius={24} color={r().color} />
       <text fontFamily={r().nameFont} fontSize={36} x={27} y={24 + 1.2} maxWidth={291} maxLines={1} color="#ffffffff">
@@ -71,11 +71,30 @@ function GenreRow(props) {
             </Show>
           </view>
           <view x={-props.sx} width={SHELF_X + r().cards.length * CARD_STEP + 60} height={260}>
-            <For each={cards()}>{(cd) => <MusicCard x={SHELF_X + cd.idx * CARD_STEP} y={-1} card={cd} size={CARD} look={look()} focused={sel(cd.idx)} />}</For>
+            <For each={cards()}>
+              {(cd) => (
+                <MusicCard
+                  x={SHELF_X + cd.idx * CARD_STEP}
+                  y={-1}
+                  card={cd}
+                  size={CARD}
+                  look={look()}
+                  focused={sel(cd.idx)}
+                  pointerRing={12}
+                  onPointerClick={() => props.onPointerCol(cd.idx + 1, true)}
+                />
+              )}
+            </For>
           </view>
         </view>
       </view>
-      <Station row={r()} look={look()} focused={props.focus === 0} />
+      <Station
+        row={r()}
+        look={look()}
+        focused={props.focus === 0}
+        onPointerOver={() => props.onPointerCol(0, false)}
+        onPointerClick={() => props.onPointerCol(0, true)}
+      />
     </view>
   )
 }
@@ -195,6 +214,21 @@ export default function GenresScreen(props) {
       if (shelf && n >= shelf.items.length - 5 && shelf.items.length < shelf.total) loadShelf(row.raw)
     }
   }
+  // The Magic Remote's cursor (app/pointer.js): the header and a row's Shuffle station take focus on
+  // hover while in full view. The shelves slide to their focused album, so the cursor rings one and a
+  // click focuses it and opens it, as it does a station the list would scroll to.
+  const point = pointerIn(st, my, props)
+  const pointCol = (r, col, click) => {
+    if (!rows()[r]) return false
+    const top = 30 + r * STRIDE
+    const whole = wholeInView(st.scrollY, 999 - headerH(), top, top + 260)
+    if (!click && (!whole || (st.active && st.zone === 'rows' && st.row === r && !(st.lastCol[rows()[r].k] || 0)))) return false
+    point(() => {
+      focusRow(r)
+      setCol(col)
+    })
+    return click
+  }
   const focusOf = (r) => (st.active && st.zone === 'rows' && st.row === r.i ? st.lastCol[r.k] || 0 : -1)
   ;(async () => {
     let genres = []
@@ -278,7 +312,7 @@ export default function GenresScreen(props) {
     >
       <view y={headerH()} width={vw} height={999 - headerH()} clipping>
         <view y={-st.scrollY} width={vw} height={contentH()}>
-          <For each={visibleRows()}>{(gr) => <GenreRow row={gr} vw={vw} look={look()} sx={st.shelfX[gr.k] || 0} focus={focusOf(gr)} />}</For>
+          <For each={visibleRows()}>{(gr) => <GenreRow row={gr} vw={vw} look={look()} sx={st.shelfX[gr.k] || 0} focus={focusOf(gr)} onPointerCol={(col, click) => pointCol(gr.i, col, click)} />}</For>
         </view>
         <view>
           <Show when={st.genres && !st.genres.length}>
@@ -288,7 +322,10 @@ export default function GenresScreen(props) {
           </Show>
         </view>
       </view>
-      <ScreenHeader title={$L('Genres')} count={countText()} controls={controls()} focus={st.active && st.zone === 'header' ? 0 : -1} look={look()} />
+      <ScreenHeader title={$L('Genres')} count={countText()} controls={controls()} focus={st.active && st.zone === 'header' ? 0 : -1}
+        look={look()}
+        onPointerStop={() => point(() => (st.zone = 'header'))}
+      />
     </view>
   )
 }

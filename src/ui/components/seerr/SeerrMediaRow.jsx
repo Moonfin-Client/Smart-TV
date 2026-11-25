@@ -5,6 +5,7 @@ import { artLoaded, noteArt, warmArt } from '../home/cards.js'
 import { lineCount } from '../games/wrap.js'
 import { uiFont, cssShift, textWidth } from '../../text.js'
 import { tx } from '../../fx.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // A Modern title row on Seerr Discover: the title at the screen's inset, posters 28px apart, and
 // the focused one parked at the leading edge and grown to its wide art with the ratings and
@@ -101,6 +102,16 @@ export default function SeerrMediaRow(props) {
     // A row that pages asks for more once focus is among its last few cards.
     if (cur() >= list.length - 3 && props.onRowMore) props.onRowMore(props.rowIndex)
   }
+  // The Magic Remote's cursor rings a card, and a click focuses it and opens it (app/pointer.js). The
+  // row slides to its focused card, so hover doesn't move focus.
+  let self
+  const pick = (c) => {
+    if (!c) return false
+    pointerFocus(self)
+    if (props.onPointerRow) props.onPointerRow()
+    if (c.idx !== cur()) move(c.idx)
+    return true
+  }
   const move = (to) => {
     if (to === cur() || to < 0 || to >= cards().length) return
     setCur(to)
@@ -112,6 +123,7 @@ export default function SeerrMediaRow(props) {
   return (
     <view
       ref={(n) => {
+        self = n
         n.focusIndex = (i) => setCur(Math.max(0, Math.min(i, cards().length - 1)))
         if (props.ref) props.ref(n)
       }}
@@ -155,7 +167,7 @@ export default function SeerrMediaRow(props) {
       </text>
       <view y={40} width={1920} height={laneH() + grow()} clipping>
         <view transition={tx({ x: glide() })} x={pad() - scroll()} y={10} width={spanW()} height={spanH()}>
-          <view width={spanW()} height={spanH()}>
+          <view width={spanW()} height={spanH()} pointerChildRing onPointerChildClick={(i) => pick(shown()[i])}>
             <For each={shown()}>
               {(c) => (
                 <SeerrPosterCard

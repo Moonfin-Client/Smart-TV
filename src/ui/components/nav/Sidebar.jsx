@@ -3,6 +3,7 @@ import { uiFont, fontFor, faceDy, themeSpacing } from '../../text.js'
 import { theme, rgba, glowShadow, SIDEBAR_W, SIDEBAR_OPEN_W } from '../../theme.js'
 import { highMs } from '../../tier.js'
 import { focusActivePage } from '../../../state/pages.js'
+import { focusNav } from '../../../app/focus.js'
 import { getStore } from '../../../state/store.js'
 import { router } from '../../../app/router.js'
 import { navVisibility, navEntries, openEntry, badgeText } from './navEntries.js'
@@ -180,10 +181,26 @@ export default function Sidebar(props) {
     keepInView()
     return true
   }
+  // The Magic Remote's cursor focuses the nav and the item under it, and OK then opens it
+  // (app/pointer.js).
+  let pointIn = -1
+  const point = (i) => {
+    if (!open()) {
+      pointIn = i
+      if (!focusNav()) pointIn = -1
+      return
+    }
+    if (cur() !== i) {
+      setCur(i)
+      keepInView()
+    }
+  }
   const onFocusChanged = (has) => {
     if (has) {
       // The sidebar always enters on Home.
-      setCur(1)
+      // (or on the item under the Magic Remote's cursor).
+      setCur(pointIn >= 0 ? pointIn : 1)
+      pointIn = -1
       setLibsOpen(false)
       setOpen(true)
       keepInView()
@@ -356,7 +373,7 @@ export default function Sidebar(props) {
             <For each={rowKeys()}>
               {(k) => (
                 <SidebarRow
-                  ref={(n) => (rowNodes[k] = n)}
+                  ref={(n) => ((rowNodes[k] = n), (n.onPointerOver = () => point(row(k).i)))}
                   x={10}
                   y={row(k).y}
                   slideMs={slideMs}
