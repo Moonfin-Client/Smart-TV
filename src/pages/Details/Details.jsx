@@ -193,7 +193,7 @@ export default function Details(props) {
     m.anime = null
     m.lists = emptyLists()
     m.tracks = { version: 0, audio: 0, subtitle: -1 }
-    m.chosen = { audio: false, subtitle: false }
+    m.chosen = { version: false, audio: false, subtitle: false }
     m.seerr = idleSeerr()
     m.seerrDone = false
     m.ratings = []
@@ -897,6 +897,7 @@ export default function Details(props) {
         m.tracks = { version: i, audio: Math.max(0, def), subtitle: m.tracks.subtitle }
         m.chosen = { audio: false, subtitle: false }
       }
+      m.chosen.version = true
     } else if (kind === 'audio') {
       m.tracks = { ...m.tracks, audio: i }
       m.chosen.audio = true
@@ -1136,6 +1137,8 @@ export default function Details(props) {
     const audios = (ms.MediaStreams || []).filter((x) => x.Type === 'Audio')
     const subs = (ms.MediaStreams || []).filter((x) => x.Type === 'Subtitle')
     const out = { mediaSourceId: ms.Id }
+    // A version picked here plays as that version, the default too; until then Silo may play another.
+    if (m.chosen.version) out.pinVersion = true
     if (m.chosen.audio && audios[m.tracks.audio]) out.audioStreamIndex = audios[m.tracks.audio].Index
     if (m.chosen.subtitle) out.subtitleStreamIndex = m.tracks.subtitle >= 0 && subs[m.tracks.subtitle] ? subs[m.tracks.subtitle].Index : -1
     return out
@@ -1147,7 +1150,7 @@ export default function Details(props) {
     const partIds = ((parts && parts.Items) || []).map((p) => p.Id)
     const prerolls = resume ? [] : await fetchPrerolls(m.api, it, all()).catch(() => [])
     if (prerolls.length) {
-      playItem(prerolls[0], false, { queue: prerolls.map((p) => p.Id).concat(it.Id, partIds), prerolls: prerolls.length })
+      playItem(prerolls[0], false, { ...picks, queue: prerolls.map((p) => p.Id).concat(it.Id, partIds), prerolls: prerolls.length })
     } else {
       playItem(it, resume, partIds.length ? { ...picks, queue: [it.Id].concat(partIds) } : picks)
     }

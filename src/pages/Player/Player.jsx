@@ -254,6 +254,10 @@ export default function Player(props) {
     list: [props.id].concat(Array.isArray(props.queue) ? props.queue.filter((q) => q && q !== props.id) : []),
     // Cinema Mode's trailers lead the queue Details hands over.
     prerolls: Number(props.prerolls) || 0,
+    // With trailers ahead, the version and tracks Details picked are the feature's, which starts after them.
+    featurePicks: {},
+    // The version playing was picked in Details, so Silo keeps it when the player starts it again.
+    pinVersion: false,
     // Details' advanced play: a bitrate, and transcoding whatever the file.
     quality: pick(props.forceBitrate),
     forceTranscode: props.forceTranscode === true,
@@ -471,6 +475,7 @@ export default function Player(props) {
         my.pos = s.position
       }
       const directAllowed = !my.forceTranscode && !st.preferTranscode
+      my.pinVersion = !!picks.pinVersion
       const opts = {
         item,
         startPositionTicks: startTicks,
@@ -482,6 +487,7 @@ export default function Player(props) {
         audioStreamIndex: picks.audioStreamIndex,
         subtitleStreamIndex: picks.subtitleStreamIndex,
         mediaSourceId: picks.mediaSourceId,
+        pinVersion: picks.pinVersion,
         stereoUpmixEnabled: st.stereoUpmixEnabled,
       }
       let info = await playback.getPlaybackInfo(itemId, opts)
@@ -775,6 +781,7 @@ export default function Player(props) {
         startPositionTicks: Math.floor(at * TICKS),
         maxBitrate: my.quality || settings.get('maxBitrate') || 0,
         mediaSourceId: my.info && my.info.mediaSourceId,
+        pinVersion: my.pinVersion,
         audioStreamIndex: my.audioIndex != null ? my.audioIndex : undefined,
         subtitleStreamIndex: my.burnIn != null ? my.burnIn : undefined,
         item: my.item,
@@ -1928,6 +1935,7 @@ export default function Player(props) {
       audioStreamIndex: my.audioIndex,
       subtitleStreamIndex: my.subIndex,
       mediaSourceId: my.info && my.info.mediaSourceId,
+      pinVersion: my.pinVersion,
     })
     showOsd()
   }
@@ -2239,7 +2247,7 @@ export default function Player(props) {
     if (my.list.length > 1) my.listPos += step
     my.cues = null
     s.cue = ''
-    await start(item.Id, 0)
+    await start(item.Id, 0, my.prerolls > 0 && my.listPos === my.prerolls ? my.featurePicks : {})
     if (s.osd) showOsd()
     else focusDefault()
     // A server's shuffle (Silo's) hands out one item ahead: the one starting now was it, so the server picks the next.
@@ -2407,6 +2415,7 @@ export default function Player(props) {
       enableTranscoding: true,
       ...(h264 ? { deviceProfile: await getH264FallbackProfile() } : null),
       mediaSourceId: my.info && my.info.mediaSourceId,
+      pinVersion: my.pinVersion,
       audioStreamIndex: my.audioIndex != null ? my.audioIndex : undefined,
       subtitleStreamIndex: my.burnIn != null ? my.burnIn : undefined,
       item: my.item,
@@ -2737,19 +2746,22 @@ export default function Player(props) {
     // A route without a start position starts where the item was left.
     const given = props.startPositionTicks != null && props.startPositionTicks !== ''
     const ticks = props.resume === false ? 0 : given ? Number(props.startPositionTicks) || 0 : null
+    const routePicks = {
+      audioStreamIndex: pick(props.audioStreamIndex),
+      subtitleStreamIndex: pick(props.subtitleStreamIndex),
+      mediaSourceId: props.mediaSourceId || undefined,
+      pinVersion: props.pinVersion === true,
+    }
+    if (my.prerolls > 0) my.featurePicks = routePicks
     // A group plays the feature, not Cinema Mode's trailers, which would go to everyone.
     if (party.isInGroup() && my.prerolls > 0 && my.list[my.prerolls]) {
       my.listPos = my.prerolls
       my.prerolls = 0
-      await start(my.list[my.listPos], 0)
+      await start(my.list[my.listPos], 0, my.featurePicks)
       if (!gone) focusDefault()
       return
     }
-    await start(props.id, ticks == null || party.isInGroup() ? ticks : applyResumeRewind(ticks, settings.all()), {
-      audioStreamIndex: pick(props.audioStreamIndex),
-      subtitleStreamIndex: pick(props.subtitleStreamIndex),
-      mediaSourceId: props.mediaSourceId || undefined,
-    })
+    await start(props.id, ticks == null || party.isInGroup() ? ticks : applyResumeRewind(ticks, settings.all()), my.prerolls > 0 ? {} : routePicks)
     // The controls stay away until a key asks for them.
     if (!gone) focusDefault()
   })

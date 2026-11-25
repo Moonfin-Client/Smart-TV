@@ -974,6 +974,7 @@ const siloPlaybackResult = async ({
 			SubtitleStreamIndex: subtitleStreamIndex,
 			MaxStreamingBitrate: maxBitrate,
 			MediaSourceId: options.mediaSourceId,
+			PinVersion: options.pinVersion === true,
 			// Asked again with direct play off, the original file failed here, and Silo is told so.
 			EnableDirectPlay: allowDirectPlay && options.enableDirectPlay !== false
 		}, options.item);

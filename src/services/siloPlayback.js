@@ -564,7 +564,8 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 	};
 
 	// The file to play: the one asked for, else the title's default, read with its tracks when the item came without.
-	const fileOf = async (itemId, mediaSourceId, item) => {
+	// It's explicit, so Silo plays no other version, when the viewer picked it (the default too) or it isn't the default.
+	const fileOf = async (itemId, mediaSourceId, item, picked = false) => {
 		const pick = (list, id) => (id ? list.find((s) => String(s.Id) === String(id)) : list[0]) || null;
 		let sources = item?.MediaSources || [];
 		let source = pick(sources, mediaSourceId);
@@ -579,7 +580,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		}
 		const fileId = source ? String(source.Id) : (mediaSourceId || item?._silo?.file_id);
 		if (fileId == null) throw new Error(`Silo item ${itemId} has no file to play`);
-		return {fileId: String(fileId), source, sources, explicit: sources.length > 1 && String(sources[0].Id) !== String(fileId)};
+		return {fileId: String(fileId), source, sources, explicit: sources.length > 1 && (picked || String(sources[0].Id) !== String(fileId))};
 	};
 
 	const kbps = (bitsPerSecond) => (bitsPerSecond > 0 ? Math.min(Math.max(Math.round(bitsPerSecond / 1000), 100), 1000000) : null);
@@ -623,7 +624,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 	const start = async (itemId, body, item, preview = false) => {
 		const profileId = getUserId();
 		if (!profileId) throw new Error('Silo playback needs the profile it plays as');
-		const file = await fileOf(itemId, body.MediaSourceId, item);
+		const file = await fileOf(itemId, body.MediaSourceId, item, body.PinVersion === true);
 		let server = await playable();
 		const audioTrack = file.source && body.AudioStreamIndex != null && body.AudioStreamIndex >= 0
 			? siloTrackForStreamIndex(file.source, body.AudioStreamIndex) : null;
