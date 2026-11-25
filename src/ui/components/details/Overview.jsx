@@ -2,6 +2,7 @@ import $L from '../../../services/i18n.js'
 import { createEffect, createSignal, on } from 'solid-js'
 import { uiFont } from '../../text.js'
 import { hex } from '../../color.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // The overview on Modern: copy that fits four lines is plain text, longer copy sits in a focusable
 // box with Read More under it. Enter opens it in place to 319px, where Up and Down page through it
@@ -45,6 +46,8 @@ export default function Overview(props) {
       height={h()}
       alpha={props.alpha == null ? 1 : props.alpha}
       onFocusChanged={setFocused}
+      // The Magic Remote's cursor focuses it, and OK then presses it (app/pointer.js).
+      onPointerOver={(n) => pointerFocus(n)}
       onEnter={() => {
         if (b().canToggle && props.onOverviewToggle) props.onOverviewToggle()
         return true

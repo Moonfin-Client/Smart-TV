@@ -10,6 +10,11 @@
 //   pointerRing           draw the hover ring around it (PointerRing.jsx). Rows that slide under focus
 //                         use this instead of onPointerOver, since moving focus would slide the card
 //                         away from the cursor.
+//   pointerItems()        a list drawn in one batch, with no node per item: the items' boxes
+//                         [{ x, y, w, h, r? }] relative to the node. The node then takes
+//                         onPointerItem(item, i) on hover, onPointerItemClick(item, i) on a click
+//                         (true for Enter after it, as above; without one a click is Enter after
+//                         the hover), and pointerItemRing (true or a radius) to ring the item.
 // A node that draws but takes no pointer (a dialog's backdrop) still stops what's under it, unless it
 // has pointerSkip (the hover ring itself). While focus is inside a node with pointerModal (the
 // on-screen keyboard, a dialog that doesn't cover the screen), only controls inside it take the pointer.
@@ -36,9 +41,19 @@ let enterTaken = false
 // Whether it went on to the focused control after the pointer's control focused itself.
 let enterPassed = false
 
-const takes = (n) => !!(n.onPointerOver || n.onPointerClick || n.pointerRing)
+const takes = (n) => !!(n.onPointerOver || n.onPointerClick || n.pointerRing || n.pointerItems)
 
-const inside = (l, x, y) => x >= l.absX && y >= l.absY && x < l.absX + (l.width || 0) && y < l.absY + (l.height || 0)
+// Where a node draws on the stage: its corner and scale, with the scale of its parents (absX and
+// width leave those out).
+const frame = (l) => {
+  const g = l.globalTransform
+  return g ? { x: g.tx, y: g.ty, kx: g.ta || 1, ky: g.td || 1 } : { x: l.absX, y: l.absY, kx: 1, ky: 1 }
+}
+
+const inside = (l, x, y) => {
+  const f = frame(l)
+  return x >= f.x && y >= f.y && x < f.x + (l.width || 0) * f.kx && y < f.y + (l.height || 0) * f.ky
+}
 
 // Children in the order they draw: zIndex, then the order they were added.
 const drawOrder = (children) => {
@@ -53,7 +68,9 @@ const drawOrder = (children) => {
     .map((e) => e.c)
 }
 
-// The last node drawn at (x, y) that draws anything.
+const outline = (c) => c.color === 0 && !c.src && c.lng.text === undefined
+
+// The last node drawn at (x, y) that draws anything or takes the pointer.
 const topmost = (node, x, y, found) => {
   const kids = node.children
   if (!kids || !kids.length) return found
@@ -64,7 +81,9 @@ const topmost = (node, x, y, found) => {
     if (!c.rendered || !l || typeof l.absX !== 'number' || c.pointerSkip) continue
     if (l.worldAlpha === 0) continue
     if (l.clipping && !inside(l, x, y)) continue
-    if (l.isRenderable && inside(l, x, y)) found = c
+    // A control counts where it is even where it draws nothing (a pill's transparent fill), and a
+    // clear box that only draws a border or a shadow over the rest (a window's rim) doesn't count.
+    if ((takes(c) || (l.isRenderable && !outline(c))) && inside(l, x, y)) found = c
     found = topmost(c, x, y, found)
   }
   return found
@@ -80,12 +99,60 @@ const modalOf = () => {
   return null
 }
 
+// What takes the pointer at (x, y): { node, i, over, click, ring }. An item list the point misses
+// lets it go on to the parents.
+const targetOf = (n, x, y) => {
+  const l = n.lng
+  const f = frame(l)
+  if (n.pointerItems) {
+    const items = n.pointerItems() || []
+    const lx = (x - f.x) / f.kx
+    const ly = (y - f.y) / f.ky
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i]
+      if (!it || lx < it.x || ly < it.y || lx >= it.x + it.w || ly >= it.y + it.h) continue
+      const r = n.pointerItemRing
+      return {
+        node: n,
+        i,
+        over: n.onPointerItem ? () => n.onPointerItem(it, i, n) : null,
+        click: n.onPointerItemClick ? () => n.onPointerItemClick(it, i, n) : null,
+        ring: r ? { x: f.x + it.x * f.kx, y: f.y + it.y * f.ky, w: it.w * f.kx, h: it.h * f.ky, radius: (r === true ? it.r || 0 : r) * f.kx } : null,
+      }
+    }
+    if (!(n.onPointerOver || n.onPointerClick || n.pointerRing)) return null
+  }
+  let ring = null
+  if (n.pointerRing) {
+    const first = n.children && n.children[0]
+    const radius = n.pointerRing !== true ? n.pointerRing : n.borderRadius || (first && first.borderRadius) || 0
+    ring = { x: f.x, y: f.y, w: (l.width || 0) * f.kx, h: (l.height || 0) * f.ky, radius: radius * f.kx }
+  }
+  return {
+    node: n,
+    i: -1,
+    over: n.onPointerOver ? () => n.onPointerOver(n) : null,
+    click: n.onPointerClick ? () => n.onPointerClick(n) : null,
+    ring,
+  }
+}
+
 const targetAt = (x, y) => {
   let n = topmost(rootNode, x, y, null)
-  while (n && !takes(n)) n = n.parent
-  if (!n) return null
+  let t = null
+  for (; n && !t; n = n.parent) if (takes(n)) t = targetOf(n, x, y)
+  if (!t) return null
   const modal = modalOf()
-  return modal && !within(n, modal) ? null : n
+  return modal && !within(t.node, modal) ? null : t
+}
+
+// Focuses a control from the pointer. A page that keeps its own focus state (a zone, a focus id) has
+// onPointerFocus(node) on a node above it, which focuses the control its own way and returns true;
+// otherwise the control takes focus as it is.
+export const pointerFocus = (node) => {
+  if (!node || node.states.has('$focus')) return
+  for (let p = node.parent; p; p = p.parent) if (p.onPointerFocus && p.onPointerFocus(node) === true) return
+  node.setFocus()
 }
 
 const toStage = (e) => {
@@ -106,16 +173,14 @@ const clear = () => {
   if (ring()) setRing(null)
 }
 
-const hover = (n) => {
-  if (n === hovered) return
-  hovered = n
-  if (n && n.pointerRing) {
-    const l = n.lng
-    const first = n.children && n.children[0]
-    const radius = n.pointerRing !== true ? n.pointerRing : n.borderRadius || (first && first.borderRadius) || 0
-    setRing({ x: l.absX, y: l.absY, w: l.width || 0, h: l.height || 0, radius })
-  } else if (ring()) setRing(null)
-  if (n && n.onPointerOver) n.onPointerOver(n)
+const same = (a, b) => (a && b ? a.node === b.node && a.i === b.i : a === b)
+
+const hover = (t) => {
+  if (same(t, hovered)) return
+  hovered = t
+  if (t && t.ring) setRing(t.ring)
+  else if (ring()) setRing(null)
+  if (t && t.over) t.over()
 }
 
 const synthetic = new WeakSet()
@@ -130,8 +195,8 @@ const sendEnter = () => {
 }
 
 // The press moves focus, which can move the screen, so the ring goes until the cursor moves.
-const press = (n) => {
-  const enter = n.onPointerClick(n) === true
+const press = (t) => {
+  const enter = t.click() === true
   clear()
   return enter
 }
@@ -151,15 +216,15 @@ const onClick = (e) => {
   if (wake()) return
   if (Date.now() - enterAt < SAME_PRESS_MS) return
   const p = toStage(e)
-  const n = targetAt(p.x, p.y)
-  if (!n) return
-  if (n.onPointerClick) {
-    if (press(n)) sendEnter()
+  const t = targetAt(p.x, p.y)
+  if (!t) return
+  if (t.click) {
+    if (press(t)) sendEnter()
     return
   }
-  if (!n.onPointerOver) return
+  if (!t.over) return
   hovered = null
-  hover(n)
+  hover(t)
   sendEnter()
 }
 
@@ -193,7 +258,7 @@ const onKey = (e) => {
   if (!hovered || e.repeat) return
   enterAt = Date.now()
   // Hover already focused it, so Enter goes on as it is.
-  if (!hovered.onPointerClick) return
+  if (!hovered.click) return
   if (press(hovered)) {
     // The control focused itself, and this Enter goes on to press it.
     enterPassed = true

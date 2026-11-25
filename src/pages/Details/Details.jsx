@@ -1305,6 +1305,18 @@ export default function Details(props) {
     <view
       width={1920}
       height={1080}
+      // A part the Magic Remote's cursor focuses becomes the focused zone (app/pointer.js).
+      onPointerFocus={(n) => {
+        const ZONES = { overview: 'overview', actions: 'actions', upnext: 'upnext', tabs: 'tabs', cells: 'cells', fileinfo: 'cells', seerrtab: 'cells' }
+        for (let p = n; p; p = p.parent) {
+          const k = Object.keys(ZONES).find((key) => refs[key] === p)
+          if (k) {
+            focusZone(ZONES[k])
+            return true
+          }
+        }
+        return false
+      }}
       forwardFocus={() => {
         if (!m.item) return false
         focusZone(untrack(zone))
