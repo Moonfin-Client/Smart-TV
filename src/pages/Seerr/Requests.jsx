@@ -80,7 +80,7 @@ export default function Requests(props) {
   const [confirm, setConfirm] = createSignal(null)
   let dialogRef = null
   const [fontsIn, setFontsIn] = createSignal(0)
-  const my = { gen: 0, more: false, loadingMore: false, queues: false, asked: {}, poll: null, alive: true }
+  const my = { gen: 0, more: false, loadingMore: false, queues: false, asked: {}, poll: null, alive: true, removed: {} }
   let root
   onCleanup(() => {
     my.alive = false
@@ -256,7 +256,9 @@ export default function Requests(props) {
   const fetchPage = async (v, filter, skip) => {
     const data = v === 'requests' ? await seerrApi.getRequests(filter, PAGE_SIZE, skip) : await seerrApi.getIssues(filter, PAGE_SIZE, skip)
     const raw = (data && data.results) || []
-    return { results: await hydrateRequestMediaItems(raw), raw }
+    // A read that started before a Remove finished can still hold that request.
+    const results = (await hydrateRequestMediaItems(raw)).filter((item) => !(v === 'requests' && my.removed[item.id]))
+    return { results, raw }
   }
 
   // One Moonbase call per title that could be downloading: all of them on a load, only the new ones
@@ -509,6 +511,7 @@ export default function Requests(props) {
   const removeRequest = async (request) => {
     try {
       await seerrApi.removeFailedRequest(request.id)
+      my.removed[request.id] = true
       if (!my.alive) return
       const at = requests().findIndex((r) => r.id === request.id)
       const left = requests().filter((r) => r.id !== request.id)
@@ -519,11 +522,15 @@ export default function Requests(props) {
         setSub(0)
         if (!left.length) setZone('filters')
       })
+      // Scrolls to the tile now in its place and reads the next page once the loaded ones run low.
+      reveal()
     } catch (e) {
       console.error('[SeerrRequests] Remove failed:', e && e.message)
       if (!my.alive) return
       const fresh = await seerrApi.getRequest(request.id).catch(() => null)
-      if (fresh && my.alive) patchRequest(request.id, fresh)
+      // The same artwork fill as a page read, so a tile that needed it keeps its poster.
+      const shown = fresh && (await hydrateRequestMediaItems([fresh]).catch(() => [fresh]))[0]
+      if (shown && my.alive) patchRequest(request.id, shown)
       setSub(0)
     }
   }
