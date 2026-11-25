@@ -40,6 +40,11 @@ const CARD_SIZES = ['small', 'medium', 'large']
 const ITEM_SIZES = { small: [240, 130], medium: [320, 180], large: [400, 230] }
 const CARD_HEIGHTS = { small: 100, medium: 140, large: 180 }
 const VIEW_H = 874
+// The grid's columns span 1844px from x=38, so a card (10px in from its column) runs from 48 to 1872,
+// in line with the status text. The clipping view around them reaches further each side, room for the
+// focus zoom of the first and last columns.
+const GRID_X = 18
+const GRID_W = 1844
 const serverOf = (s) => ({
   _serverUrl: s._serverUrl, _serverType: s._serverType, _serverAccessToken: s._serverAccessToken,
   _serverUserId: s._serverUserId, _serverName: s._serverName, _serverId: s._serverId,
@@ -238,7 +243,7 @@ export default function Genres(props) {
   }
   const layout = () => {
     const [minW, minH] = ITEM_SIZES[my.size] || ITEM_SIZES.medium
-    const g = virtualGridLayout(1880, minW, minH, 20)
+    const g = virtualGridLayout(GRID_W, minW, minH, 20)
     batch(() => {
       st.cols = g.columns
       st.tileW = g.stepX
@@ -376,19 +381,21 @@ export default function Genres(props) {
       <view x={20} y={147} width={1880} height={VIEW_H} clipping onCaptureEnter={hold.down} onCaptureEnterRelease={hold.up} onMenu={hold.menu}>
         <Show when={st.cards.length}>
           <Kept gone={() => (grid = null)}>
-            <Grid
-              ref={(n) => (grid = n)}
-              items={st.cards}
-              tile={GenreTile}
-              cols={st.cols}
-              tileW={st.tileW}
-              tileH={st.tileH}
-              gap={20}
-              viewH={VIEW_H}
-              opts={st.opts}
-              slideMs={st.opts.slide}
-              onGridSelect={onGridSelect}
-            />
+            <view x={GRID_X} width={GRID_W} height={VIEW_H}>
+              <Grid
+                ref={(n) => (grid = n)}
+                items={st.cards}
+                tile={GenreTile}
+                cols={st.cols}
+                tileW={st.tileW}
+                tileH={st.tileH}
+                gap={20}
+                viewH={VIEW_H}
+                opts={st.opts}
+                slideMs={st.opts.slide}
+                onGridSelect={onGridSelect}
+              />
+            </view>
           </Kept>
         </Show>
       </view>
