@@ -337,24 +337,25 @@ const siloLogins = (saved) => saved.filter((e, i) => e.serverType === 'silo' && 
 // Remove Server on the sign-in screen: the server goes with every user saved on it, and each of
 // their Silo logins ends unless another saved entry still uses it. Removing the signed-in user's
 // server signs out like Sign Out does: playback stops and settings are pushed first, then the next
-// saved user takes over. Resolves once that is done, with `signedIn` set when it was that user's
-// server. `loggedOut` settles when Silo has been told, which an unreachable server can hold up for
-// a few seconds, so the screen needn't wait on it.
+// saved user takes over, or nobody. Resolves once that is done, with `wasActive` set when it was
+// that user's server. `loggedOut` settles when Silo has been told, which an unreachable server can
+// hold up for a few seconds, so the screen needn't wait on it.
 export const removeSavedServer = async (serverId) => {
-  const saved = (await multiServerManager.getAllServersArray()).filter((e) => e.serverId === serverId)
   const active = store().authenticated ? await multiServerManager.getActiveServer() : null
-  const signedIn = active?.serverId === serverId
-  if (signedIn) {
+  const wasActive = Boolean(active) && active.serverId === serverId
+  if (wasActive) {
     await remoteControl.runPlayerCommand('stop')
     stopMusic()
     await flushSettingsPush()
   }
+  // Read after the push, which may have rotated the tokens.
+  const saved = (await multiServerManager.getAllServersArray()).filter((e) => e.serverId === serverId)
   await multiServerManager.removeServer(serverId)
-  if (signedIn) await signInNextOrSignOut()
   const loggedOut = Promise.all(siloLogins(saved).map((e) => endSiloLoginIfLast(e))).catch((e) =>
     console.warn('[auth] Ending the Silo logins of a removed server failed:', e)
   )
-  return { signedIn, loggedOut }
+  if (wasActive) await signInNextOrSignOut()
+  return { wasActive, loggedOut }
 }
 
 // Silo rotates an account's tokens on every refresh, so the saved profiles holding the old access

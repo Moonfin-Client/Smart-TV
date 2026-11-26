@@ -78,6 +78,8 @@ const JELLYFIN = 'http://jellyfin.test'
 const seed = async () => {
   for (const k of Object.keys(globalThis.__storage)) delete globalThis.__storage[k]
   logouts.length = 0
+  globalThis.__store.authenticated = false
+  globalThis.__store.userId = ''
   const silo = await msm.addServer(SILO, 'Silo', 'main', 'Main', 'tok-a', null, 'silo')
   await msm.addServer(SILO, 'Silo', 'kid', 'Kid', 'tok-a', null, 'silo')
   await msm.addServer(SILO, 'Silo', 'other', 'Other', 'tok-b', null, 'silo')
@@ -171,9 +173,9 @@ await test('Removing the signed-in user\'s Silo server pushes settings first, th
   const ids = await seed()
   await signInAs(ids.silo, 'main')
   globalThis.__flushes.length = 0
-  const { signedIn, loggedOut } = await auth.removeSavedServer(ids.silo)
+  const { wasActive, loggedOut } = await auth.removeSavedServer(ids.silo)
   await loggedOut
-  assert.equal(signedIn, true)
+  assert.equal(wasActive, true)
   assert.deepEqual(globalThis.__flushes, ['tok-a'], 'settings pushed once, while still signed in')
   assert.deepEqual(await savedUsers(), ['jf'])
   assert.equal(globalThis.__store.authenticated, true)
@@ -185,11 +187,23 @@ await test('Removing the only server while signed in to it signs out', async () 
   const ids = await seed()
   await auth.removeSavedServer(ids.jf)
   await signInAs(ids.silo, 'kid')
-  const { signedIn, loggedOut } = await auth.removeSavedServer(ids.silo)
+  const { wasActive, loggedOut } = await auth.removeSavedServer(ids.silo)
   await loggedOut
-  assert.equal(signedIn, true)
+  assert.equal(wasActive, true)
   assert.deepEqual(await savedUsers(), [])
   assert.equal(globalThis.__store.authenticated, false)
+})
+
+await test('Removing another server while signed in leaves the signed-in user alone', async () => {
+  const ids = await seed()
+  await signInAs(ids.jf, 'jf')
+  globalThis.__flushes.length = 0
+  const { wasActive, loggedOut } = await auth.removeSavedServer(ids.silo)
+  await loggedOut
+  assert.equal(wasActive, false)
+  assert.equal(globalThis.__flushes.length, 0)
+  assert.equal(globalThis.__store.userId, 'jf')
+  assert.deepEqual(await savedUsers(), ['jf'])
 })
 
 await test('Remove Server keeps a Silo login another saved server still uses', async () => {
