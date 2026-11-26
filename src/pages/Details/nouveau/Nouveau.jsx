@@ -345,7 +345,7 @@ export default function Nouveau(props) {
     const factor = Math.min(1, Math.max(0, blur / 25))
     const backId = getBackdropId(it)
     const backdropUrl =
-      it._externalBackdropUrl || (backId ? getImageUrl(d.server, backId, 'Backdrop', { maxWidth: 1920, quality: 90 }) : null)
+      d.backdropUrl || it._externalBackdropUrl || (backId ? getImageUrl(d.server, backId, 'Backdrop', { maxWidth: 1920, quality: 90 }) : null)
     setBackdrop(s.detailsBackdropEnabled !== false && backdropUrl ? backdropUrl : '')
     setWash(`#000000${alphaHex(factor * (isPerson ? 0.4 : 0.8))}`)
     setScrim(scrimSrc(SCRIM, 0.3 + 0.7 * factor))

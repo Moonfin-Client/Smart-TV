@@ -16,7 +16,7 @@ import {createSiloPlayerExtras, siloPlayingFile} from './siloPlayerExtras';
 import {createSiloTrackChoices} from './siloTrackChoices';
 import {siloItemMediaSources} from './siloMediaSources';
 import * as userDataSync from './userDataSync';
-import {registerSiloImage, registerSiloServer, siloImageTagFor} from '../utils/siloUrls';
+import {hasCompleteSiloBackdrops, registerSiloImage, registerSiloServer, replaceSiloBackdrops, siloImageTagFor} from '../utils/siloUrls';
 import {TIMEOUT} from '../utils/connectionErrors';
 import {
 	SILO_SETTING_KEYS, configurationToSiloSettings, isSiloSystemInfo, siloProfileToUser, siloPublicInfo,
@@ -118,7 +118,12 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 			registerSiloServer(base());
 			return registerSiloImage(base(), itemId, type, url, index);
 		},
-		tagFor: (itemId, type, index = 0) => siloImageTagFor(base(), itemId, type, index)
+		tagFor: (itemId, type, index = 0) => siloImageTagFor(base(), itemId, type, index),
+		replaceBackdrops: (itemId, urls) => {
+			registerSiloServer(base());
+			return replaceSiloBackdrops(base(), itemId, urls);
+		},
+		hasCompleteBackdrops: (itemId) => hasCompleteSiloBackdrops(base(), itemId)
 	};
 
 	// A profile's avatar is recorded as the profile's picture, where the user image lookups find it.

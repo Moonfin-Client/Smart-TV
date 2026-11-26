@@ -116,6 +116,8 @@ export const SCENE_BY_KEY = {
 	detailScreenStyle: 'details',
 	personalRatingStyle: 'details',
 	detailsBackdropEnabled: 'details',
+	detailsBackdropShuffle: 'details',
+	detailsBackdropIntervalMs: 'details',
 	backdropBlurDetail: 'details',
 	detailButtons: 'details',
 	detailButtonsMaxVisible: 'details',

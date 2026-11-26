@@ -22,6 +22,7 @@ import { actionRow } from '../modern/actions.js'
 import { overviewHeight } from '../modern/hero.js'
 import { detailTokens } from '../modern/tokens.js'
 import { layoutSpotlightHero, seerrPillsOf } from './hero.js'
+import { toGlassBackdropUrl } from '../detailsBackdropCycle.js'
 import { heroWidth, spotlightCardFor, spotlightCardsFor, spotlightMetaPieces, summaryCardHeight, summaryCardWidth } from './cards.js'
 import { spotlightCardFallbackUrl } from './spotlightImages.js'
 import { loadSeerrPersonCredits, seerrPersonCards } from '../seerrPersonCredits.js'
@@ -128,7 +129,7 @@ export default function Spotlight(props) {
     const type = getServerType()
     const backId = getBackdropId(it)
     if (!back || it._externalBackdropUrl || !backId || (type !== 'jellyfin' && type !== 'emby')) return null
-    return { src: `${getImageUrl(server, backId, 'Backdrop', { maxWidth: 640, quality: 90 })}&blur=3`, shade: shadeColor, scrim: scrimUrl }
+    return { src: toGlassBackdropUrl(back), shade: shadeColor, scrim: scrimUrl }
   }
 
   const paint = (bag) => {
@@ -158,7 +159,7 @@ export default function Spotlight(props) {
     const blur = Number(s.backdropBlurDetail != null ? s.backdropBlurDetail : 20)
     const opacity = Math.min(1, blur / 25)
     const backId = getBackdropId(it)
-    const backdropUrl = it._externalBackdropUrl || (backId ? getImageUrl(server, backId, 'Backdrop', { maxWidth: 1920, quality: 90 }) : null)
+    const backdropUrl = bag.backdropUrl || it._externalBackdropUrl || (backId ? getImageUrl(server, backId, 'Backdrop', { maxWidth: 1920, quality: 90 }) : null)
     const back = s.detailsBackdropEnabled !== false && backdropUrl ? backdropUrl : ''
     const shadeColor = `#000000${alphaHex(opacity * (isPerson ? 0.4 : 0.8))}`
     const scrimUrl = scrimSrc(SCRIM, 0.3 + 0.7 * opacity)

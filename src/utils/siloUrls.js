@@ -5,6 +5,7 @@
 const siloServers = new Set();
 const images = {};
 const byTag = {};
+const completeBackdrops = new Set();
 const MAX_IMAGES = 20000;
 let count = 0;
 
@@ -27,7 +28,7 @@ const hash = (text, seed) => {
 };
 
 // Tagged by the address without its signature, so a re-signed picture keeps its tag.
-const siloImageTag = (url) => {
+export const siloImageTag = (url) => {
 	const plain = String(url).split(/[?#]/)[0];
 	return hash(plain, 2166136261) + hash(plain, 3141592653);
 };
@@ -42,6 +43,8 @@ export const resolveSiloUrl = (url, baseUrl) => {
 };
 
 const keyOf = (serverUrl, itemId, type, index = 0) => `${trimSlash(serverUrl)}|${itemId}|${type}|${index}`;
+const tagKeyOf = (serverUrl, tag) => `${trimSlash(serverUrl)}|${tag}`;
+const itemKeyOf = (serverUrl, itemId) => `${trimSlash(serverUrl)}|${itemId}`;
 
 // Records a picture of `itemId` and answers its tag, or null when there's no picture.
 export const registerSiloImage = (serverUrl, itemId, type, url, index = 0) => {
@@ -51,7 +54,7 @@ export const registerSiloImage = (serverUrl, itemId, type, url, index = 0) => {
 	const key = keyOf(serverUrl, itemId, type, index);
 	if (!images[key]) count++;
 	images[key] = {url: resolved, tag};
-	byTag[tag] = resolved;
+	byTag[tagKeyOf(serverUrl, tag)] = resolved;
 	// A very long session forgets everything rather than grow without end, and pictures come back with their items.
 	if (count > MAX_IMAGES) clearSiloImages();
 	return tag;
@@ -61,16 +64,60 @@ const siloImageFor = (serverUrl, itemId, type, index = 0) => images[keyOf(server
 
 export const siloImageTagFor = (serverUrl, itemId, type, index = 0) => siloImageFor(serverUrl, itemId, type, index)?.tag || null;
 
-function clearSiloImages () {
+// Replaces an item's backdrop list with its authoritative set, clearing any
+// trailing indices previously seeded by episode fallback, and marks the list
+// complete so later episodes do not alter it.
+export const replaceSiloBackdrops = (serverUrl, itemId, urls = []) => {
+	const tags = [];
+	if (!serverUrl || itemId == null) return tags;
+	const newSlots = urls.reduce((n, url, i) => (
+		resolveSiloUrl(url, serverUrl) && !images[keyOf(serverUrl, itemId, 'Backdrop', i)] ? n + 1 : n
+	), 0);
+	if (count + newSlots > MAX_IMAGES) {
+		const prefix = `${trimSlash(serverUrl)}|${itemId}|`;
+		const kept = Object.keys(images)
+			.filter((k) => k.startsWith(prefix) && !k.startsWith(`${prefix}Backdrop|`))
+			.map((k) => [k, images[k]]);
+		clearSiloImages();
+		kept.forEach(([k, entry]) => {
+			images[k] = entry;
+			byTag[tagKeyOf(serverUrl, entry.tag)] = entry.url;
+			count++;
+		});
+	}
+	urls.forEach((url, i) => {
+		const tag = registerSiloImage(serverUrl, itemId, 'Backdrop', url, i);
+		if (tag) tags.push(tag);
+	});
+	for (let i = tags.length; ; i++) {
+		const key = keyOf(serverUrl, itemId, 'Backdrop', i);
+		if (!images[key]) break;
+		delete images[key];
+		count = Math.max(0, count - 1);
+	}
+	if (tags.length > 0) completeBackdrops.add(itemKeyOf(serverUrl, itemId));
+	else completeBackdrops.delete(itemKeyOf(serverUrl, itemId));
+	return tags;
+};
+
+export const hasCompleteSiloBackdrops = (serverUrl, itemId) => (
+	Boolean(serverUrl && itemId != null) && completeBackdrops.has(itemKeyOf(serverUrl, itemId))
+);
+
+export function clearSiloImages () {
 	Object.keys(images).forEach((key) => delete images[key]);
 	Object.keys(byTag).forEach((key) => delete byTag[key]);
+	completeBackdrops.clear();
 	count = 0;
 }
 
 // Silo sizes a picture when the item is read (`image_size`), and a signed address can't be resized, so the size
 // options are ignored. A tag the caller holds wins over the item and type: it names the exact picture.
 export const siloImageUrl = (serverUrl, itemId, imageType = 'Primary', options = {}) => {
-	if (options.tag && byTag[options.tag]) return byTag[options.tag];
+	if (options.tag) {
+		const scoped = byTag[tagKeyOf(serverUrl, options.tag)];
+		if (scoped) return scoped;
+	}
 	if (!itemId) return null;
 	return siloImageFor(serverUrl, itemId, imageType, options.index || 0)?.url || null;
 };
