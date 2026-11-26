@@ -29,7 +29,7 @@ const STUBS = {
     export const getApiKey = () => auth.token
     export const reportCapabilities = () => {}
     export const createApiForServer = (url, token, userId, type) => ({
-      logout: async () => { logouts.push({ url, token, userId, type, loaded: globalThis.__sessionsLoaded === true }) },
+      logout: async () => { logouts.push({ url, token, userId, type, loaded: globalThis.__sessionsLoaded === true, signedInAs: globalThis.__store?.userId }) },
     })
     export const api = { getUserConfiguration: async () => ({ Id: auth.userId, Name: 'user ' + auth.userId }) }`,
   'services/i18n.js': `export default (s) => s`,
@@ -116,6 +116,14 @@ for (const who of ['main', 'kid']) {
     assert.notEqual(globalThis.__store.userId, 'kid')
   })
 }
+
+await test('Sign Out moves to the next user before ending the Silo login, so a server out of reach doesn\'t hold it up', async () => {
+  const ids = await seed()
+  await signInAs(ids.silo, 'main')
+  await auth.logout()
+  assert.equal(logouts.length, 1)
+  assert.ok(!['main', 'kid'].includes(logouts[0].signedInAs), `ended while signed in as ${logouts[0].signedInAs}`)
+})
 
 await test('Sign Out of a Jellyfin user leaves the Silo profiles and logins alone', async () => {
   const ids = await seed()
