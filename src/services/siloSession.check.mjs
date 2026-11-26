@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path'
 const src = join(dirname(fileURLToPath(import.meta.url)), '..')
 const STUBS = {
   'services/storage.js': `export const getFromStorage = async () => null
-    export const saveToStorage = async () => {}`,
+    export const saveToStorage = async (key, value) => globalThis.__save?.(key, value)`,
   'services/secureFetch.js': `export const corsFreeFetch = (url, init) => globalThis.__fetch(url, init)`,
   'utils/requestQueue.js': `export const mediaServerQueue = { run: (fn) => fn() }`,
   'utils/connectionErrors.js': `export const classifyError = () => 'network'`,
@@ -73,6 +73,25 @@ await test('a login opened again after a sign-out is told about its own refused 
   assert.equal(again, session)
   assert.equal(await silo.refreshSiloSession(again), false)
   assert.equal(ended, 1)
+})
+
+await test('session writes land in order, so a slow one cannot bring back a closed login', async () => {
+  const first = silo.openSiloSession(SILO, 'one', { accessToken: 'a1', refreshToken: 'r1' })
+  const second = silo.openSiloSession(SILO, 'two', { accessToken: 'a2', refreshToken: 'r2' })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  let stored = null
+  let calls = 0
+  // The first write is the slowest, the way a DB8 del that runs to its timeout is.
+  globalThis.__save = (key, value) => {
+    const delay = calls++ === 0 ? 30 : 0
+    return new Promise((resolve) => setTimeout(() => { stored = value; resolve(true) }, delay))
+  }
+  silo.closeSiloSession(first)
+  silo.closeSiloSession(second)
+  await new Promise((resolve) => setTimeout(resolve, 60))
+  delete globalThis.__save
+  assert.equal(calls, 2)
+  assert.ok(!stored.some((entry) => entry.accountId === 'one' || entry.accountId === 'two'))
 })
 
 if (failed) process.exit(1)
