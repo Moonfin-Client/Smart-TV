@@ -12,11 +12,14 @@ const resumeTicks = (ep) => ep.UserData?.PlaybackPositionTicks || 0;
 const isInProgress = (ep) => resumeTicks(ep) > 0;
 const lastPlayed = (ep) => Date.parse(ep.UserData?.LastPlayedDate || '') || 0;
 
-// Of the items left part way through, the one played last. Without dates a first watch
-// goes before a rewatch, then list order.
+// Of the items left part way through, the one played last. When either has no date (Silo's
+// episode lists carry none, and Plex dates only a finished view) a first watch goes before a
+// rewatch, then list order.
 export const latestInProgress = (items) => items.filter(isInProgress).reduce((best, ep) => {
 	if (!best) return ep;
-	if (lastPlayed(ep) !== lastPlayed(best)) return lastPlayed(ep) > lastPlayed(best) ? ep : best;
+	const at = lastPlayed(ep);
+	const bestAt = lastPlayed(best);
+	if (at && bestAt && at !== bestAt) return at > bestAt ? ep : best;
 	return isPlayed(best) && !isPlayed(ep) ? ep : best;
 }, null);
 

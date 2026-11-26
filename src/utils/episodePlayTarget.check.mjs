@@ -45,6 +45,10 @@ run[1].UserData.LastPlayedDate = '2026-11-20T20:00:00Z'
 run[3].UserData.LastPlayedDate = '2026-11-01T20:00:00Z'
 assert.equal(pickEpisodePlayTarget(run).Id, 's1e2')
 
+// An old dated rewatch beside an undated first watch: the first watch.
+run = [ep(1, 1, true), ep(1, 2, true, 6e9, '2026-06-01T20:00:00Z'), ep(1, 3, true), ep(1, 4, false, 3e9), ep(1, 5, false)]
+assert.equal(pickEpisodePlayTarget(run).Id, 's1e4')
+
 // A watched Next Up with a position is a rewatch, not stale; one without is stale.
 run = [ep(1, 1, true), ep(1, 2, true, 6e9), ep(1, 3, false)]
 assert.equal(pickEpisodePlayTarget(run, run[1]).Id, 's1e2')
