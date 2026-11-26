@@ -7,7 +7,6 @@ import { tx } from '../../fx.js'
 // One card of a library grid. Grid owns focus and passes `focused`. Only the artwork rings, so a card
 // without art grows but draws no ring. The page lays the cell out once in `opts`: cellW and cellH,
 // padX and padY, the card's width and art height, and the text below it.
-const CARD_TEXT_SHADOW = { color: '#0000008a', x: 0, y: 0, blur: 4 }
 const BADGE_SHADOW = { color: shadowColor('#00000099'), x: 0, y: 1, blur: 4, spread: 0 }
 const SERVER_SHADOW = { color: shadowColor('#00000080'), x: 0, y: 1, blur: 3, spread: 0 }
 const WHITE_EDGE = { width: 1, color: hex('#ffffff') }
@@ -125,7 +124,6 @@ export default function LibraryTile(props) {
               maxWidth={o().cardW + 6}
               maxLines={1}
               color="#ffffff"
-              textShadow={o().textShadow ? CARD_TEXT_SHADOW : undefined}
             >
               {c().title || ''}
             </text>
@@ -138,7 +136,6 @@ export default function LibraryTile(props) {
                 maxWidth={o().cardW + 6}
                 maxLines={1}
                 color={o().subColor || '#ffffff99'}
-                textShadow={o().textShadow ? CARD_TEXT_SHADOW : undefined}
               >
                 {c().subtitle}
               </text>
