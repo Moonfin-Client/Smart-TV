@@ -827,7 +827,7 @@ export default function Library(props) {
       st.tileOpts = {
         cellW: m.tileW, cellH: m.tileH, padX: m.padX, padY: m.padY, cardW: m.cardW, cardH: m.cardH, posterH: m.posterH,
         showText: f.showText, ms: focusMs(200), slide: slideMs(200), artBg: '#ffffff0d', mutedIcon: '#ffffff4d',
-        favY: 8, boldFont: uiFont('bold'), watchedBg: t.badgeWatched, onBadge: t.onBadge, textShadow: true,
+        favY: 8, boldFont: uiFont('bold'), watchedBg: t.badgeWatched, onBadge: t.onBadge,
         ...(neonOn() ? NEON_TILE : {}),
       }
     })
