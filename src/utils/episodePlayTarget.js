@@ -9,7 +9,8 @@ const isPlayableEpisode = (ep) => !ep.IsVirtualItem && ep.LocationType !== 'Virt
 const isPlayed = (ep) => Boolean(ep.UserData?.Played);
 const resumeTicks = (ep) => ep.UserData?.PlaybackPositionTicks || 0;
 // A rewatch keeps the watched flag and has a position again, so it counts as in progress too.
-const isInProgress = (ep) => resumeTicks(ep) > 0;
+// A position at or past the runtime leaves nothing to resume.
+const isInProgress = (ep) => resumeTicks(ep) > 0 && !(ep.RunTimeTicks > 0 && resumeTicks(ep) >= ep.RunTimeTicks);
 const lastPlayed = (ep) => Date.parse(ep.UserData?.LastPlayedDate || '') || 0;
 
 // Of the items left part way through, the one played last. When either has no date (Silo's

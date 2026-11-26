@@ -55,6 +55,13 @@ assert.equal(pickEpisodePlayTarget(run, run[1]).Id, 's1e2')
 run = [ep(1, 1, true), ep(1, 2, true), ep(1, 3, false)]
 assert.equal(pickEpisodePlayTarget(run, run[1]).Id, 's1e3')
 
+// A watched episode whose position sits at its runtime isn't a rewatch: the run starts over at s1e1.
+run = [ep(1, 1, true), { ...ep(1, 2, true, 6e9), RunTimeTicks: 6e9 }, ep(1, 3, true)]
+assert.equal(pickEpisodePlayTarget(run).Id, 's1e1')
+assert.equal(shouldResumeTarget(run[1]), false)
+run[1].RunTimeTicks = 9e9
+assert.equal(pickEpisodePlayTarget(run).Id, 's1e2')
+
 // Box set: a first watch in progress goes before a short rewatch of a watched film.
 const movie = (id, played, ticks = 0) => ({ Id: id, Type: 'Movie', UserData: { Played: played, PlaybackPositionTicks: ticks } })
 assert.equal(collectionPlayTarget([movie('m1', true, 2e9), movie('m2', true), movie('m3', false, 9e9)]).Id, 'm3')
