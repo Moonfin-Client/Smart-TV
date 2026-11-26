@@ -66,9 +66,8 @@ export const snapPersonalRatingToGrid = (rating, style, intervals) => {
 };
 
 export const formatPersonalRatingNumber = (value, maxDecimals) => {
-	const factor = Math.pow(10, maxDecimals);
-	const rounded = Math.round(value * factor) / factor;
-	if (maxDecimals === 0) return String(Math.round(rounded));
+	if (maxDecimals === 0) return String(Math.round(value));
+	const rounded = Number(`${Math.round(Number(`${value}e+${maxDecimals}`))}e-${maxDecimals}`);
 	return rounded.toFixed(maxDecimals).replace(/\.?0+$/, '');
 };
 
@@ -78,7 +77,8 @@ export const formatPersonalRatingBadge = (serverRating, style, intervals = DEFAU
 	if (normalizedStyle === 'thumbs') {
 		return formatPersonalRatingNumber(clamped, 1);
 	}
-	const maxDecimals = personalRatingMaxDecimals(normalizedStyle, intervals);
+	// Preserve off-grid stored precision (up to 2 decimals) while trimming trailing zeros.
+	const maxDecimals = Math.max(personalRatingMaxDecimals(normalizedStyle, intervals), 2);
 	if (normalizedStyle === 'stars') {
 		return `${formatPersonalRatingNumber(clamped / 2, maxDecimals)}/5`;
 	}
