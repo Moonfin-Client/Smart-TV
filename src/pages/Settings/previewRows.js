@@ -115,6 +115,7 @@ export const SCENE_BY_KEY = {
 	...sceneFor([...ROW_OPTION_KEYS, ...HOME_LOOK_KEYS], 'home'),
 	detailScreenStyle: 'details',
 	personalRatingStyle: 'details',
+	personalRatingIntervals: 'details',
 	detailsBackdropEnabled: 'details',
 	backdropBlurDetail: 'details',
 	detailButtons: 'details',

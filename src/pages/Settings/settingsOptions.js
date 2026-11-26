@@ -369,6 +369,18 @@ export const getPersonalRatingStyleOptions = () => [
 	{ value: 'numeric', label: $L('Numeric score out of 10') }
 ];
 
+export const getPersonalRatingStarsIntervalOptions = () => [
+	{ value: 6, label: $L('Whole stars (0–5)') },
+	{ value: 11, label: $L('Half stars (0.5 steps)') },
+	{ value: 21, label: $L('Quarter stars (0.25 steps)') }
+];
+
+export const getPersonalRatingNumericIntervalOptions = () => [
+	{ value: 11, label: $L('Whole numbers (0–10)') },
+	{ value: 21, label: $L('Half points (0.5 steps)') },
+	{ value: 41, label: $L('Quarter points (0.25 steps)') }
+];
+
 export const getHomeRowSortOptions = () => [
 	{ value: 'SortName', label: $L('Name') },
 	{ value: 'DateCreated', label: $L('Date Added') },

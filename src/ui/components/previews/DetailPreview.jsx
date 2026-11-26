@@ -5,7 +5,7 @@ import { activeThemeId } from '../../theme.js'
 import { resolveThemeById } from '../../../theme/themeRegistry.js'
 import { applyOledMode } from '../../../utils/oledMode.js'
 import { scrimSrc } from '../../../utils/scrimImage.js'
-import { normalizeRatingStyle, personalRatingOf } from '../../../utils/personalRating.js'
+import { formatPersonalRatingBadge, personalRatingOf } from '../../../utils/personalRating.js'
 import { getSelectionSource, isMdblistEnabled, isRatingSourceEnabled } from '../../../services/mdblistApi.js'
 import { premiereDim, premiereScrim } from '../../../pages/Details/premiere/premiereRules.js'
 import { quickLookSurface } from '../../../pages/Details/quickLook/quickLookRules.js'
@@ -28,7 +28,7 @@ const themeTriplet = (hex) => rgbTriplet('#' + String(hex).replace('#', '').slic
 const stripEntries = (s, item, plugin) => {
   const mine = isRatingSourceEnabled(s, 'personal') ? personalRatingOf(SAMPLE_USER_DATA) : null
   const out = []
-  if (mine !== null) out.push({ k: 'personal', name: $L('My Rating'), value: normalizeRatingStyle(s.personalRatingStyle) === 'stars' ? `${(mine / 2).toFixed(1)}/5` : mine.toFixed(1) })
+  if (mine !== null) out.push({ k: 'personal', name: $L('My Rating'), value: formatPersonalRatingBadge(mine, s.personalRatingStyle, s.personalRatingIntervals) })
   if (isRatingSourceEnabled(s, 'stars') && item.communityRating) out.push({ k: 'community', name: $L('Community'), value: item.communityRating.toFixed(1) })
   let list = plugin ? SAMPLE_RATINGS : []
   const enabled = s.mdblistRatingSources
