@@ -48,6 +48,8 @@ const STUBS = {
     export const loadSiloSessions = async () => { globalThis.__sessionsLoaded = true }`,
   'services/notificationPrefs.js': `export const syncNotificationPrefs = async () => {}`,
   'utils/signInPin.js': noop(['noteProvedSignIn']),
+  'state/settingsSync.js': `export const flushes = (globalThis.__flushes = [])
+    export const flushSettingsPush = async () => { flushes.push(globalThis.__auth.token) }`,
   'state/store.js': `const s = (globalThis.__store = {}); export const getStore = () => s`,
   'state/audioPlayer.js': `export const audio = { active: false }\nexport const stop = () => {}`,
   'state/shell/access.js': noop(['stopAccess']),
@@ -163,6 +165,39 @@ await test('Remove Server on a Jellyfin server ends no Silo login', async () => 
   await (await auth.removeSavedServer(ids.jf)).loggedOut
   assert.deepEqual(await savedUsers(), ['kid', 'main', 'other'])
   assert.equal(logouts.length, 0)
+})
+
+await test('Removing the signed-in user\'s Silo server pushes settings first, then switches to the next saved user', async () => {
+  const ids = await seed()
+  await signInAs(ids.silo, 'main')
+  globalThis.__flushes.length = 0
+  const { signedIn, loggedOut } = await auth.removeSavedServer(ids.silo)
+  await loggedOut
+  assert.equal(signedIn, true)
+  assert.deepEqual(globalThis.__flushes, ['tok-a'], 'settings pushed once, while still signed in')
+  assert.deepEqual(await savedUsers(), ['jf'])
+  assert.equal(globalThis.__store.authenticated, true)
+  assert.equal(globalThis.__store.userId, 'jf')
+  assert.deepEqual(logouts.map((l) => l.token).sort(), ['tok-a', 'tok-b'])
+})
+
+await test('Removing the only server while signed in to it signs out', async () => {
+  const ids = await seed()
+  await auth.removeSavedServer(ids.jf)
+  await signInAs(ids.silo, 'kid')
+  const { signedIn, loggedOut } = await auth.removeSavedServer(ids.silo)
+  await loggedOut
+  assert.equal(signedIn, true)
+  assert.deepEqual(await savedUsers(), [])
+  assert.equal(globalThis.__store.authenticated, false)
+})
+
+await test('Remove Server keeps a Silo login another saved server still uses', async () => {
+  const ids = await seed()
+  const copy = await msm.addServer('http://silo-alias.test', 'Silo 2', 'main2', 'Main', 'tok-a', null, 'silo')
+  assert.notEqual(copy.serverId, ids.silo)
+  await (await auth.removeSavedServer(ids.silo)).loggedOut
+  assert.deepEqual(logouts.map((l) => l.token), ['tok-b'])
 })
 
 if (failures) {
