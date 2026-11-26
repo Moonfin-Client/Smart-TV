@@ -486,7 +486,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.SECTION, id: 'extras', label: () => $L('Extras')},
 					{kind: KIND.NAV, id: 'seasonalEffects', label: () => $L('Seasonal Effects'), desc: () => $L('Visual effects and seasonal decorations'), icon: 'auto_awesome', action: (ctx) => ctx.actions.openScreen('appearance', 'seasonalEffects', 'setting-seasonalEffects')},
 					{kind: KIND.NAV, id: 'loadingAnimation', label: () => $L('Loading Animation'), desc: () => $L('Customize the loading animations used throughout Moonfin'), icon: 'motion_photos_on_outlined', action: (ctx) => ctx.actions.openScreen('appearance', 'loadingAnimation', 'setting-loadingAnimation')},
-					{kind: KIND.NAV, id: 'screensaver', label: () => $L('Screensaver'), desc: () => $L('Enable the built-in screensaver'), icon: 'wallpaper', action: (ctx) => ctx.actions.openScreen('appearance', 'screensaver', 'setting-screensaver')}
+					{kind: KIND.NAV, id: 'screensaver', label: () => $L('Screensaver'), desc: () => $L('Enable the built-in screensaver'), icon: 'wallpaper', action: (ctx) => ctx.actions.openScreen('appearance', 'screensaver', 'setting-screensaver'), when: (ctx) => !ctx.isRoku}
 				]
 			},
 			{
@@ -848,6 +848,7 @@ export const SETTINGS_SCHEMA = [
 				clean: true,
 				icon: 'wallpaper',
 				menu: false,
+				when: (ctx) => !ctx.isRoku,
 				label: () => $L('Screensaver'),
 				description: () => $L('Enable the built-in screensaver'),
 				rows: [

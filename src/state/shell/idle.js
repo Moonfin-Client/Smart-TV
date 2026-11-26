@@ -6,7 +6,7 @@ import { getStore } from '../store.js'
 import { audio, stop as stopAudio } from '../audioPlayer.js'
 import { releasePlayer } from '../../services/remoteControl.js'
 import { exitApp } from '../../utils/appLifecycle.js'
-import { isVega, isXbox } from '../../platform.js'
+import { isRoku, isVega, isXbox } from '../../platform.js'
 import { shell, shellApp } from './shellState.js'
 
 // The longest the app waits on the player's stop report before it closes anyway.
@@ -124,6 +124,8 @@ export const wake = () => {
 
 export const startIdle = () => {
   noteActivity()
+  // Roku's own screensaver comes on over the app, and Roku doesn't let apps replace it.
+  if (isRoku()) return
   armSaver(saverMs())
   armSleep(sleepMs() || SLEEP_RECHECK)
 }
