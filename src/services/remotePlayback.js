@@ -24,9 +24,13 @@ export const playItems = async (itemIds, options = {}) => {
 	const items = itemsOf(res)
 	if (!items.length) return
 	// getItems does not promise the order asked for, so put the queue back in the sender's order and
-	// keep repeated ids as repeated tracks.
+	// keep repeated ids as repeated tracks — each its own entry, so selecting the second copy of a
+	// track lands on the row that was asked for rather than the first match.
 	const byId = new Map(items.map((item) => [String(item.Id), item]))
-	const ordered = ids.map((id) => byId.get(id)).filter(Boolean)
+	const ordered = ids.map((id) => {
+		const item = byId.get(id)
+		return item ? {...item} : null
+	}).filter(Boolean)
 	if (!ordered.length) return
 	const start = Math.min(Math.max(0, options.startIndex || 0), ordered.length - 1)
 	player.play(ordered, start)
