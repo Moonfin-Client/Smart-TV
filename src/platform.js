@@ -28,6 +28,8 @@ export const isXbox = () => {
 	return typeof window.__MOONFIN_XBOX__ !== 'undefined';
 };
 
+export const isRoku = () => process.env.REACT_APP_PLATFORM === 'roku';
+
 export const getPlatform = () => {
 	if (process.env.REACT_APP_PLATFORM) return process.env.REACT_APP_PLATFORM;
 	if (isWebOS()) return 'webos';

@@ -443,7 +443,7 @@ export const buildPlaybackInfo = ({
 
 	const model = capabilities.modelName && capabilities.modelName !== 'Unknown' ? capabilities.modelName : null;
 	const os = capabilities.tizenVersionDisplay || capabilities.webosVersionDisplay ||
-		capabilities.vegaVersionDisplay || capabilities.xboxVersionDisplay;
+		capabilities.vegaVersionDisplay || capabilities.xboxVersionDisplay || capabilities.rokuVersionDisplay;
 	let player = null;
 	if (session) player = isTizen ? $L('AVPlay (Native)') : capabilities.nativePlayer ? $L('Console Video Player') : $L('HTML5 video');
 	const technicalRows = [

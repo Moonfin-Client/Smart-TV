@@ -15,7 +15,7 @@ import { watchParty } from '../../services/siloWatchParty.js'
 import { fetchWithTimeout } from '../../utils/fetchTimeout.js'
 import { getDeviceCapabilities, getDeviceProfile, clearCapabilitiesCache } from '../../services/deviceProfile.js'
 import { NOTIFICATION_PREF_DEFAULTS, loadNotificationPrefs, setNotificationPref, subscribeNotificationPrefs } from '../../services/notificationPrefs.js'
-import { isTizen, isVega, isWebOS, isXbox } from '../../platform.js'
+import { isRoku, isTizen, isVega, isWebOS, isXbox } from '../../platform.js'
 import { isSignInPinEnabled, signInPinFor } from '../../utils/signInPin.js'
 import { beginRerun } from '../../utils/setupWizardGate.js'
 import { bareId } from '../../utils/libraryScopeRules.js'
@@ -221,6 +221,7 @@ export const buildCtx = (page, s, version) => {
     isTizen: isTizen(),
     isVega: isVega(),
     isXbox: isXbox(),
+    isRoku: isRoku(),
     consoleDolbyVision: !!(data.caps && data.caps.consoleDolbyVision),
     serverUrl: getServerUrl(),
     serverVersion: data.serverVersion,

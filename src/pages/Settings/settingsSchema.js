@@ -1332,7 +1332,7 @@ export const SETTINGS_SCHEMA = [
 						id: 'platform',
 						icon: 'tv',
 						label: () => $L('Platform'),
-						value: (ctx) => (ctx.capabilities?.tizenVersionDisplay ? 'Tizen' : ctx.capabilities?.webosVersionDisplay ? 'webOS' : ctx.capabilities?.vegaVersionDisplay ? 'Fire TV' : ctx.capabilities?.xboxVersionDisplay ? 'Xbox' : $L('Unknown'))
+						value: (ctx) => (ctx.capabilities?.tizenVersionDisplay ? 'Tizen' : ctx.capabilities?.webosVersionDisplay ? 'webOS' : ctx.capabilities?.vegaVersionDisplay ? 'Fire TV' : ctx.capabilities?.xboxVersionDisplay ? 'Xbox' : ctx.capabilities?.rokuVersionDisplay ? 'Roku' : $L('Unknown'))
 					},
 					{kind: KIND.TOGGLE, key: 'updateNotificationsEnabled', label: () => $L('Update Notifications'), desc: () => $L('Show app update notifications when a new release is available'), icon: 'system_update_alt'},
 					{kind: KIND.CUSTOM, id: 'checkForUpdates', render: 'checkForUpdates'},
@@ -1353,10 +1353,10 @@ export const SETTINGS_SCHEMA = [
 					{
 						kind: KIND.INFO,
 						id: 'osVersion',
-						label: (ctx) => (ctx.capabilities?.tizenVersionDisplay ? $L('Tizen Version') : ctx.capabilities?.vegaVersionDisplay ? $L('Vega OS Version') : ctx.capabilities?.xboxVersionDisplay ? $L('Xbox OS Version') : $L('webOS Version')),
-						value: (ctx) => ctx.capabilities?.tizenVersionDisplay || ctx.capabilities?.webosVersionDisplay || ctx.capabilities?.vegaVersionDisplay || ctx.capabilities?.xboxVersionDisplay,
+						label: (ctx) => (ctx.capabilities?.tizenVersionDisplay ? $L('Tizen Version') : ctx.capabilities?.vegaVersionDisplay ? $L('Vega OS Version') : ctx.capabilities?.xboxVersionDisplay ? $L('Xbox OS Version') : ctx.capabilities?.rokuVersionDisplay ? $L('Roku OS Version') : $L('webOS Version')),
+						value: (ctx) => ctx.capabilities?.tizenVersionDisplay || ctx.capabilities?.webosVersionDisplay || ctx.capabilities?.vegaVersionDisplay || ctx.capabilities?.xboxVersionDisplay || ctx.capabilities?.rokuVersionDisplay,
 						icon: 'settings',
-						when: (ctx) => !!(ctx.capabilities?.tizenVersionDisplay || ctx.capabilities?.webosVersionDisplay || ctx.capabilities?.vegaVersionDisplay || ctx.capabilities?.xboxVersionDisplay)
+						when: (ctx) => !!(ctx.capabilities?.tizenVersionDisplay || ctx.capabilities?.webosVersionDisplay || ctx.capabilities?.vegaVersionDisplay || ctx.capabilities?.xboxVersionDisplay || ctx.capabilities?.rokuVersionDisplay)
 					},
 					{kind: KIND.INFO, id: 'firmware', label: () => $L('Firmware'), value: (ctx) => ctx.capabilities?.firmwareVersion, icon: 'memory', when: (ctx) => !!ctx.capabilities?.firmwareVersion},
 					{

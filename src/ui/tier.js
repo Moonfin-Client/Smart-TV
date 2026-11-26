@@ -1,8 +1,10 @@
 import { getPerfTier } from '../utils/perfTier.js'
+import { isRoku } from '../platform.js'
 
 // What the device can afford. Chrome 38 to 49 (webOS 3, old Tizen) has no createImageBitmap
-// and runs the ES5 bundle, so it gets the legacy image path and fewer animations.
-export const legacy = typeof createImageBitmap !== 'function'
+// and runs the ES5 bundle, so it gets the legacy image path and fewer animations. Roku draws with
+// SceneGraph rather than a browser, so it isn't one of them.
+export const legacy = typeof createImageBitmap !== 'function' && !isRoku()
 
 // The performance tier (utils/perfTier.js): 'low' below Chrome 56, 'mid' below 85, 'high' from
 // there, or the Performance Mode setting when it names one. Effects that drop on the low and mid

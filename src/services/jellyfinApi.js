@@ -18,6 +18,7 @@ const APP_VERSION = packageJson.version;
 
 const PLATFORM_IDENTITY = {
 	tizen: {appName: 'Moonfin for Tizen', deviceName: 'Samsung Smart TV', tag: 'tizen'},
+	roku: {appName: 'Moonfin for Roku', deviceName: 'Roku', tag: 'roku'},
 	vega: {appName: 'Moonfin for Fire TV', deviceName: 'Fire TV', tag: 'vega'},
 	webos: {appName: 'Moonfin for webOS', deviceName: 'LG Smart TV', tag: 'webos'},
 	xbox: {appName: 'Moonfin for Xbox', deviceName: 'Xbox', tag: 'xbox'}
