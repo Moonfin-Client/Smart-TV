@@ -767,7 +767,7 @@ export const api = {
 		const includeTypes = randomItemTypes(contentType);
 		const parentParam = parentId ? `&ParentId=${parentId}` : '';
 		const genreParam = genreName ? `&Genres=${encodeURIComponent(genreName)}` : '';
-		return request(`${userRoutes.items()}IncludeItemTypes=${includeTypes}&Recursive=true&SortBy=Random&Limit=${limit}&Fields=${encodeURIComponent(fields)}&HasBackdrop=true&ExcludeItemTypes=BoxSet${parentParam}${genreParam}`);
+		return request(`${userRoutes.items()}IncludeItemTypes=${includeTypes}&Recursive=true&SortBy=Random&Limit=${limit}&Fields=${encodeURIComponent(fields)}&HasBackdrop=true&ExcludeItemTypes=BoxSet&CollapseBoxSetItems=false${parentParam}${genreParam}`);
 	},
 
 	// Items for the setup wizard previews. The random pull above requires a backdrop, and a
@@ -1278,7 +1278,7 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 			const includeTypes = randomItemTypes(contentType);
 			const parentParam = parentId ? `&ParentId=${parentId}` : '';
 			const genreParam = genreName ? `&Genres=${encodeURIComponent(genreName)}` : '';
-			return serverRequest(`${serverUserRoutes.items()}IncludeItemTypes=${includeTypes}&Recursive=true&SortBy=Random&Limit=${limit}&Fields=${encodeURIComponent(fields)}&HasBackdrop=true&ExcludeItemTypes=BoxSet${parentParam}${genreParam}`);
+			return serverRequest(`${serverUserRoutes.items()}IncludeItemTypes=${includeTypes}&Recursive=true&SortBy=Random&Limit=${limit}&Fields=${encodeURIComponent(fields)}&HasBackdrop=true&ExcludeItemTypes=BoxSet&CollapseBoxSetItems=false${parentParam}${genreParam}`);
 		},
 
 		getRandomItem: (includeTypes = 'Movie,Series') =>
