@@ -176,23 +176,64 @@ console.log('rokuVideo ok')
   console.log('rokuVideo autoload ok')
 }
 
-// A held stream prebuffers, says it's ready once the node settles paused, and starts with play.
+// A held stream prebuffers and stays in buffering. Its finished prebuffer makes it ready, a seek to
+// where it waits loads nothing, a seek elsewhere lands once the prebuffer starts over and finishes,
+// and play starts it.
 {
   const f4 = fake()
   const el4 = createVideoElement(f4.sg, () => ({}))
   const seen = []
-  el4.addEventListener('loadeddata', () => seen.push('loadeddata'))
+  for (const n of ['loadeddata', 'canplay', 'seeking', 'seeked']) el4.addEventListener(n, () => seen.push(n))
   el4.autoplay = false
-  el4.src = 'http://s/a.mkv'
+  el4.src = 'http://s/a.mkv#t=40'
   el4.load()
   const v4 = f4.video()
   assert.deepEqual(controls(v4), ['prebuffer'])
   changed(v4, 'state', 'buffering')
-  changed(v4, 'state', 'paused')
-  assert.deepEqual(seen, ['loadeddata'])
+  changed(v4, 'bufferingStatus', { percentage: 33, prebufferDone: false })
+  assert.deepEqual(seen, [])
+  changed(v4, 'bufferingStatus', { percentage: 100, prebufferDone: true })
+  assert.deepEqual(seen, ['loadeddata', 'canplay'])
+  assert.equal(el4.readyState, 4)
+
+  el4.currentTime = 40
+  await Promise.resolve()
+  assert.deepEqual(seen.slice(2), ['seeking', 'seeked'])
+  assert.equal(v4.fields.seek, undefined)
+
+  el4.currentTime = 55
+  assert.equal(v4.fields.seek, 55)
+  assert.equal(v4.fields.autoplayAfterSeek, false)
+  // The old prebuffer's last report doesn't land it.
+  changed(v4, 'bufferingStatus', { percentage: 100, prebufferDone: true })
+  assert.equal(el4.seeking, true)
+  changed(v4, 'bufferingStatus', { percentage: 20, prebufferDone: false })
+  changed(v4, 'bufferingStatus', { percentage: 100, prebufferDone: true })
+  assert.equal(el4.seeking, false)
+  assert.equal(el4.currentTime, 55)
+  assert.equal(el4.paused, true)
+
   el4.play()
   assert.equal(controls(v4).at(-1), 'play')
   console.log('rokuVideo hold ok')
+}
+
+// A seek made before the first prebuffer finishes lands and makes the stream ready together.
+{
+  const f6 = fake()
+  const el6 = createVideoElement(f6.sg, () => ({}))
+  const seen = []
+  for (const n of ['loadeddata', 'seeked']) el6.addEventListener(n, () => seen.push(n))
+  el6.autoplay = false
+  el6.src = 'http://s/a.mkv'
+  el6.load()
+  const v6 = f6.video()
+  el6.currentTime = 90
+  changed(v6, 'bufferingStatus', { percentage: 10, prebufferDone: false })
+  changed(v6, 'bufferingStatus', { percentage: 100, prebufferDone: true })
+  assert.deepEqual(seen, ['seeked', 'loadeddata'])
+  assert.equal(el6.readyState, 4)
+  console.log('rokuVideo early held seek ok')
 }
 
 // A failed stream's finish isn't an end, and its late events after a reload are dropped.

@@ -108,6 +108,7 @@ import { isPreroll, shouldAutoAdvance } from '../../utils/cinemaMode.js'
 import { isTrickplayOn } from '../../utils/trickplayLayout.js'
 import { createInBandTextSource } from '../../utils/mkvTextSource.js'
 import { shellApp } from '../../state/shell/shellState.js'
+import { wake } from '../../state/shell/idle.js'
 import { setPlayerControls } from '../../services/remoteControl.js'
 import { errorStep } from './playbackFallback.js'
 import { createServerSeek } from './serverSeek.js'
@@ -2547,6 +2548,8 @@ export default function Player(props) {
       if (d > 0 && isFinite(d)) s.dur = d
     }),
     engine.on('playing', () => {
+      // A start nobody pressed a key for, like a watch party's, takes the screensaver down.
+      wake()
       const wasPaused = s.paused
       s.loading = false
       s.paused = false

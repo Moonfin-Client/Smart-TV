@@ -167,6 +167,24 @@ export const createVideoElement = (sg, layer) => {
         st.buf[1] = Math.max(st.buf[1], to)
       } else st.buf = [from, to]
     })
+    // A held stream stays in buffering and reports no position until it plays. Its finished
+    // prebuffer is what makes it ready, and a seek made while it waits lands once the prebuffer
+    // has started over and finished again.
+    sg.set(n, 'onBufferingStatus', (b) => {
+      if (!b || !st.prebuffered) return
+      if (st.seeking) {
+        if (!b.prebufferDone) st.prebufferReset = true
+        else if (st.prebufferReset) {
+          st.position = st.target
+          seekLanded()
+          started()
+          fire('canplay')
+        }
+      } else if (b.prebufferDone && !st.started) {
+        started()
+        fire('canplay')
+      }
+    })
   }
 
   const ensureNode = () => {
@@ -328,6 +346,17 @@ export const createVideoElement = (sg, layer) => {
         pendingStart = to
         st.position = to
         return
+      }
+      if (st.prebuffered) {
+        // A held stream already waiting at that spot has nothing to load.
+        if (!st.seeking && Math.abs(to - st.position) < 0.5) {
+          queueMicrotask(() => {
+            fire('seeking')
+            fire('seeked')
+          })
+          return
+        }
+        st.prebufferReset = false
       }
       st.target = to
       st.seeking = true
