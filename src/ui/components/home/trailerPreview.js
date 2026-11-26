@@ -114,8 +114,9 @@ export const createTrailerPreview = ({ load, rect, onChange, onEnded, onCaption,
         v.muted = !!prefs.muted
         v.volume = prefs.muted ? 0 : volumeLevel(prefs.volume)
       }
+      // A player that doesn't report the clip's shape, like Roku's, gets a 16:9 box it fits the clip into.
       v.onloadedmetadata = () => {
-        const r = rect && coverRect(v.videoWidth, v.videoHeight, rect())
+        const r = rect && coverRect(v.videoWidth || 16, v.videoHeight || 9, rect())
         if (!r) return
         v.style.left = `${r.x}px`
         v.style.top = `${r.y}px`
