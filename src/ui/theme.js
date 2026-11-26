@@ -33,6 +33,9 @@ const build = (s) => {
   const c = theme.colors
   const b = theme.borders
   const os = (a) => lc(c.onSurface, a)
+  const ob = (a) => lc(c.onBackground, a)
+  // Label ink on a status fill: the theme's onSurface, or black/white when that would be too faint (like buttonInk).
+  const inkFor = (fill) => (contrastRatio(fill, c.onSurface) >= MIN_BUTTON_CONTRAST ? lc(c.onSurface) : inkOn(fill, 0.92))
   const overlay = resolveOverlayColor(s.navbarColor)
   const navOpacity = (s.navbarOpacity == null ? 50 : s.navbarOpacity) / 100
   const focus = isValidHexColor(s.focusBorderColor) ? lc(s.focusBorderColor) : lc(b.focusBorder.color)
@@ -88,11 +91,16 @@ const build = (s) => {
       movie: lc(theme.semantic.mediaTypeBadgeMovie),
       show: lc(theme.semantic.mediaTypeBadgeShow),
     },
+    statusInk: {
+      available: inkFor(theme.semantic.statusAvailable),
+      downloading: inkFor(theme.semantic.statusDownloading),
+    },
 
     textPrimary: lc(c.onBackground),
     textSecondary: os(0.7),
     textMuted: os(0.45),
     os,
+    ob,
 
     // Focus: the ring color (the Focus Color setting wins over the theme's), its width, and the
     // theme's glow, as a list of { color, x, y, blur, spread } (empty for most themes).

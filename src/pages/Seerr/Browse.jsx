@@ -222,7 +222,8 @@ export default function Browse(props) {
     }
     if (label) {
       const w = textWidth(label, 18, 'bold') + 20
-      badge = { text: label, x, w, color: status === 4 || status === 5 ? t().status.available : t().status.downloading }
+      const key = status === 4 || status === 5 ? 'available' : 'downloading'
+      badge = { text: label, x, w, color: t().status[key], ink: t().statusInk[key] }
       x += w + 13
     }
     if (e.mediaType) text(e.mediaType === 'tv' ? $L('Series') : $L('Movie'))
@@ -649,7 +650,7 @@ export default function Browse(props) {
       <view>
         <For each={focusLine().texts}>
           {(p) => (
-            <text x={p.x} y={129} fontFamily={lineFont} fontSize={23} lineHeight={30} color={t().os(0.7)}>
+            <text x={p.x} y={129} fontFamily={lineFont} fontSize={23} lineHeight={30} color={t().ob(0.7)}>
               {p.text}
             </text>
           )}
@@ -664,7 +665,7 @@ export default function Browse(props) {
         <Show when={focusLine().badge}>
           {(b) => (
             <view x={b().x} y={129.2} width={b().w} height={25.6} borderRadius={7} color={b().color}>
-              <text x={10} y={4} fontFamily={badgeFont} fontSize={18} lineHeight={21.6} color={t().onSurface}>
+              <text x={10} y={4} fontFamily={badgeFont} fontSize={18} lineHeight={21.6} color={b().ink}>
                 {b().text}
               </text>
             </view>
@@ -680,7 +681,7 @@ export default function Browse(props) {
               <view x={tool.x} y={185} width={70} height={70}>
                 <view width={70} height={70} borderRadius={10} color={t().buttonFocused} alpha={focused() ? 1 : 0} />
                 <view width={70} height={70} borderRadius={10} color="#00000000" border={{ width: 2, color: hex(t().focus) }} alpha={focused() ? 1 : 0} />
-                <view x={11.5} y={11.5} width={47} height={47} src={'icons/' + tool.icon + '.webp'} color={focused() ? t().onButtonFocused : t().os(0.5)} />
+                <view x={11.5} y={11.5} width={47} height={47} src={'icons/' + tool.icon + '.webp'} color={focused() ? t().onButtonFocused : t().ob(0.5)} />
               </view>
             )
           }}
@@ -690,9 +691,9 @@ export default function Browse(props) {
         <For each={tools().slice(3)}>
           {(chip) => (
             <view x={chip.x} y={201} width={chip.w} height={38}>
-              <view width={chip.w} height={38} borderRadius={19} color={chip.on ? t().status.downloading : t().os(0.08)} />
+              <view width={chip.w} height={38} borderRadius={19} color={chip.on ? t().status.downloading : t().ob(0.08)} />
               <view width={chip.w} height={38} borderRadius={19} color="#00000000" border={{ width: 2, color: hex(t().focus) }} alpha={toolFocus() === chip.i ? 1 : 0} />
-              <text x={17} y={9} fontFamily={chip.on ? chipOnFont : chipFont} fontSize={20} lineHeight={24} color={chip.on ? t().onSurface : t().os(0.7)}>
+              <text x={17} y={9} fontFamily={chip.on ? chipOnFont : chipFont} fontSize={20} lineHeight={24} color={chip.on ? t().statusInk.downloading : t().ob(0.7)}>
                 {chip.label}
               </text>
             </view>
@@ -704,7 +705,7 @@ export default function Browse(props) {
         <For each={letters()}>
           {(lt) => (
             <view x={lt.x} y={268} width={lt.w} height={57}>
-              <view width={lt.w} height={57} borderRadius={7} color={t().os(0.1)} alpha={lt.on ? 1 : 0} />
+              <view width={lt.w} height={57} borderRadius={7} color={t().ob(0.1)} alpha={lt.on ? 1 : 0} />
               <view width={lt.w} height={57} borderRadius={7} color="#00000000" border={{ width: 2, color: hex(t().focus) }} alpha={letterFocus() === lt.i ? 1 : 0} />
               <text
                 x={lt.w / 2}
@@ -713,7 +714,7 @@ export default function Browse(props) {
                 fontFamily={lt.on ? letterOnFont : letterFont}
                 fontSize={25}
                 lineHeight={33}
-                color={lt.on ? t().status.downloading : t().os(0.55)}
+                color={lt.on ? t().status.downloading : t().ob(0.55)}
               >
                 {lt.label}
               </text>
@@ -738,7 +739,8 @@ export default function Browse(props) {
                   focused={c().idx === gridFocus()}
                   zoom={st.zoom}
                   ring={t().focus}
-                  titleColor={t().os(0.9)}
+                  titleColor={t().ob(0.9)}
+                  subColor={t().ob(0.6)}
                 />
               )
             }}
@@ -751,14 +753,14 @@ export default function Browse(props) {
           <Spinner x={928} y={654} size={64} />
         </Show>
       </view>
-      <text x={960} y={674} mountX={0.5} fontFamily={footFont} fontSize={24} color={t().os(0.7)}>
+      <text x={960} y={674} mountX={0.5} fontFamily={footFont} fontSize={24} color={t().ob(0.7)}>
         {empty()}
       </text>
 
-      <text x={100} y={1051.5} fontFamily={footFont} fontSize={18} color={t().os(0.3)}>
+      <text x={100} y={1051.5} fontFamily={footFont} fontSize={18} color={t().ob(0.3)}>
         {statusFooter()}
       </text>
-      <text x={1820} y={1049} mountX={1} fontFamily={footFont} fontSize={22} color={t().os(0.45)}>
+      <text x={1820} y={1049} mountX={1} fontFamily={footFont} fontSize={22} color={t().ob(0.45)}>
         {countFooter()}
       </text>
 

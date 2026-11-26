@@ -179,12 +179,14 @@ export default function Collection(props) {
     if (!l || !s) return []
     const count = s.selected.length
     const off = count === 0 || l.overCap
+    // Focused, Request takes the focused-button fill: a focus ring the colour of the indigo fill would vanish.
+    const on = s.focusId === 'request'
     const t = theme()
     return [
       { key: 'cancel', x: 0, label: $L('Cancel'), fill: t.os(0.1), ink: t.onSurface, focused: s.focusId === 'cancel' },
       {
         key: 'request', x: 336, label: $L('Request {count} movies').replace('{count}', count),
-        fill: off ? t.os(0.12) : '#6366f1ff', ink: off ? t.os(0.38) : '#ffffffff', focused: s.focusId === 'request',
+        fill: off ? t.os(0.12) : on ? t.buttonFocused : '#6366f1ff', ink: off ? t.os(0.38) : on ? t.onButtonFocused : '#ffffffff', focused: on,
       },
     ]
   }
@@ -416,7 +418,7 @@ export default function Collection(props) {
           <Spinner x={928} y={508} size={64} />
         </Show>
       </view>
-      <text x={112} y={100} fontFamily={bodyFont} fontSize={24} color={theme().os(0.7)}>
+      <text x={112} y={100} fontFamily={bodyFont} fontSize={24} color={theme().ob(0.7)}>
         {error()}
       </text>
 
@@ -426,10 +428,10 @@ export default function Collection(props) {
             <text x={72} y={62} fontFamily={h().nameFont} fontSize={54} lineHeight={33} maxWidth={1776} maxLines={1} color={theme().onBackground}>
               {h().name}
             </text>
-            <text x={72} y={103} fontFamily={bodyFont} fontSize={22} lineHeight={33} color={theme().os(0.65)}>
+            <text x={72} y={103} fontFamily={bodyFont} fontSize={22} lineHeight={33} color={theme().ob(0.65)}>
               {h().summary}
             </text>
-            <text x={72} y={150} fontFamily={h().overviewFont} fontSize={22} lineHeight={31.9} maxWidth={1100} maxLines={3} color={theme().os(0.75)}>
+            <text x={72} y={150} fontFamily={h().overviewFont} fontSize={22} lineHeight={31.9} maxWidth={1100} maxLines={3} color={theme().ob(0.75)}>
               {h().overview}
             </text>
             <view x={72} y={h().buttonY} width={h().buttonW} height={67} pivot={0.5} scale={buttonFocused() ? 1.03 : 1} alpha={showRequest() ? 1 : 0}>
@@ -465,7 +467,7 @@ export default function Collection(props) {
                         <text x={11} y={303} fontFamily={card.titleFont} fontSize={20} lineHeight={33} maxWidth={200} maxLines={1} color={theme().onBackground}>
                           {card.title}
                         </text>
-                        <text x={11} y={336} fontFamily={bodyFont} fontSize={17} lineHeight={33} color={theme().os(0.5)}>
+                        <text x={11} y={336} fontFamily={bodyFont} fontSize={17} lineHeight={33} color={theme().ob(0.5)}>
                           {card.year}
                         </text>
                       </view>
