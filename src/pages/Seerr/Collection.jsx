@@ -27,18 +27,13 @@ import { firstSelectable, isPartRequestable, partStatus, partYear, sheetLayout }
 // picker draw over the nav.
 const NO_PICKS = { serverId: null, profileId: null, rootFolderId: null }
 const NONE = []
-const DOT = { available: '#22c55eff', requested: '#6366f1ff', pending: '#eab308ff' }
 const CARD_PITCH = 244
 const ROW_W = 1776
 // The dialog's body sits under its title and line, and keeps 33px of padding under it.
 const BODY_TOP = 108
 const BODY_MAX = 1000 - BODY_TOP - 34.4
 const COVER = { resizeMode: { type: 'cover' } }
-const WHITE_RING = { width: 3, color: hex('#ffffffff') }
-const ROW_RING = { width: 1.67, color: hex('#00a4dcff') }
-const BUTTON_RING = { width: 3.34, color: hex('#00a4dcff') }
 const DOT_EDGE = { width: 1, color: hex('#0000008c') }
-const SHEET_EDGE = { width: 1, color: hex('#ffffff33') }
 
 export default function Collection(props) {
   const store = getStore()
@@ -108,7 +103,7 @@ export default function Collection(props) {
         titleFont: fontFor(title),
         year: partYear(part) || '',
         image: poster ? seerrApi.getImageUrl(poster, 'w342') : '',
-        dot: style === 'badge' && status ? DOT[status] : '',
+        dot: style === 'badge' && status ? theme().status[status] : '',
         banner: style === 'banner' ? statusBanner(part.mediaInfo && part.mediaInfo.status, 200) : null,
       }
     })
@@ -159,19 +154,20 @@ export default function Collection(props) {
     return l.rows.map((r) => {
       const inList = r.kind === 'part'
       const focused = s.focusId === r.id
+      const t = theme()
       return {
         ...r,
         key: r.id,
         y: inList ? l.listTop + r.listY - s.listScroll : r.y,
         hidden: inList && (r.listY + r.h <= s.listScroll || r.listY >= s.listScroll + l.listH),
         focused,
-        ink: focused ? '#000000de' : r.enabled ? '#ffffffff' : '#ffffff61',
+        ink: focused ? t.navFocusInk : r.enabled ? t.onSurface : t.os(0.38),
         font: fontFor(r.label),
         icon: r.kind === 'toggle' ? (r.on ? 'toggleOn' : 'toggleOff') : r.on ? 'checkBox' : 'checkBoxBlank',
-        iconColor: focused ? '#000000de' : r.on ? '#00a4dcff' : '#ffffff61',
+        iconColor: focused ? t.navFocusInk : r.on ? t.accent : t.os(0.38),
         labelX: r.kind === 'all' ? 71 : r.kind === 'toggle' || r.kind === 'quota' ? 14 : 70,
         labelW: r.kind === 'toggle' ? 547 : r.trailing ? 468 : 567,
-        trailingColor: focused ? '#000000de' : r.available ? '#81c784ff' : '#90caf9ff',
+        trailingColor: focused ? t.navFocusInk : r.available ? '#81c784ff' : '#90caf9ff',
       }
     })
   })
@@ -183,11 +179,14 @@ export default function Collection(props) {
     if (!l || !s) return []
     const count = s.selected.length
     const off = count === 0 || l.overCap
+    // Focused, Request takes the focused-button fill: a focus ring the colour of the indigo fill would vanish.
+    const on = s.focusId === 'request'
+    const t = theme()
     return [
-      { key: 'cancel', x: 0, label: $L('Cancel'), fill: '#ffffff1a', ink: '#ffffffff', focused: s.focusId === 'cancel' },
+      { key: 'cancel', x: 0, label: $L('Cancel'), fill: t.os(0.1), ink: t.onSurface, focused: s.focusId === 'cancel' },
       {
         key: 'request', x: 336, label: $L('Request {count} movies').replace('{count}', count),
-        fill: off ? '#ffffff1f' : '#6366f1ff', ink: off ? '#ffffff61' : '#ffffffff', focused: s.focusId === 'request',
+        fill: off ? t.os(0.12) : on ? t.buttonFocused : '#6366f1ff', ink: off ? t.os(0.38) : on ? t.onButtonFocused : '#ffffffff', focused: on,
       },
     ]
   }
@@ -378,7 +377,7 @@ export default function Collection(props) {
       ref={root}
       width={1920}
       height={1080}
-      color="#000000ff"
+      color={theme().background.slice(0, 7) + 'ff'}
       onUp={() => {
         if (zone() === 'parts' && showRequest()) setZone('button')
         else if (!navOnLeft()) return focusNav()
@@ -412,33 +411,34 @@ export default function Collection(props) {
           <view width={1920} height={1080} src={h().backdrop} textureOptions={COVER} alpha={0.25} />
         </Show>
       </view>
-      <view width={1920} height={1080} colorTop="#0f0f0f73" colorBottom="#0f0f0ff2" />
+      <view width={1920} height={1080} colorTop={theme().background.slice(0, 7) + '73'} colorBottom={theme().background.slice(0, 7) + 'f2'} />
 
       <view>
         <Show when={loading()}>
           <Spinner x={928} y={508} size={64} />
         </Show>
       </view>
-      <text x={112} y={100} fontFamily={bodyFont} fontSize={24} color="#ffffffb3">
+      <text x={112} y={100} fontFamily={bodyFont} fontSize={24} color={theme().ob(0.7)}>
         {error()}
       </text>
 
       <view>
         <Show when={h()}>
           <view>
-            <text x={72} y={62} fontFamily={h().nameFont} fontSize={54} lineHeight={33} maxWidth={1776} maxLines={1} color="#ffffffff">
+            <text x={72} y={62} fontFamily={h().nameFont} fontSize={54} lineHeight={33} maxWidth={1776} maxLines={1} color={theme().onBackground}>
               {h().name}
             </text>
-            <text x={72} y={103} fontFamily={bodyFont} fontSize={22} lineHeight={33} color="#ffffffa6">
+            <text x={72} y={103} fontFamily={bodyFont} fontSize={22} lineHeight={33} color={theme().ob(0.65)}>
               {h().summary}
             </text>
-            <text x={72} y={150} fontFamily={h().overviewFont} fontSize={22} lineHeight={31.9} maxWidth={1100} maxLines={3} color="#ffffffbf">
+            <text x={72} y={150} fontFamily={h().overviewFont} fontSize={22} lineHeight={31.9} maxWidth={1100} maxLines={3} color={theme().ob(0.75)}>
               {h().overview}
             </text>
             <view x={72} y={h().buttonY} width={h().buttonW} height={67} pivot={0.5} scale={buttonFocused() ? 1.03 : 1} alpha={showRequest() ? 1 : 0}>
-              <view width={h().buttonW} height={67} borderRadius={10} color="#00a4dcff" />
-              <view width={h().buttonW} height={67} borderRadius={10} color="#00000000" border={WHITE_RING} alpha={buttonFocused() ? 1 : 0} />
-              <text x={37} y={19} fontFamily={buttonFont} fontSize={24} lineHeight={33} color="#ffffffff">
+              {/* Focused, it takes the theme's focused-button fill: a focus ring alone vanishes on an accent fill of the same colour (Moonfin, Neon Pulse). */}
+              <view width={h().buttonW} height={67} borderRadius={10} color={buttonFocused() ? theme().buttonFocused : theme().accent} />
+              <view width={h().buttonW} height={67} borderRadius={10} color="#00000000" border={{ width: 3, color: hex(theme().focus) }} alpha={buttonFocused() ? 1 : 0} />
+              <text x={37} y={19} fontFamily={buttonFont} fontSize={24} lineHeight={33} color={buttonFocused() ? theme().onButtonFocused : theme().onAccent}>
                 {h().buttonLabel}
               </text>
             </view>
@@ -449,8 +449,8 @@ export default function Collection(props) {
                     const on = () => card.i === cardFocus()
                     return (
                       <view x={card.x} width={222} height={378} pivot={0.5} scale={on() ? 1.04 : 1}>
-                        <view width={222} height={378} borderRadius={10} color="#00000000" border={WHITE_RING} alpha={on() ? 1 : 0} />
-                        <view x={11} y={11} width={200} height={280} borderRadius={8} color="#252525ff" />
+                        <view width={222} height={378} borderRadius={10} color="#00000000" border={{ width: 3, color: hex(theme().focus) }} alpha={on() ? 1 : 0} />
+                        <view x={11} y={11} width={200} height={280} borderRadius={8} color={theme().surfaceVariant} />
                         <Show when={card.image}>
                           <view x={11} y={11} width={200} height={280} borderRadius={8} src={card.image} textureOptions={COVER} />
                         </Show>
@@ -464,10 +464,10 @@ export default function Collection(props) {
                         <Show when={card.dot}>
                           <view x={179} y={21} width={22} height={22} borderRadius={11} color={card.dot} border={DOT_EDGE} />
                         </Show>
-                        <text x={11} y={303} fontFamily={card.titleFont} fontSize={20} lineHeight={33} maxWidth={200} maxLines={1} color="#ffffffff">
+                        <text x={11} y={303} fontFamily={card.titleFont} fontSize={20} lineHeight={33} maxWidth={200} maxLines={1} color={theme().onBackground}>
                           {card.title}
                         </text>
-                        <text x={11} y={336} fontFamily={bodyFont} fontSize={17} lineHeight={33} color="#ffffff80">
+                        <text x={11} y={336} fontFamily={bodyFont} fontSize={17} lineHeight={33} color={theme().ob(0.5)}>
                           {card.year}
                         </text>
                       </view>
@@ -506,11 +506,11 @@ export default function Collection(props) {
             }}
           >
             <view width={1920} height={1080} color="#0000008a" />
-            <view x={592.7} y={sheetY()} width={734.6} height={sheetH()} borderRadius={33.39} color="#0e1117e6" border={SHEET_EDGE}>
-              <text x={40.07} y={35.39} fontFamily={titleFont} fontSize={33.39} lineHeight={39.07} color="#ffffffff">
+            <view x={592.7} y={sheetY()} width={734.6} height={sheetH()} borderRadius={33.39} color={theme().surface.slice(0, 7) + 'e6'} border={{ width: 1, color: hex(theme().accentA(0.33)) }}>
+              <text x={40.07} y={35.39} fontFamily={titleFont} fontSize={33.39} lineHeight={39.07} color={theme().onSurface}>
                 {sheetTitle}
               </text>
-              <view x={1} y={92.5} width={732.6} height={1.67} color="#ffffff14" />
+              <view x={1} y={92.5} width={732.6} height={1.67} color={theme().os(0.08)} />
               <view x={1} y={BODY_TOP} width={732.6} height={bodyView()} clipping>
                 <view x={40.07} y={-sheet().bodyScroll} width={652.4} height={layout() ? layout().bodyH : 0}>
                   <view y={layout() ? layout().listTop : 0} width={652.4} height={layout() ? layout().listH : 0} clipping>
@@ -520,7 +520,7 @@ export default function Collection(props) {
                           const row = sheetParts.item(k)
                           return (
                           <view y={row().y} width={652.4} height={row().h}>
-                            <view width={652.4} height={row().h} borderRadius={13.36} color="#ffffffff" border={ROW_RING} alpha={row().focused ? 1 : 0} />
+                            <view width={652.4} height={row().h} borderRadius={13.36} color={theme().navFocusFill} border={{ width: 1.67, color: hex(theme().accent) }} alpha={row().focused ? 1 : 0} />
                             <view x={13} y={(row().h - 37) / 2} width={37} height={37} src={'icons/' + row().icon + '.webp'} color={row().iconColor} />
                             <text
                               x={row().labelX}
@@ -549,9 +549,9 @@ export default function Collection(props) {
                       const f = sheetFixed.item(k)
                       return (
                       <view y={f().y} width={652.4} height={f().h}>
-                        <view width={652.4} height={f().h} borderRadius={13.36} color="#ffffffff" border={ROW_RING} alpha={f().focused ? 1 : 0} />
+                        <view width={652.4} height={f().h} borderRadius={13.36} color={theme().navFocusFill} border={{ width: 1.67, color: hex(theme().accent) }} alpha={f().focused ? 1 : 0} />
                         <Show when={f().kind === 'quota'}>
-                          <view width={652.4} height={f().h} borderRadius={13.36} color="#ffffff14" />
+                          <view width={652.4} height={f().h} borderRadius={13.36} color={theme().os(0.08)} />
                         </Show>
                         <Show when={f().kind === 'all'}>
                           <view x={14} y={21} width={37} height={37} src={'icons/' + f().icon + '.webp'} color={f().iconColor} />
@@ -568,7 +568,7 @@ export default function Collection(props) {
                           letterSpacing={0.417}
                           maxWidth={f().labelW}
                           maxLines={1}
-                          color={f().kind === 'quota' ? (f().blocked ? '#ef4444ff' : '#ffffffb3') : f().ink}
+                          color={f().kind === 'quota' ? (f().blocked ? '#ef4444ff' : theme().os(0.7)) : f().ink}
                         >
                           {f().label}
                         </text>
@@ -576,7 +576,7 @@ export default function Collection(props) {
                       )
                     }}
                   </For>
-                  <view y={layout() ? layout().listTop - 1.67 : 0} width={652.4} height={1.67} color="#ffffff1f" />
+                  <view y={layout() ? layout().listTop - 1.67 : 0} width={652.4} height={1.67} color={theme().os(0.12)} />
                   <view y={layout() ? layout().advTop : 0} width={652.4} height={advanced() ? advanced().h : 0}>
                     <Rects list={advanced() ? advanced().rects : NONE} />
                     <Icons list={advanced() ? advanced().icons : NONE} />
@@ -584,7 +584,7 @@ export default function Collection(props) {
                     <Texts list={advanced() ? oneLine(advanced().spaced) : NONE} />
                     <view>
                       <Show when={advSpin()} keyed>
-                        {(sp) => <view ref={spinner} x={sp.x} y={sp.y} width={sp.w} height={sp.h} pivot={0.5} src="spinner/arc.webp" color="#00a4dcff" />}
+                        {(sp) => <view ref={spinner} x={sp.x} y={sp.y} width={sp.w} height={sp.h} pivot={0.5} src="spinner/arc.webp" color={theme().accent} />}
                       </Show>
                     </view>
                   </view>
@@ -592,7 +592,7 @@ export default function Collection(props) {
                     {(b) => (
                       <view x={b.x} y={layout() ? layout().buttonsY : 0} width={316.2} height={82.5}>
                         <view width={316.2} height={82.5} borderRadius={16.7} color={b.fill} />
-                        <view width={316.2} height={82.5} borderRadius={16.7} color="#00000000" border={BUTTON_RING} alpha={b.focused ? 1 : 0} />
+                        <view width={316.2} height={82.5} borderRadius={16.7} color="#00000000" border={{ width: 3.34, color: hex(theme().focus) }} alpha={b.focused ? 1 : 0} />
                         <text x={158.1} mountX={0.5} y={25.35} fontFamily={buttonFont} fontSize={25.04} lineHeight={35.81} letterSpacing={0.417} color={b.ink}>
                           {b.label}
                         </text>

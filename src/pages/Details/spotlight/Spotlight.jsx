@@ -208,7 +208,7 @@ export default function Spotlight(props) {
       overview: overviewText, overviewExpanded: untrack(overviewExpanded), hasActions: row.buttons.length > 0, incomplete: bag.incomplete, downloadsH: bars.h,
     }, t)
     setHero({ rects: laid.rects, imgs: laid.imgs, texts: laid.texts })
-    setOv(laid.overview ? { show: true, x: laid.overview.x, y: laid.overview.y, text: overviewText, font: fontFor(overviewText), box: laid.overview.box } : NO_OV)
+    setOv(laid.overview ? { show: true, x: laid.overview.x, y: laid.overview.y, text: overviewText, font: fontFor(overviewText), box: laid.overview.box, person: isPerson } : NO_OV)
     setAct({ buttons: row.buttons, x: x0, y: laid.actionsY, w: HERO_W, held: !bag.settled, glass: glassFor(it, server, back, shadeColor, scrimUrl) })
     setDl({ x: x0, y: laid.downloadsY, bars })
 
@@ -441,6 +441,7 @@ export default function Spotlight(props) {
           box={ov().box}
           expanded={overviewExpanded()}
           tokens={tokens()}
+          person={ov().person}
           onOverviewToggle={onOverviewToggle}
         />
         <ActionButtons

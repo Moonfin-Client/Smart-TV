@@ -65,11 +65,13 @@ export const layoutHero = (d, t) => {
   } else if (d.reserveGenres) y += 31.5
 
   // The branding: the title, the logo, or a season's series logo with its own name beside it.
+  // A person's name and facts take the theme's text colour, as Core's person header does.
+  const person = d.isPerson && t && t.os
   if (!d.logo) {
     const lines = wrapSpaced(d.name, 41, 'bold', -0.9, HERO_W)
     lines.slice(0, 2).forEach((ln, i) => {
       const last = i === 1 && lines.length > 2
-      text(o, `title${i}`, x0, y + i * 41.82, ln, 41, 'bold', '#ffffffff', { lh: 41.82, ls: -0.9, maxw: last ? HERO_W : 0, ellipsis: last })
+      text(o, `title${i}`, x0, y + i * 41.82, ln, 41, 'bold', person ? t.onSurface : '#ffffffff', { lh: 41.82, ls: -0.9, maxw: last ? HERO_W : 0, ellipsis: last })
     })
     y += Math.min(2, lines.length) * 41.82
   } else {
@@ -148,8 +150,8 @@ export const layoutHero = (d, t) => {
       mx += w + 6
     }
     d.meta.forEach((piece, i) => {
-      if (i) place(`metaDot${i}`, '·', dotW, '#ffffff66')
-      place(`meta${i}`, piece, textWidth(piece, 16, 'medium'), '#ffffffa8')
+      if (i) place(`metaDot${i}`, '·', dotW, person ? t.os(0.4) : '#ffffff66')
+      place(`meta${i}`, piece, textWidth(piece, 16, 'medium'), person ? t.os(0.66) : '#ffffffa8')
     })
     y += (line + 1) * 24.6 - 7
   }

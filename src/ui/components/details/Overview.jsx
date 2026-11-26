@@ -9,7 +9,8 @@ import { hex } from '../../color.js'
 //
 // Props: `text`, `font`, `box` ({canToggle, textW, lines, width} from modern/hero.js), `expanded`,
 // `tokens`, `x`, `y`, `alpha`, `variant` ('stage' for Stage's 23.4px copy or 'classic' for
-// Classic's tighter, dimmer copy) and `spacing`, the theme's letter spacing (Neon Pulse's 0.6px).
+// Classic's tighter, dimmer copy), `spacing`, the theme's letter spacing (Neon Pulse's 0.6px), and
+// `person`, which writes a biography in the theme's text colour (Core's onSurface) instead of white.
 // Enter calls onOverviewToggle(), and a press with nowhere left to scroll goes on to the page.
 const LH = 29
 const STEP = 58
@@ -23,7 +24,10 @@ export default function Overview(props) {
   const t = () => props.tokens || { accent: '#0a84ffff', focus: '#00a4dcff' }
   const lh = () => (props.variant === 'stage' ? 35.1 : props.variant === 'classic' ? 28 : LH)
   const size = () => (props.variant === 'stage' ? 23.4 : 20)
-  const ink = () => (props.variant === 'stage' ? '#ffffffd1' : props.variant === 'classic' ? '#e6e6e6cc' : '#ffffffd9')
+  const ink = () => {
+    if (props.person && t().os) return t().os(0.85)
+    return props.variant === 'stage' ? '#ffffffd1' : props.variant === 'classic' ? '#e6e6e6cc' : '#ffffffd9'
+  }
   // The box's own height: four lines and the button, or up to 319px open.
   const h = () => {
     if (!b().canToggle) return b().lines * lh()

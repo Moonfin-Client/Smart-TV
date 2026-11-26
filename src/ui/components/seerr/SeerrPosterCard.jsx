@@ -132,7 +132,7 @@ export default function SeerrPosterCard(props) {
       </text>
       <view>
         <Show when={c().subtitle}>
-          <text y={props.h + 41} fontFamily={c().subtitleFont} fontSize={20} lineHeight={27} maxWidth={props.w} maxLines={1} color="#ffffff99">
+          <text y={props.h + 41} fontFamily={c().subtitleFont} fontSize={20} lineHeight={27} maxWidth={props.w} maxLines={1} color={props.subColor || '#ffffff99'}>
             {c().subtitle}
           </text>
         </Show>
@@ -140,7 +140,7 @@ export default function SeerrPosterCard(props) {
       <view>
         <For each={c().subParts || []}>
           {(sp) => (
-            <text x={sp.x} y={props.h + 41} fontFamily={sp.font} fontSize={20} lineHeight={27} maxWidth={props.w - sp.x} maxLines={1} color="#ffffff99">
+            <text x={sp.x} y={props.h + 41} fontFamily={sp.font} fontSize={20} lineHeight={27} maxWidth={props.w - sp.x} maxLines={1} color={props.subColor || '#ffffff99'}>
               {sp.text}
             </text>
           )}

@@ -630,6 +630,7 @@ export default function Details(props) {
         logo,
         title: isEpisode || !logoLive ? (m.bookSeries ? m.bookSeries.Name : it.Name) || '' : '',
         born,
+        person: isPerson,
         meta,
         incomplete,
         anime,
@@ -647,7 +648,7 @@ export default function Details(props) {
     )
     setHero({ rects: laid.rects, imgs: laid.imgs.filter((im) => !im.logo || im.w > 0), texts: laid.texts })
     m.hero = laid
-    setOv(laid.overview ? { show: true, x: laid.overview.x, y: laid.overview.y, text: overviewText, font: fontFor(overviewText), box: laid.overview.box } : NO_OV)
+    setOv(laid.overview ? { show: true, x: laid.overview.x, y: laid.overview.y, text: overviewText, font: fontFor(overviewText), box: laid.overview.box, person: isPerson } : NO_OV)
 
     const row = actionRow(actionInput)
     m.behind = row.behind
@@ -1478,6 +1479,7 @@ export default function Details(props) {
           box={ov().box}
           expanded={overviewExpanded()}
           tokens={tokens()}
+          person={ov().person}
           onOverviewToggle={onOverviewToggle}
         />
         <ActionButtons

@@ -412,6 +412,8 @@ export default function Nouveau(props) {
         textW: b.textW,
         text: prose,
         font: fontFor(prose),
+        // A person's biography takes the theme's text colour.
+        ink: isPerson && tok && tok.os ? tok.os(0.87) : '',
         maxlines: b.canToggle && !m.expanded ? 3 : 0,
         more: m.expanded ? $L('Read Less') : $L('Read More'),
         moreY: shownLines * OVERVIEW_LH + 12,
@@ -850,7 +852,7 @@ export default function Nouveau(props) {
                 lineHeight={24.48}
                 maxWidth={ov().textW}
                 maxLines={ov().maxlines}
-                color="#e6e6e6de"
+                color={ov().ink || '#e6e6e6de'}
               >
                 {ov().text}
               </text>
