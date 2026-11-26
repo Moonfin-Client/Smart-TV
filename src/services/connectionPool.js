@@ -372,7 +372,8 @@ export const getAllLibrariesFromAllServers = async () => {
 };
 
 export const getUserConfigFromAllServers = async () => {
-	const servers = await multiServerManager.getAllServersArray();
+	// The same accounts the libraries are read with, so a save never reaches another saved account on that server.
+	const servers = await getLoggedInServers();
 	const results = [];
 	for (const server of servers) {
 		try {
