@@ -68,6 +68,7 @@ export default function SetupWizard() {
   const regular = () => uiFont()
   let leaving = false
   let gone = false
+  let root
 
   const t = () => theme()
   const selectedFor = (key) => {
@@ -413,6 +414,8 @@ export default function SetupWizard() {
   }
 
   onMount(async () => {
+    // The page stack focuses a page as it opens, before this lazy page has loaded, so it takes focus itself.
+    root.setFocus()
     textReady().then(() => setFontsIn(true))
     const remaining = remainingSteps()
     if (!remaining.length) {
@@ -455,6 +458,7 @@ export default function SetupWizard() {
   )
   return (
     <view
+      ref={root}
       width={1920}
       height={1080}
       color="#000000ff"
