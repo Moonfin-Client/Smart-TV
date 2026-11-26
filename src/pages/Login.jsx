@@ -1367,19 +1367,26 @@ export default function Login(props) {
   const confirmRemove = async () => {
     const target = s.dialog && s.dialog.server
     s.dialog = null
-    if (!target || removing) return focusLater('add-server-btn')
+    if (removing) return
+    if (!target) return focusLater('add-server-btn')
     removing = true
     try {
       // Its Silo logins end in the background (auth.removeSavedServer).
       const { wasActive } = await auth.removeSavedServer(target.serverId)
       // The signed-in user's server went: the next saved user took over, or nobody is signed in.
-      if (wasActive) return router.to(store.authenticated ? '/' : '/login', store.authenticated ? { resume: true } : {}, { inHistory: false })
+      if (wasActive) {
+        removing = false
+        const opts = { inHistory: false }
+        return store.authenticated ? router.to('/', { resume: true }, opts) : router.to('/login', {}, opts)
+      }
     } catch (e) {
       console.warn('[login] Removing the server failed:', e)
+    }
+    try {
+      await reloadAccounts()
     } finally {
       removing = false
     }
-    await reloadAccounts()
     focusLater('add-server-btn')
   }
   const onDialog = (id) => {

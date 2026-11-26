@@ -351,10 +351,17 @@ export const removeSavedServer = async (serverId) => {
   // Read after the push, which may have rotated the tokens.
   const saved = (await multiServerManager.getAllServersArray()).filter((e) => e.serverId === serverId)
   await multiServerManager.removeServer(serverId)
-  const loggedOut = Promise.all(siloLogins(saved).map((e) => endSiloLoginIfLast(e))).catch((e) =>
+  // The logins end once the app has moved off the account, and even if that move fails.
+  const endLogins = () => Promise.all(siloLogins(saved).map((e) => endSiloLoginIfLast(e))).catch((e) =>
     console.warn('[auth] Ending the Silo logins of a removed server failed:', e)
   )
-  if (wasActive) await signInNextOrSignOut()
+  if (!wasActive) return { wasActive, loggedOut: endLogins() }
+  let loggedOut
+  try {
+    await signInNextOrSignOut()
+  } finally {
+    loggedOut = endLogins()
+  }
   return { wasActive, loggedOut }
 }
 
