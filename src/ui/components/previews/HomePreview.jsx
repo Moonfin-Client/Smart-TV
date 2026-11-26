@@ -235,11 +235,11 @@ export default function HomePreview(props) {
   const backdrop = createMemo(() => {
     if (kind() !== 'home' || !live()) return { url: '', placement: 'off' }
     const placement = homeBackdropStyle(props.s)
-    // Home only gets a backdrop from Classic rows or the Aya bar, and an older TV never draws one.
-    const fed = (!modern() || props.s.featuredBarStyle === 'aya') && !legacy
-    if (placement === 'off' || !fed) return { url: '', placement }
-    const first = rows() && rows()[0].items[0]
-    return { url: (first && first.backdropUrl) || (list()[0] && list()[0].backdropUrl) || '', placement }
+    // An older TV never draws one here.
+    if (placement === 'off' || legacy) return { url: '', placement }
+    // The first sample with a backdrop, so the placement shows even when the first card has none.
+    const pick = (rows() ? rows()[0].items : []).concat(list()).find((it) => it && it.backdropUrl)
+    return { url: pick ? pick.backdropUrl : '', placement }
   })
   // The drawn stand-ins while the sample items load, on the 320 by 200 box.
   const fallback = createMemo(() => {

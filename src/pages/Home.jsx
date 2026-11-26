@@ -714,10 +714,9 @@ export default function Home(props) {
   const onRowFocus = (card, rowKey, index, rowIndex) => {
     setMode('rows')
     loadNear(rowIndex)
-    // Classic rows hand the title to the info area, or straight to the backdrop without one.
-    // Modern and Carousel rows leave the backdrop be.
+    // Classic rows with the info area hand the title to it, and every other row goes straight to the backdrop.
     if (look().overlay && detail) detail.focusItem(card.raw)
-    else if (look().style === 'classic') {
+    else {
       clearTimeout(backTimer)
       backTimer = setTimeout(() => setBackItem(card.raw), BACKDROP_SETTLE_MS)
     }
