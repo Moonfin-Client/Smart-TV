@@ -1,10 +1,12 @@
 // The hours Jellyfin lets the signed-in user use the server. Outside them the app says so instead
-// of letting every request fail. The schedule is checked at each moment it could change, when the
-// app comes back and when the server starts refusing requests. Administrators are exempt, as on
-// the server.
+// of letting every request fail. The server enforces the schedule itself, so this is a notice. With
+// a Moonfin plugin that answers Moonfin/AccessWindow, the plugin works the schedule out on the
+// server's clock and says how long until it closes or opens, and that alone decides and times the
+// checks. Without one, the schedule is checked at each moment it could change, when the app comes
+// back and when the server starts refusing requests. Administrators are exempt, as on the server.
 import $L from '../../services/i18n.js'
 import * as jellyfinApi from '../../services/jellyfinApi.js'
-import { isAllowed, nextAccessStart, nextBoundary, readSchedules } from '../../utils/accessSchedule.js'
+import { isAllowed, nextAccessStart, nextBoundary, readSchedules, readWindow } from '../../utils/accessSchedule.js'
 import { formatClockTime, formatDayLabel, shiftedNow } from '../../utils/clock.js'
 import { sameDay } from '../../utils/calendarEntries.js'
 import * as settings from '../settings.js'
@@ -51,6 +53,8 @@ export const watchAccess = (userId) => {
   let schedules = []
   let exempt = false
   let blocked = false
+  // Set when the server says it can't answer the access window, so this user's checks stop asking.
+  let windowUnsupported = false
   // Checks can overlap, so each is numbered and none replaces the answer of one started after it.
   let started = 0
   let applied = 0
@@ -71,9 +75,51 @@ export const watchAccess = (userId) => {
     if (blocked && !was && shellApp()) shellApp().onTimesUp()
   }
 
+  // The plugin's answer alone decides and times the next check.
+  const applyWindow = (answer) => {
+    const at = now()
+    const was = blocked
+    blocked = !answer.allowed
+    if (blocked || was) {
+      // Named on this device's clock, as the moment it comes on it, to the nearest minute: a
+      // schedule opens on a minute, and a clock a moment behind the server's would otherwise name
+      // the minute before.
+      const next = blocked && answer.untilOpenMs !== null
+        ? new Date(Math.round((at.getTime() + answer.untilOpenMs) / 60000) * 60000)
+        : null
+      shell.nextAccess = describeNextAccess(next, at, settings.get('clockDisplay'))
+      shell.timesUp = blocked
+      if (!blocked) jellyfinApi.clearAccessDenied()
+      if (blocked && !was && shellApp()) shellApp().onTimesUp()
+    }
+    // Allowed with nothing to close is a user with no schedule, or one open all week.
+    let wait = !blocked && answer.untilCloseMs === null ? IDLE_WAIT_MS : MAX_WAIT_MS
+    const remaining = blocked ? answer.untilOpenMs : answer.untilCloseMs
+    if (remaining !== null) wait = Math.min(wait, remaining)
+    schedule(Math.max(wait, 1000))
+  }
+
+  // The plugin's window, or null when it can't say. Without the plugin, with one from before the
+  // endpoint (404), or one that can't read the schedule on this server (501), the schedule is
+  // judged here instead for the rest of the session. Any other failure, or a 200 that isn't a
+  // window (a proxy's HTML page, say), falls back for this check only.
+  const loadWindow = () => jellyfinApi.api.getAccessWindow().then(readWindow, (err) => {
+    if (err && (err.status === 404 || err.status === 501)) windowUnsupported = true
+    return null
+  })
+
   async function run() {
     clearTimeout(timer)
     const look = ++started
+    if (!windowUnsupported) {
+      const answer = await loadWindow()
+      if (cancelled || look < applied) return
+      if (answer) {
+        applied = look
+        applyWindow(answer)
+        return
+      }
+    }
     let user
     try {
       user = await jellyfinApi.api.getUserConfiguration()
