@@ -294,15 +294,19 @@ export const logout = async () => {
     await multiServerManager.removeServer(active.serverId, active.userId, { keepServer: true })
   }
   // Silo's refresh token stays good until the login is ended on the server too. As in
-  // removeSavedServer, that waits until the app has moved off the account, and runs even if the
-  // move fails, so a server out of reach doesn't hold up Sign Out.
+  // removeSavedServer, that starts once the app has moved off the account, even if the move fails,
+  // and Sign Out doesn't wait for it, so a server out of reach doesn't hold up the screen.
+  let loggedOut = Promise.resolve()
   try {
     await signInNextOrSignOut()
   } finally {
     if (active) {
-      await endSiloLoginIfLast(active).catch((e) => console.warn('[auth] Ending the Silo login failed:', e))
+      loggedOut = endSiloLoginIfLast(active).catch((e) =>
+        console.warn('[auth] Reading the saved servers to end the Silo login failed:', e)
+      )
     }
   }
+  return { loggedOut }
 }
 
 // After the signed-in user's entries are gone: the next saved user takes over, or nobody is signed in.
@@ -323,13 +327,7 @@ const signInNextOrSignOut = async () => {
 // waits on that one.
 let signingOutAll = null
 export const signOutAll = () => {
-  // No Promise.prototype.finally on webOS 3's Chrome 38, and the legacy build doesn't polyfill it.
-  if (!signingOutAll) {
-    signingOutAll = runSignOutAll().then(
-      () => { signingOutAll = null },
-      (e) => { signingOutAll = null; throw e }
-    )
-  }
+  if (!signingOutAll) signingOutAll = runSignOutAll().finally(() => { signingOutAll = null })
   return signingOutAll
 }
 const runSignOutAll = async () => {

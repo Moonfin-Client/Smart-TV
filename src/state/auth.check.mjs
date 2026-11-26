@@ -29,7 +29,7 @@ const STUBS = {
     export const getApiKey = () => auth.token
     export const reportCapabilities = () => {}
     export const createApiForServer = (url, token, userId, type) => ({
-      logout: async () => { logouts.push({ url, token, userId, type, loaded: globalThis.__sessionsLoaded === true, signedInAs: globalThis.__store?.userId }) },
+      logout: async () => { logouts.push({ url, token, userId, type, loaded: globalThis.__sessionsLoaded === true, signedInAs: globalThis.__store?.userId }); await globalThis.__logoutGate },
     })
     export const api = { getUserConfiguration: async () => ({ Id: auth.userId, Name: 'user ' + auth.userId }) }`,
   'services/i18n.js': `export default (s) => s`,
@@ -108,7 +108,7 @@ for (const who of ['main', 'kid']) {
   await test(`Sign Out on the ${who} profile removes the whole Silo account and ends its login once`, async () => {
     const ids = await seed()
     await signInAs(ids.silo, who)
-    await auth.logout()
+    await (await auth.logout()).loggedOut
     assert.deepEqual(await savedUsers(), ['jf', 'other'])
     assert.deepEqual(logouts.map((l) => [l.url, l.token, l.type]), [[SILO, 'tok-a', 'silo']])
     assert.equal(globalThis.__store.authenticated, true)
@@ -117,18 +117,32 @@ for (const who of ['main', 'kid']) {
   })
 }
 
-await test('Sign Out moves to the next user before ending the Silo login, so a server out of reach doesn\'t hold it up', async () => {
+await test('Sign Out moves to the next user without waiting for the Silo logout, so a server out of reach doesn\'t hold it up', async () => {
   const ids = await seed()
   await signInAs(ids.silo, 'main')
-  await auth.logout()
-  assert.equal(logouts.length, 1)
-  assert.ok(!['main', 'kid'].includes(logouts[0].signedInAs), `ended while signed in as ${logouts[0].signedInAs}`)
+  let release
+  globalThis.__logoutGate = new Promise((resolve) => { release = resolve })
+  let loggedOut = Promise.resolve()
+  try {
+    // Sign Out is done while the server still hasn't answered the logout.
+    const done = await Promise.race([auth.logout(), new Promise((resolve) => setTimeout(resolve, 1000, null))])
+    assert.ok(done, 'Sign Out waited on the Silo logout')
+    loggedOut = done.loggedOut
+    assert.ok(!['main', 'kid'].includes(globalThis.__store.userId))
+    for (let i = 0; i < 50 && !logouts.length; i++) await new Promise((resolve) => setTimeout(resolve, 0))
+    assert.equal(logouts.length, 1, 'the logout has started')
+    assert.ok(!['main', 'kid'].includes(logouts[0].signedInAs), `ended while signed in as ${logouts[0].signedInAs}`)
+  } finally {
+    release()
+    await loggedOut
+    delete globalThis.__logoutGate
+  }
 })
 
 await test('Sign Out of a Jellyfin user leaves the Silo profiles and logins alone', async () => {
   const ids = await seed()
   await signInAs(ids.jf, 'jf')
-  await auth.logout()
+  await (await auth.logout()).loggedOut
   assert.deepEqual(await savedUsers(), ['kid', 'main', 'other'])
   assert.equal(logouts.length, 0)
 })
@@ -137,7 +151,7 @@ await test('A profile saved before its account, sharing only the token, still go
   const ids = await seed()
   await msm.addServer(SILO, 'Silo', 'teen', 'Teen', 'tok-a', null, 'silo')
   await signInAs(ids.silo, 'main')
-  await auth.logout()
+  await (await auth.logout()).loggedOut
   assert.deepEqual(await savedUsers(), ['jf', 'other'])
 })
 
