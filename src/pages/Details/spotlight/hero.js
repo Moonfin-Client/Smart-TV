@@ -160,8 +160,8 @@ export const layoutSpotlightHero = (d, t) => {
     }
     const iy = top + (rowH - infoH) / 2
     // The name and birth line take the theme's text colour, as Core's person header does.
-    text(out, 'title', ix, iy, d.title, 52, 'bold', t.onSurface, { lh: 59.8, maxw: x0 + W - ix, maxlines: 1 })
-    if (d.born) text(out, 'born', ix, iy + 59.8 + 6, d.born, 20, 'regular', t.os(0.7), { lh: 33 })
+    text(out, 'title', ix, iy, d.title, 52, 'bold', t && t.os ? t.onSurface : '#ffffffff', { lh: 59.8, maxw: x0 + W - ix, maxlines: 1 })
+    if (d.born) text(out, 'born', ix, iy + 59.8 + 6, d.born, 20, 'regular', t && t.os ? t.os(0.7) : '#ffffffb3', { lh: 33 })
     y = top + rowH
   } else {
     if (d.tagline) {

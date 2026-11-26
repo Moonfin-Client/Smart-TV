@@ -433,9 +433,10 @@ export default function Collection(props) {
               {h().overview}
             </text>
             <view x={72} y={h().buttonY} width={h().buttonW} height={67} pivot={0.5} scale={buttonFocused() ? 1.03 : 1} alpha={showRequest() ? 1 : 0}>
-              <view width={h().buttonW} height={67} borderRadius={10} color={theme().accent} />
+              {/* Focused, it takes the theme's focused-button fill: a focus ring alone vanishes on an accent fill of the same colour (Moonfin, Neon Pulse). */}
+              <view width={h().buttonW} height={67} borderRadius={10} color={buttonFocused() ? theme().buttonFocused : theme().accent} />
               <view width={h().buttonW} height={67} borderRadius={10} color="#00000000" border={{ width: 3, color: hex(theme().focus) }} alpha={buttonFocused() ? 1 : 0} />
-              <text x={37} y={19} fontFamily={buttonFont} fontSize={24} lineHeight={33} color={theme().onAccent}>
+              <text x={37} y={19} fontFamily={buttonFont} fontSize={24} lineHeight={33} color={buttonFocused() ? theme().onButtonFocused : theme().onAccent}>
                 {h().buttonLabel}
               </text>
             </view>
