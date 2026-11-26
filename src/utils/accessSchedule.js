@@ -73,3 +73,20 @@ export const nextBoundary = (schedules, now) => {
 	}
 	return earliest;
 };
+
+/**
+ * The Moonfin plugin's access window from Moonfin/AccessWindow, judged on the server's clock:
+ * whether the user is let in now, and how long until that changes. Durations are in
+ * milliseconds, rounded up to the second so a check timed from them never comes early, and null
+ * when left out. Null for an answer without `allowed`.
+ *
+ * @param {object} [json] the plugin's `{allowed, secondsUntilClose, secondsUntilOpen}`
+ * @returns {{allowed: boolean, untilCloseMs: number|null, untilOpenMs: number|null}|null}
+ */
+export const readWindow = (json) => {
+	if (!json || typeof json !== 'object' || typeof json.allowed !== 'boolean') return null;
+	const ms = (value) => (typeof value === 'number' && Number.isFinite(value) && value >= 0
+		? Math.ceil(value) * 1000
+		: null);
+	return {allowed: json.allowed, untilCloseMs: ms(json.secondsUntilClose), untilOpenMs: ms(json.secondsUntilOpen)};
+};

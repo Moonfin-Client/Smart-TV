@@ -606,6 +606,10 @@ export const api = {
 
 	getCurrentUser: () => request('/Users/Me'),
 
+	// The Moonfin plugin's answer to whether the user's access schedule lets them in, judged on
+	// the server's clock. It answers outside the schedule too.
+	getAccessWindow: () => request('/Moonfin/AccessWindow'),
+
 	updateUserConfiguration: (config) => {
 		userRead = null;
 		return request(userRoutes.configuration(), {
