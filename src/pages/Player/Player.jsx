@@ -2598,7 +2598,7 @@ export default function Player(props) {
       s.paused = true
     }),
     // An admin ended this item's Silo session: playback stops, the player closes, and the screen behind says why.
-    playback.onEndedOnServer(async (endedId) => {
+    playback.onEndedOnServer(async (endedId, reason) => {
       if (endedId == null || String(endedId) !== String(s.itemId) || my.ending === endedId || my.closing) return
       my.ending = endedId
       my.reconnect.end()
@@ -2609,7 +2609,7 @@ export default function Player(props) {
       if (props.slideshow) props.slideshow.onExit()
       else router.back()
       const app = shellApp()
-      if (app && app.showEndedOnServer) app.showEndedOnServer()
+      if (app && app.showEndedOnServer) app.showEndedOnServer(reason)
     }),
     engine.on('buffering', (b) => {
       s.buffering = b

@@ -540,8 +540,19 @@ const upgradeRequired = () => Object.assign(new Error(SILO_PLAYBACK_UPGRADE_REQU
  * past a tenth of its life before a plan's stream is handed out. `onPlaying(itemId, fileId,
  * runTimeSeconds, source)` hears which file each plan plays, whose markers and tracks the player then uses.
  */
-export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken, freshenStreamAuth = async () => {}, getDeviceInfo, platform, getItem, onPlaying, wait = sleep}) => {
+export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken, freshenStreamAuth = async () => {}, getDeviceInfo, platform, getItem, onPlaying, onSessionPlaying, onSessionEnded, wait = sleep}) => {
 	const sessions = {};
+
+	// What the playback control lane needs of a session: who it is, and whether it still plays.
+	const laneOf = (session) => ({
+		sessionId: session.sessionId,
+		installationId: session.installationId,
+		live: () => sessions[session.sessionId] === session && !session.ended && !session.stopping,
+		// An admin's terminate already ended it on Silo, so the player's stop sends nothing more.
+		retire: () => {
+			session.ended = true;
+		}
+	});
 	let capabilities = null;
 
 	const readCapabilities = (refresh = false) => {
@@ -691,6 +702,11 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 			stop(session, 0).catch(() => {}); // eslint-disable-line no-use-before-define
 			return asPlaybackInfo(session, body.SubtitleStreamIndex);
 		}
+		// A session Silo retired for this title is replaced, and the player never stops it under its old id.
+		Object.keys(sessions).filter((id) => id !== sessionId && sessions[id].itemId === itemId && sessions[id].ended).forEach((id) => {
+			delete sessions[id];
+			if (onSessionEnded) onSessionEnded(id);
+		});
 		sessions[sessionId] = session;
 		await freshenStreamAuth();
 		return playingTracks(session, asPlaybackInfo(session, body.SubtitleStreamIndex));
@@ -782,6 +798,8 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		session.source = await sourceOfPlan(next, session.itemId, session.source?.Id, session.source);
 		session.plan = next;
 		session.planAttemptId = siloNewUuid();
+		// A lane given up on gets another try.
+		if (onSessionPlaying) onSessionPlaying(laneOf(session));
 		await freshenStreamAuth();
 		return playingTracks(session, asPlaybackInfo(session, body.SubtitleStreamIndex));
 	};
@@ -831,6 +849,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		} finally {
 			session.ended = true;
 			delete sessions[session.sessionId];
+			if (onSessionEnded) onSessionEnded(session.sessionId);
 		}
 	};
 
@@ -844,8 +863,13 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		// What Play would get, for the details screen. Silo only answers inside a session, so it's ended right away.
 		previewPlaybackInfo: (itemId, body = {}, item = null) => start(itemId, body, item, true),
 
-		// Silo opens the session when the start answers, so there's nothing to say at the start.
-		reportPlaybackStart: async () => null,
+		// Silo opens the session when the start answers, so there's nothing to say at the start. Its playback control
+		// lane opens now, after playback started, so nothing waits on it.
+		reportPlaybackStart: async (info) => {
+			const session = sessions[info?.PlaySessionId];
+			if (session && !session.ended && !session.stopping && onSessionPlaying) onSessionPlaying(laneOf(session));
+			return null;
+		},
 
 		// One sample: where the title is (the stream's position plus where it starts), paused or not, numbered. A
 		// sample Silo already has under its number goes once more under the next one. A session Silo ended takes no more.
@@ -881,6 +905,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 			if (session.stopping) return session.stopping;
 			if (session.ended) {
 				delete sessions[session.sessionId];
+				if (onSessionEnded) onSessionEnded(session.sessionId);
 				return Promise.resolve(null);
 			}
 			session.stopping = stop(session, info.PositionTicks);

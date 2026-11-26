@@ -133,6 +133,8 @@ export const setRoomDriver = (driver) => {
 export const isRoomDriven = () => Boolean(roomDriver && roomDriver.correctsDrift !== false);
 // A room whose players correct their own drift (Moonbase's).
 export const isSelfCorrectingRoom = () => Boolean(roomDriver && roomDriver.correctsDrift === false);
+// A watch party room that would take a pause or resume and do nothing with it (a guest of a host-only room).
+export const roomBlocksTransport = () => Boolean(roomDriver && roomDriver.blocksTransport);
 export const feedRoomMessage = (msg) => handleWebSocketMessage(msg); // eslint-disable-line no-use-before-define
 export const setServerTimeOffset = (ms) => {
 	serverTimeOffset = ms;

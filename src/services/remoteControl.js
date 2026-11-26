@@ -307,7 +307,8 @@ const handlePlay = (data) => {
 	});
 };
 
-const handleMessage = (message) => {
+// Runs one remote message. Silo's playback control lane runs its commands through it too.
+export const handleMessage = (message) => {
 	switch (message?.MessageType) {
 		case 'Playstate':
 			return handlePlaystate(message.Data);

@@ -52,6 +52,9 @@ import { hasMergedCopies, mergesLibraries } from './utils/mergedCopies.js'
 import { findEveryCopy } from './services/mergedTitleReads.js'
 import { hasMultipleServers } from './services/multiServerManager.js'
 import * as remoteControl from './services/remoteControl.js'
+import { endSessionByServer, playsSiloSession } from './services/playback.js'
+import { roomBlocksTransport } from './services/syncPlay.js'
+import { setSiloPlaybackControlHandlers } from './services/siloPlaybackControl.js'
 import { offerRemoteSearch } from './pages/Search/remoteSearch.js'
 
 if (import.meta.env.VITE_LAB) import('./ui/components/shell/lab/Lab.jsx')
@@ -228,8 +231,9 @@ const Shell = (props) => {
       setNote('remoteNote', { key: Date.now(), title: (header && header.trim()) || $L('Remote message'), body: text })
     },
     // The player closed because an admin ended its Silo session, so the screen it returns to says why.
-    showEndedOnServer() {
-      setNote('remoteNote', { key: Date.now(), title: $L('Playback was ended on the Silo server.') })
+    // An admin's reason for ending it, when Silo gave one, goes under.
+    showEndedOnServer(reason) {
+      setNote('remoteNote', { key: Date.now(), title: $L('Playback was ended on the Silo server.'), ...(reason ? { body: reason } : null) })
     },
     // shortcut: there's no Seerr settings stream (state/seerr.js), so nothing calls this. Call it with
     // the stream's seerrNotification events once there is one.
@@ -468,6 +472,17 @@ const Shell = (props) => {
         queueItems() {},
       },
     })
+    // Silo's playback control lane runs its commands the way a Jellyfin remote's are run.
+    onCleanup(
+      setSiloPlaybackControlHandlers({
+        run: remoteControl.handleMessage,
+        plays: playsSiloSession,
+        terminate: endSessionByServer,
+        // An admin stopped playback from Silo's dashboard and said why.
+        stopped: (reason) => app.showRemoteMessage(reason, $L('Playback was stopped on the Silo server.')),
+        transportHeld: roomBlocksTransport,
+      }),
+    )
     router.to('/')
   })
   onCleanup(() => window.removeEventListener('keydown', onKey, true))
