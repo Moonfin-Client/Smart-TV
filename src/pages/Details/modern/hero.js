@@ -258,12 +258,14 @@ const titleBlock = (out, d, x0, y0, maxW, t) => {
   if (d.title) {
     const ty = at()
     const lines = wrapLines(d.title, 52, 'bold', maxW)
-    lines.forEach((ln, i) => text(out, `title${i}`, x0, ty + i * 63.44, ln, 52, 'bold', '#ffffffff', { lh: 63.44 }))
+    // A person's name and birth line take the theme's text colour, as Core's person header does.
+    const ink = d.person && t ? t.onSurface : '#ffffffff'
+    lines.forEach((ln, i) => text(out, `title${i}`, x0, ty + i * 63.44, ln, 52, 'bold', ink, { lh: 63.44 }))
     y = ty + lines.length * 63.44
   }
   if (d.born) {
     const by = at()
-    text(out, 'born', x0, by, d.born, 20, 'regular', '#ffffffb3', { lh: 33 })
+    text(out, 'born', x0, by, d.born, 20, 'regular', t ? t.os(0.7) : '#ffffffb3', { lh: 33 })
     y = by + 33
   }
   if (d.meta.length) {

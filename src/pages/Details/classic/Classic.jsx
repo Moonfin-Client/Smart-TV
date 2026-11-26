@@ -589,7 +589,7 @@ export default function Classic(props) {
         <Draw list={drawn()} w={1920} h={contentH()} />
 
         <view alpha={personOv().show ? 1 : 0} x={personOv().x} y={personOv().y} width={personOv().w} height={personOv().h}>
-          <view width={personOv().w} height={personOv().h} borderRadius={8} color={personOvFocus() ? '#ffffff14' : '#ffffff00'} />
+          <view width={personOv().w} height={personOv().h} borderRadius={8} color={personOvFocus() ? t().os(0.08) : '#00000000'} />
           <text
             x={12}
             y={10}
@@ -599,7 +599,7 @@ export default function Classic(props) {
             letterSpacing={t().spacing || 0}
             maxWidth={Math.max(1, personOv().w - 24)}
             maxLines={personOv().lines}
-            color="#ffffffcc"
+            color={t().os(0.8)}
           >
             {personOv().text}
           </text>
