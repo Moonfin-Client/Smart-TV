@@ -4,6 +4,7 @@ import { plexTrickplayFrameUrl } from '../../../utils/plexUrls.js'
 import { planSeekSheetIndexes, trickplayTile } from '../../../utils/trickplaySheets.js'
 import { VERTICAL_TRAVEL_TOP_MARGIN, planTrickplayPreview } from '../../../utils/trickplayLayout.js'
 import * as settings from '../../../state/settings.js'
+import { zoomInternalFromSetting } from '../../../utils/playbackTuning.js'
 import { theme, shadowColor } from '../../theme.js'
 import { hex } from '../../color.js'
 import { BAR } from './osdLayout.js'
@@ -25,7 +26,7 @@ const coverSize = (tile, zoomMode) => {
   const fit = Math.min(1920 / tile.width, 1080 / tile.height)
   const crop = Math.max(1920 / tile.width, 1080 / tile.height)
   if (zoomMode === 'stretch') return { width: 1920, height: 1080 }
-  const scale = zoomMode === 'autoCrop' ? crop : fit
+  const scale = zoomMode === 'fill' ? crop : fit
   return { width: tile.width * scale, height: tile.height * scale }
 }
 
@@ -54,7 +55,7 @@ export default function TrickplayPreview(props) {
       scale: s.trickPlayPreviewScale != null ? s.trickPlayPreviewScale : 30,
       vertical: s.trickPlayVerticalPosition || 0,
       follow: s.trickPlayFollowScrub !== false,
-      zoom: s.playerZoomMode || 'fit',
+      zoom: zoomInternalFromSetting(s.playerZoomMode),
     }
   })
   // The tile border and glow follow the theme's accent and text color.

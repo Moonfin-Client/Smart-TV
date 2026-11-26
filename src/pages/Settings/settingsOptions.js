@@ -1,4 +1,5 @@
 import $L from '../../services/i18n.js';
+import {isRoku} from '../../platform.js';
 import {SUBTITLE_FONTS} from '../../services/subtitleFonts';
 
 import {PLAYBACK_TIME_DISPLAYS, PLAYBACK_TIME_SLOTS} from '../../utils/playbackTimeLabels';
@@ -606,10 +607,11 @@ export const getTrickplayModeOptions = () => [
 	{ value: 'full', label: $L('Full Screen') }
 ];
 
+// Roku's player always keeps the picture's shape, so it has no Stretch.
 export const getZoomModeOptions = () => [
 	{ value: 'fit', label: $L('Fit') },
 	{ value: 'autoCrop', label: $L('Zoom to Fill') },
-	{ value: 'stretch', label: $L('Stretch') }
+	...(isRoku() ? [] : [{ value: 'stretch', label: $L('Stretch') }])
 ];
 
 export const getMediaSegmentAutoHideOptions = () => [

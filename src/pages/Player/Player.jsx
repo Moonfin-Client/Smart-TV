@@ -56,7 +56,7 @@ import * as settings from '../../state/settings.js'
 import { getStore, toast } from '../../state/store.js'
 import { browseRefresh } from '../../state/browseCache.js'
 import { router } from '../../app/router.js'
-import { getPlatform, isVega } from '../../platform.js'
+import { getPlatform, isRoku, isVega } from '../../platform.js'
 import { applyResumeRewind, skipBackSeconds, skipForwardSeconds, zoomInternalFromSetting, zoomSettingFromInternal } from '../../utils/playbackTuning.js'
 import { chapterStep, chapterMarkerPositions } from '../../utils/chapterMarkers.js'
 import { formatPlaybackDuration, formatPlaybackTimeSlot } from '../../utils/playbackTimeLabels.js'
@@ -2058,9 +2058,9 @@ export default function Player(props) {
       my.recovery.setPaused(false)
     }
   }
-  // Fit, Zoom to Fill and Stretch in turn, kept as the Zoom setting.
+  // Fit, Zoom to Fill and Stretch in turn, kept as the Zoom setting. Roku has no Stretch.
   function toggleZoom() {
-    const next = s.zoomMode === 'fit' ? 'fill' : s.zoomMode === 'fill' ? 'stretch' : 'fit'
+    const next = s.zoomMode === 'fit' ? 'fill' : s.zoomMode === 'fill' && !isRoku() ? 'stretch' : 'fit'
     s.zoomMode = next
     settings.set('playerZoomMode', zoomSettingFromInternal(next))
     engine.setZoom(next, my.aspect)

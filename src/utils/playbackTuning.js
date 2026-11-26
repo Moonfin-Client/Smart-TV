@@ -1,3 +1,5 @@
+import {isRoku} from '../platform.js';
+
 const TICKS_PER_SECOND = 10000000;
 
 // The resume rewind is stored as a string count of seconds, the same shape the
@@ -24,10 +26,10 @@ export const skipForwardSeconds = (settings) => {
 };
 
 // The players call the cropping mode fill, while the stored setting keeps the
-// name the other clients sync for it.
+// name the other clients sync for it. Roku plays a synced Stretch as Fit.
 export const zoomInternalFromSetting = (value) => {
 	if (value === 'autoCrop') return 'fill';
-	if (value === 'stretch') return 'stretch';
+	if (value === 'stretch' && !isRoku()) return 'stretch';
 	return 'fit';
 };
 
