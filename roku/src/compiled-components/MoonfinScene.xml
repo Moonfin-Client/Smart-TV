@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="MoonfinScene" extends="Scene" backExitsScene="false">
+    <children>
+        <MoonfinApp id="app" />
+    </children>
+    <script type="text/brightscript" uri="MoonfinScene.brs" />
+</component>

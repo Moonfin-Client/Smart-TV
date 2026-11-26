@@ -1,0 +1,5 @@
+allowBuilds:
+  "@roku-sdk/tooling": true
+  "@parcel/watcher": false
+  esbuild: false
+  unrs-resolver: false

@@ -1,0 +1,13 @@
+node_modules
+.roku
+dist-dev
+dist-build
+src/compiled-components/*.xml.d.ts
+pkg/fonts
+pkg/icons
+pkg/images
+pkg/spinner
+pkg/loading
+pkg/seasonal
+pkg/party
+pkg/resources

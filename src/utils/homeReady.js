@@ -5,6 +5,8 @@ const FALLBACK_MS = 10000;
 
 let ready = null;
 let markReady = null;
+let shown = null;
+let markShown = null;
 
 const readyPromise = () => {
 	if (!ready) {
@@ -16,9 +18,14 @@ const readyPromise = () => {
 	return ready;
 };
 
+// Resolves once Home has drawn, with no fallback, for Roku's launch beacon.
+export const whenHomeShown = () => shown || (shown = new Promise((resolve) => (markShown = resolve)));
+
 export const markHomeReady = () => {
 	readyPromise();
 	markReady();
+	whenHomeShown();
+	markShown();
 };
 
 let settled = null;

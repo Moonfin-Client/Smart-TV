@@ -1,0 +1,27 @@
+{
+  "name": "moonfin-roku",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "rk build",
+    "dev": "rk dev"
+  },
+  "dependencies": {
+    "@roku-sdk/common": "2.20.0",
+    "@roku-sdk/components": "2.20.0",
+    "@roku-sdk/interfaces": "2.20.0",
+    "@roku-sdk/rsg-ts": "2.20.0",
+    "@roku-sdk/runtime": "2.20.0",
+    "@roku-sdk/solid": "2.20.0",
+    "@roku-sdk/text-layout": "2.20.0",
+    "@roku-sdk/tooling": "2.20.0"
+  },
+  "devDependencies": {
+    "@roku-sdk/dev-tools": "2.20.0",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}
