@@ -45,7 +45,8 @@ const STUBS = {
   'services/plexTv.js': `export const bestPlexAddress = async (e) => e.url`,
   'services/siloSession.js': noop(['onSiloSessionEnded', 'onSiloTokensRotated']) + `
     export const siloServerKey = (u) => u
-    export const loadSiloSessions = async () => { globalThis.__sessionsLoaded = true }`,
+    export const loadSiloSessions = async () => { globalThis.__sessionsLoaded = true }
+    export const siloSessionFor = (server, token) => (globalThis.__siloSessions || []).find((s) => s.tokens.accessToken === token || s.aliases.includes(token)) || null`,
   'services/notificationPrefs.js': `export const syncNotificationPrefs = async () => {}`,
   'utils/signInPin.js': noop(['noteProvedSignIn']),
   'state/settingsSync.js': `export const flushes = (globalThis.__flushes = [])
@@ -172,6 +173,17 @@ await test('The Silo login is not ended while another saved entry still holds it
   assert.equal(logouts.filter((l) => l.token === 'tok-b').length, 0)
   await auth.endSiloLoginIfLast({ serverType: 'silo', url: SILO, accessToken: 'tok-gone', userId: 'x' })
   assert.equal(logouts.filter((l) => l.token === 'tok-gone').length, 1)
+})
+
+await test('The Silo login is not ended when the entry still holding it moved to a refreshed token', async () => {
+  await seed()
+  globalThis.__siloSessions = [{ tokens: { accessToken: 'tok-b' }, aliases: ['tok-b-old'] }]
+  try {
+    await auth.endSiloLoginIfLast({ serverType: 'silo', url: SILO, accessToken: 'tok-b-old', userId: 'x' })
+  } finally {
+    globalThis.__siloSessions = null
+  }
+  assert.equal(logouts.filter((l) => l.token === 'tok-b-old').length, 0)
 })
 
 await test('Remove Server drops every user on that server and ends each of its Silo logins once', async () => {

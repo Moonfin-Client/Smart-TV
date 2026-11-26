@@ -13,7 +13,7 @@ import * as serverSocket from '../services/serverSocket.js'
 import * as userDataSync from '../services/userDataSync.js'
 import * as remoteControl from '../services/remoteControl.js'
 import { bestPlexAddress } from '../services/plexTv.js'
-import { loadSiloSessions, onSiloSessionEnded, onSiloTokensRotated, siloServerKey } from '../services/siloSession.js'
+import { loadSiloSessions, onSiloSessionEnded, onSiloTokensRotated, siloServerKey, siloSessionFor } from '../services/siloSession.js'
 import { syncNotificationPrefs } from '../services/notificationPrefs.js'
 import { parseUrl } from '../utils/urlCompat.js'
 import { noteProvedSignIn } from '../utils/signInPin.js'
@@ -271,11 +271,15 @@ const endSiloLogin = async (entry) => {
 const SILO_LOGOUT_WAIT_MS = 5000
 
 // A Silo login is the account's, shared by its household profiles, so it ends only with the last
-// of them saved here.
+// of them saved here. `entry` may be from before a refresh moved the kept entries to a new token,
+// so they're matched against the session's tokens as they are now.
 export const endSiloLoginIfLast = async (entry) => {
   if (entry?.serverType !== 'silo' || !entry.accessToken) return
+  await loadSiloSessions()
+  const session = siloSessionFor(entry.url, entry.accessToken)
+  const tokens = session ? [session.tokens?.accessToken, ...session.aliases].filter(Boolean) : [entry.accessToken]
   const shared = (await multiServerManager.getAllServersArray()).some(
-    (other) => other.serverType === 'silo' && other.accessToken === entry.accessToken
+    (other) => other.serverType === 'silo' && tokens.includes(other.accessToken)
   )
   if (!shared) await endSiloLogin(entry)
 }
