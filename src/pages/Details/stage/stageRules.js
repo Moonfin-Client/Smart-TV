@@ -56,12 +56,12 @@ const episodeCode = (item) => (item.ParentIndexNumber != null && item.IndexNumbe
 	: null);
 
 // How far into the title the viewer is, or for a show into the episode it would resume, and the line
-// beside the bar. Null when there's nowhere to resume.
+// beside the bar, a rewatch of a watched one included. Null when there's nowhere to resume.
 export const resumeLine = (item, nextUp) => {
 	const target = item.Type === 'Series' ? nextUp?.[0] : item;
 	const runtime = target?.RunTimeTicks;
 	const position = target?.UserData?.PlaybackPositionTicks;
-	if (!target || target.UserData?.Played || !(runtime > 0) || !(position > 0) || position >= runtime) return null;
+	if (!target || !(runtime > 0) || !(position > 0) || position >= runtime) return null;
 	const left = $L('{time} remaining').replace('{time}', formatDuration(runtime - position));
 	return {
 		percent: (position / runtime) * 100,

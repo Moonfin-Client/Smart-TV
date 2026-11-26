@@ -647,13 +647,14 @@ const playedPercentage = (position, duration) => {
 
 // Jellyfin's UserData from the places Silo keeps it: user_state on every item, user_data on series, seasons and
 // watch answers, user_rating (1 to 10, as it is here), and the position on a Continue Watching card. Silo only
-// knows whether something was watched, not how often.
+// knows whether something was watched, not how often. A rewatch keeps the watched flag and saves a position, which
+// stays here so the episode resumes, as Jellyfin does.
 const userData = (type, item) => {
 	const state = item.user_state || {};
 	const data = item.user_data || {};
 	const played = state.played === true || data.played === true;
 	const position = data.position_seconds != null ? data.position_seconds : item.position_seconds;
-	const positionSeconds = typeof position === 'number' && position > 0 && !played ? position : 0;
+	const positionSeconds = typeof position === 'number' && position > 0 ? position : 0;
 	const duration = data.duration_seconds != null ? data.duration_seconds : item.duration_seconds;
 	const lastPlayed = siloTimestamp(item.progress_updated_at) || siloTimestamp(item.sort_metrics?.viewed_at);
 	const out = {
@@ -674,7 +675,7 @@ const userData = (type, item) => {
 export const siloProgressToUserData = (entry) => {
 	const completed = entry?.completed === true;
 	const position = entry?.position_seconds;
-	const positionSeconds = typeof position === 'number' && position > 0 && !completed ? position : 0;
+	const positionSeconds = typeof position === 'number' && position > 0 ? position : 0;
 	const out = {PlaybackPositionTicks: secondsToTicks(positionSeconds), PlayCount: completed ? 1 : 0, Played: completed};
 	const pct = playedPercentage(positionSeconds, entry?.duration_seconds);
 	if (pct != null) out.PlayedPercentage = pct;

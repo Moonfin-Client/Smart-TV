@@ -8,7 +8,8 @@ const isPlayableEpisode = (ep) => !ep.IsVirtualItem && ep.LocationType !== 'Virt
 
 const isPlayed = (ep) => Boolean(ep.UserData?.Played);
 const resumeTicks = (ep) => ep.UserData?.PlaybackPositionTicks || 0;
-const isInProgress = (ep) => !isPlayed(ep) && resumeTicks(ep) > 0;
+// A rewatch keeps the watched flag and has a position again, so it counts as in progress too.
+const isInProgress = (ep) => resumeTicks(ep) > 0;
 
 // A Next Up marked played is stale until the series asks the server again, so the run goes on from
 // the first unwatched episode after it.
@@ -18,8 +19,8 @@ const freshNextUp = (episodes, nextUp) => {
 	return at < 0 ? null : episodes.slice(at + 1).find((ep) => !isPlayed(ep)) || null;
 };
 
-// A fully watched or fully untouched run starts from the first episode. Anything
-// else continues: Next Up when the server offers it, else the episode part way
+// A fully untouched run starts from the first episode, and so does a fully watched
+// one unless an episode of it is being rewatched. Anything else continues: Next Up when the server offers it, else the episode part way
 // through, else the first unwatched one. First unwatched alone isn't enough,
 // since a skipped episode or a special counts as unwatched and can sit behind
 // the one actually being watched.
@@ -29,11 +30,12 @@ export const pickEpisodePlayTarget = (episodes, nextUp = null) => {
 	const allWatched = list.every(isPlayed);
 	const allUnwatched = list.every((ep) => !isPlayed(ep) && resumeTicks(ep) === 0);
 	if (allWatched || allUnwatched) {
-		return list.find((ep) => ep.ParentIndexNumber === 1 && ep.IndexNumber === 1) || list[0];
+		const rewatching = allWatched && list.find(isInProgress);
+		return rewatching || list.find((ep) => ep.ParentIndexNumber === 1 && ep.IndexNumber === 1) || list[0];
 	}
 	return freshNextUp(list, nextUp) || list.find(isInProgress) || list.find((ep) => !isPlayed(ep)) || list[0];
 };
 
-// Resume only when the target itself was left part way through, so an unwatched
-// target still starts clean.
-export const shouldResumeTarget = (target) => Boolean(target) && !isPlayed(target) && resumeTicks(target) > 0;
+// Resume only when the target itself was left part way through, watched before or not,
+// so a target without a position still starts clean.
+export const shouldResumeTarget = (target) => Boolean(target) && isInProgress(target);
