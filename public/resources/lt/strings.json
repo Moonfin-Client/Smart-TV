@@ -1253,5 +1253,22 @@
     "25 points a piece.": "Po 25 taškus.",
     "1 more press": "Dar 1 paspaudimas",
     "60 days": "60 dienų",
-    "7 days": "7 dienos"
+    "7 days": "7 dienos",
+    "Bookshelf": "Knygų lentyna",
+    "Gallery": "Galerija",
+    "Signing in...": "Prisijungiama...",
+    "Source": "Šaltinis",
+    "Studio": "Studija",
+    "Date Added: {date}": "Pridėjimo data:{date}",
+    "Sign in with a password": "Prisijungti su slaptažodžiu",
+    "Sign in with Plex": "Prisijungti su Plex",
+    "Decade (Year)": "Dešimtmetis (metai)",
+    "Open Watch Parties": "Atidaryti bendrą žiūrėjimą",
+    "Parties you can watch show up here. Got a code from someone? Pick Join with a code.": "Čia rodomi bendri žiūrėjimai, prie kurių galite prisijungti. Turite kodą? Pasirinkite „Prisijungti su kodu“.",
+    "Start one or join one in progress": "Pradėkite arba prisijunkite prie vykstančio žiūrėjimo",
+    "Start parties with": "Pradėti bendrą žiūrėjimą su",
+    "Watch with friends on this server, everyone in step": "Žiūrėkite su draugais šiame serveryje, visi vienu metu",
+    "New Request Notifications": "Naujų užklausų pranešimai",
+    "Request Updates": "Užklausų atnaujinimai",
+    "Issue Updates": "Problemų atnaujinimai"
 }
