@@ -5,18 +5,22 @@ import { theme, rgba } from '../../theme.js'
 import { hex } from '../../color.js'
 import { highMs } from '../../tier.js'
 import { INFO, infoLayout, infoThumb } from './modalLayouts.js'
+import { textWidth } from './look.js'
 import { tx } from '../../fx.js'
 
 // The Playback Information panel: buildPlaybackInfo's sections over a dim scrim. The list holds
 // focus, so Up and Down scroll it 200 at a time, OK closes it and Back is the holder's. The holder
-// mounts it, calls open(sections), then setSections(sections) once the slower answers come in, and
-// hears closePanel(). The renderer sets a line of text a little higher than CSS does (the headings
+// mounts it, calls open(sections, action), then setSections(sections) once the slower answers come
+// in, and hears closePanel(). `action` labels a button under the list, which Down at the list's end
+// moves onto and OK presses (onAction()). The renderer sets a line of text a little higher than CSS does (the headings
 // excepted), so the text positions carry that back.
 const LINE = { header: 27 * 1.17, note: 20 * 1.17, label: 25.7 }
 const SHIFT = { header: 0, note: 1.5, label: 1.5 }
 const COLOR = { header: '#ffffffff', note: '#ffffff8a', label: '#ffffff8a' }
 const BORDER = { width: 1, color: hex('#8ec8f054') }
 const EASE = 'cubic-bezier(0.33, 1, 0.68, 1)'
+// The button row under the list: a 20 gap and the 48 button.
+const ACTION_H = 68
 
 export default function PlaybackInfo(props) {
   const [sections, setSectionsSig] = createSignal([])
@@ -24,6 +28,8 @@ export default function PlaybackInfo(props) {
   const [scrollMs, setScrollMs] = createSignal(0)
   const [title, setTitle] = createSignal('')
   const [titleFont, setTitleFont] = createSignal(uiFont('bold'))
+  const [action, setAction] = createSignal('')
+  const [onAction, setOnAction] = createSignal(false)
 
   // Only the panel fill follows the theme.
   const fill = () => rgba(theme().surface, 0.9)
@@ -41,8 +47,9 @@ export default function PlaybackInfo(props) {
       right: right.map((v) => ({ ...v, font: fontFor(v.text, v.bold ? 'bold' : 'regular') })),
     }
   })
-  const listH = () => Math.min(placed().h, INFO.LIST_MAX)
-  const panelH = () => listH() + INFO.CHROME
+  const actionH = () => (action() ? ACTION_H : 0)
+  const listH = () => Math.min(placed().h, INFO.LIST_MAX - actionH())
+  const panelH = () => listH() + INFO.CHROME + actionH()
   // Rounded so the centered panel's border lands on whole pixels.
   const panelY = () => Math.round((1080 - panelH()) / 2)
   const thumb = () => infoThumb(scroll(), listH(), placed().h)
@@ -50,11 +57,17 @@ export default function PlaybackInfo(props) {
   // Slower tiers jump instead of spending frames redrawing the list.
   const scrollBy = (step) => {
     const max = Math.max(0, placed().h - listH())
+    if ((step < 0 && onAction()) || (step > 0 && action() && scroll() >= max)) {
+      setOnAction(step > 0)
+      return true
+    }
     setScrollMs(highMs(120))
     setScroll(Math.max(0, Math.min(max, scroll() + step)))
     return true
   }
-  const open = (list) => {
+  const open = (list, label) => {
+    setAction(label || '')
+    setOnAction(false)
     const heading = $L('Playback Information')
     setTitle(heading)
     setTitleFont(fontFor(heading, 'bold'))
@@ -81,6 +94,7 @@ export default function PlaybackInfo(props) {
       onLeft={() => true}
       onRight={() => true}
       onEnter={() => {
+        if (onAction()) props.onAction()
         if (props.closePanel) props.closePanel()
         return true
       }}
@@ -134,6 +148,19 @@ export default function PlaybackInfo(props) {
           borderRadius={2.5}
           color="#ffffff4d"
         />
+        <view
+          alpha={action() ? 1 : 0}
+          x={27}
+          y={106.61 + listH() + 20}
+          width={textWidth(action(), 22) + 56}
+          height={48}
+          borderRadius={24}
+          color={onAction() ? theme().buttonFocused : '#ffffff1a'}
+        >
+          <text fontFamily={fontFor(action())} fontSize={22} lineHeight={25.7} x={28} y={11} color={onAction() ? theme().onButtonFocused : '#ffffffff'}>
+            {action()}
+          </text>
+        </view>
       </view>
     </view>
   )

@@ -17,6 +17,7 @@ import SecondarySettings from '../../ui/components/player/SecondarySettings.jsx'
 import SubtitleSettings from '../../ui/components/player/SubtitleSettings.jsx'
 import OffsetOverlay from '../../ui/components/player/OffsetOverlay.jsx'
 import PlaybackInfo from '../../ui/components/player/PlaybackInfo.jsx'
+import PlaybackStatsOverlay from '../../ui/components/player/PlaybackStatsOverlay.jsx'
 import ChapterModal from '../../ui/components/player/ChapterModal.jsx'
 import CastModal from '../../ui/components/player/CastModal.jsx'
 import ChannelCarousel from '../../ui/components/player/ChannelCarousel.jsx'
@@ -154,6 +155,8 @@ const MODALS = {
   record: 'record',
 }
 const TEXT_GLOW = { color: '#000000ff', x: 0, y: 0, blur: 12 }
+// Under the controls' top bar at its tallest, 207 for a logo over a title line.
+const STATS_RAISED_Y = 216
 
 const clock = (sec0) => {
   let sec1 = sec0
@@ -206,6 +209,7 @@ export default function Player(props) {
     hasNext: false,
     isLive: false,
     osdHead: null,
+    stats: false,
     liveProgram: null,
     chapterList: [],
     audioCount: 0,
@@ -425,6 +429,7 @@ export default function Player(props) {
     // A new item gets every fallback afresh.
     if (my.fallbackFor !== itemId) {
       my.fallbackFor = itemId
+      engine.resetPlaybackStats()
       my.triedTranscode = false
       my.forceHlsJs = false
       my.hlsRetries = 0
@@ -1869,34 +1874,44 @@ export default function Player(props) {
     await start(ep.Id, (ep.UserData && ep.UserData.PlaybackPositionTicks) || 0)
     showOsd()
   }
+  const infoSections = (hostAudioOutput, transcodingInfo) =>
+    buildPlaybackInfo({
+      session: playback.getCurrentSession(),
+      playMethod: my.info.playMethod,
+      selectedAudioIndex: my.audioIndex,
+      selectedSubtitleIndex: my.subIndex,
+      maxBitrate: my.quality || settings.get('maxBitrate'),
+      transcodeForced: !!settings.get('preferTranscode'),
+      isLiveTV: s.isLive,
+      item: my.item,
+      liveProgram: s.liveProgram,
+      isTizen: getPlatform() === 'tizen',
+      hostAudioOutput,
+      hostDisplay: getHostDisplay(),
+      // Only where the platform says the web player's count is worth reading.
+      droppedFrames: (playback.getCurrentSession() || {}).capabilities && playback.getCurrentSession().capabilities.watchesDroppedFrames ? engine.droppedFrames() : null,
+      transcodingInfo,
+    })
+  // The stats overlay's bitrate is the panel's Bitrate row as it reads before the server's own figure
+  // comes in, worked out once per stream.
+  const statsBitrate = () => {
+    if (my.statsFor === my.info) return my.statsBitrate
+    my.statsFor = my.info
+    const section = my.info && infoSections(null, null).find((sec) => sec.id === 'playback')
+    const row = section && section.rows.find((r) => r.label === $L('Bitrate'))
+    return (my.statsBitrate = row ? row.value : '')
+  }
   // The host's audio output and the transcode are asked for each time the dialog opens, and the rows
   // go without them until they answer.
   async function fillInfo() {
     const box = refs.playInfo
-    const sections = (hostAudioOutput, transcodingInfo) =>
-      buildPlaybackInfo({
-        session: playback.getCurrentSession(),
-        playMethod: my.info.playMethod,
-        selectedAudioIndex: my.audioIndex,
-        selectedSubtitleIndex: my.subIndex,
-        maxBitrate: my.quality || settings.get('maxBitrate'),
-        transcodeForced: !!settings.get('preferTranscode'),
-        isLiveTV: s.isLive,
-        item: my.item,
-        liveProgram: s.liveProgram,
-        isTizen: getPlatform() === 'tizen',
-        hostAudioOutput,
-        hostDisplay: getHostDisplay(),
-        // Only where the platform says the web player's count is worth reading.
-        droppedFrames: (playback.getCurrentSession() || {}).capabilities && playback.getCurrentSession().capabilities.watchesDroppedFrames ? engine.droppedFrames() : null,
-        transcodingInfo,
-      })
-    box.open(sections(null, null))
+    // AVPlay reports none of the stats, so it gets no button.
+    box.open(infoSections(null, null), engine.playbackStats() ? (s.stats ? $L('Hide Playback Stats') : $L('Show Playback Stats')) : '')
     const [hostAudioOutput, transcodingInfo] = await Promise.all([
       getHostAudioOutput().catch(() => null),
       playback.getTranscodingInfo().catch(() => null),
     ])
-    if (s.panel === 'info' && my.info && refs.playInfo === box) box.setSections(sections(hostAudioOutput, transcodingInfo))
+    if (s.panel === 'info' && my.info && refs.playInfo === box) box.setSections(infoSections(hostAudioOutput, transcodingInfo))
   }
   // Chapters live on the item, and the list asks the server when the item came without them.
   async function openChapters() {
@@ -2994,6 +3009,12 @@ export default function Player(props) {
         </text>
       </view>
 
+      <view>
+        <Show when={s.stats && !s.loading && !s.error}>
+          <PlaybackStatsOverlay read={engine.playbackStats} bitrate={statsBitrate} y={osdShown() ? STATS_RAISED_Y : 48} />
+        </Show>
+      </view>
+
       <SubtitleFetchIndicator standalone show={s.fetching && !osdShown() && !s.loading && !s.error} />
 
       <SkipPrompt ref={(n) => (refs.skip = n)} show={skipShown()} prompt={s.skip} skipSegment={skipSegment} />
@@ -3040,7 +3061,7 @@ export default function Player(props) {
       </view>
       <view>
         <Show when={pageIs('info')}>
-          <PlaybackInfo ref={(n) => (refs.playInfo = n)} closePanel={closePanel} />
+          <PlaybackInfo ref={(n) => (refs.playInfo = n)} closePanel={closePanel} onAction={() => (s.stats = !s.stats)} />
         </Show>
       </view>
       <view>
