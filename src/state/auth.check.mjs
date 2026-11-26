@@ -148,6 +148,23 @@ await test('The Silo login is not ended while another saved entry still holds it
   assert.equal(logouts.filter((l) => l.token === 'tok-gone').length, 1)
 })
 
+await test('Remove Server drops every user on that server and ends each of its Silo logins once', async () => {
+  const ids = await seed()
+  globalThis.__sessionsLoaded = false
+  const { loggedOut } = await auth.removeSavedServer(ids.silo)
+  assert.deepEqual(await savedUsers(), ['jf'])
+  await loggedOut
+  assert.deepEqual(logouts.map((l) => [l.url, l.token, l.type]).sort(), [[SILO, 'tok-a', 'silo'], [SILO, 'tok-b', 'silo']])
+  assert.ok(logouts.every((l) => l.loaded), 'stored sessions are read before each logout')
+})
+
+await test('Remove Server on a Jellyfin server ends no Silo login', async () => {
+  const ids = await seed()
+  await (await auth.removeSavedServer(ids.jf)).loggedOut
+  assert.deepEqual(await savedUsers(), ['kid', 'main', 'other'])
+  assert.equal(logouts.length, 0)
+})
+
 if (failures) {
   console.log(`\n${failures} failing`)
   process.exit(1)

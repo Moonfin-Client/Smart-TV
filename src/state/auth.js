@@ -320,10 +320,21 @@ const runSignOutAll = async () => {
   const saved = await multiServerManager.getAllServersArray().catch(() => [])
   const unique = await multiServerManager.getUniqueServers().catch(() => [])
   for (const server of unique) await multiServerManager.removeServer(server.serverId)
-  const logins = saved.filter((e, i) => e.serverType === 'silo' && e.accessToken &&
-    saved.findIndex((o) => o.serverType === 'silo' && o.accessToken === e.accessToken) === i)
-  await Promise.all(logins.map(endSiloLogin))
+  await Promise.all(siloLogins(saved).map(endSiloLogin))
   await logout()
+}
+
+// One saved entry per distinct Silo login.
+const siloLogins = (saved) => saved.filter((e, i) => e.serverType === 'silo' && e.accessToken &&
+  saved.findIndex((o) => o.serverType === 'silo' && o.accessToken === e.accessToken) === i)
+
+// Remove Server on the sign-in screen: the server goes with every user saved on it, and so do its
+// Silo logins. Resolves once the server is removed; `loggedOut` settles when Silo has been told,
+// which an unreachable server can hold up for a few seconds, so the screen needn't wait on it.
+export const removeSavedServer = async (serverId) => {
+  const saved = (await multiServerManager.getAllServersArray().catch(() => [])).filter((e) => e.serverId === serverId)
+  await multiServerManager.removeServer(serverId)
+  return { loggedOut: Promise.all(siloLogins(saved).map(endSiloLoginIfLast)) }
 }
 
 // Silo rotates an account's tokens on every refresh, so the saved profiles holding the old access

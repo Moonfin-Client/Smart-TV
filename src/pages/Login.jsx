@@ -1365,7 +1365,8 @@ export default function Login(props) {
     const target = s.dialog && s.dialog.server
     s.dialog = null
     if (target) {
-      await multiServerManager.removeServer(target.serverId)
+      // Its Silo logins end in the background (auth.removeSavedServer).
+      await auth.removeSavedServer(target.serverId)
       await reloadAccounts()
     }
     focusLater('add-server-btn')
