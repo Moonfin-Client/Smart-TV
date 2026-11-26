@@ -13,7 +13,7 @@ import * as serverSocket from '../services/serverSocket.js'
 import * as userDataSync from '../services/userDataSync.js'
 import * as remoteControl from '../services/remoteControl.js'
 import { bestPlexAddress } from '../services/plexTv.js'
-import { onSiloSessionEnded, onSiloTokensRotated, siloServerKey } from '../services/siloSession.js'
+import { loadSiloSessions, onSiloSessionEnded, onSiloTokensRotated, siloServerKey, siloSessionFor } from '../services/siloSession.js'
 import { syncNotificationPrefs } from '../services/notificationPrefs.js'
 import { parseUrl } from '../utils/urlCompat.js'
 import { noteProvedSignIn } from '../utils/signInPin.js'
@@ -21,6 +21,7 @@ import { getStore } from './store.js'
 import { audio, stop as stopAudio } from './audioPlayer.js'
 import { stopAccess } from './shell/access.js'
 import { router } from '../app/router.js'
+import { flushSettingsPush } from './settingsSync.js'
 
 let stopSession = null
 
@@ -250,11 +251,69 @@ export const leaveSession = () => {
   setSignedOut()
 }
 
+// Ends a Silo login on the server, which retires its refresh token. The stored sessions are read
+// first, since a start on another server type never needed them. Sign-out doesn't wait more than a
+// few seconds on a server it can't reach (a refresh before the logout can take longer).
+const endSiloLogin = async (entry) => {
+  let timer
+  const ending = (async () => {
+    await loadSiloSessions()
+    await jellyfinApi.createApiForServer(entry.url, entry.accessToken, entry.userId, 'silo').logout()
+  })()
+  try {
+    await Promise.race([ending, new Promise((resolve) => { timer = setTimeout(resolve, SILO_LOGOUT_WAIT_MS) })])
+  } catch (e) {
+    console.warn('[auth] Ending the Silo login failed:', e)
+  } finally {
+    clearTimeout(timer)
+  }
+}
+const SILO_LOGOUT_WAIT_MS = 5000
+
+// A Silo login is the account's, shared by its household profiles, so it ends only with the last
+// of them saved here. `entry` may be from before a refresh moved the kept entries to a new token,
+// so each is matched by the session its token belongs to, current or earlier.
+export const endSiloLoginIfLast = async (entry) => {
+  if (entry?.serverType !== 'silo' || !entry.accessToken) return
+  await loadSiloSessions()
+  const saved = await multiServerManager.getAllServersArray()
+  const session = siloSessionFor(entry.url, entry.accessToken)
+  const shared = saved.some((other) => other.serverType === 'silo' && (other.accessToken === entry.accessToken ||
+    (Boolean(session) && siloSessionFor(other.url, other.accessToken) === session)))
+  if (!shared) await endSiloLogin(entry)
+}
+
 export const logout = async () => {
   await remoteControl.runPlayerCommand('stop')
   stopMusic()
   const active = await multiServerManager.getActiveServer()
-  if (active) await multiServerManager.removeServer(active.serverId, active.userId, { keepServer: true })
+  if (active) {
+    // Signing out of a Silo profile signs its whole account out: every profile of the household
+    // goes, whichever one is in use.
+    const saved = active.serverType === 'silo' ? await multiServerManager.getAllServersArray() : []
+    const self = saved.find((e) => e.serverId === active.serverId && e.userId === active.userId)
+    const household = saved.filter((e) => e !== self && multiServerManager.sameSiloHousehold(e, self))
+    for (const entry of household) await multiServerManager.removeServer(entry.serverId, entry.userId)
+    await multiServerManager.removeServer(active.serverId, active.userId, { keepServer: true })
+  }
+  // Silo's refresh token stays good until the login is ended on the server too. As in
+  // removeSavedServer, that starts once the app has moved off the account, even if the move fails,
+  // and Sign Out doesn't wait for it, so a server out of reach doesn't hold up the screen.
+  let loggedOut = Promise.resolve()
+  try {
+    await signInNextOrSignOut()
+  } finally {
+    if (active) {
+      loggedOut = endSiloLoginIfLast(active).catch((e) =>
+        console.warn('[auth] Reading the saved servers to end the Silo login failed:', e)
+      )
+    }
+  }
+  return { loggedOut }
+}
+
+// After the signed-in user's entries are gone: the next saved user takes over, or nobody is signed in.
+const signInNextOrSignOut = async () => {
   const remaining = await multiServerManager.getTotalUserCount()
   if (remaining > 0) {
     const next = await multiServerManager.getActiveServer()
@@ -264,6 +323,60 @@ export const logout = async () => {
   jellyfinApi.setAuth(null, null)
   await loadServers()
   setSignedOut()
+}
+
+// Every saved server goes, including ones kept after their last user signed out, and every Silo
+// login with them. Then Sign Out finds nobody left and signs out. A second call while one runs
+// waits on that one.
+let signingOutAll = null
+export const signOutAll = () => {
+  if (!signingOutAll) signingOutAll = runSignOutAll().finally(() => { signingOutAll = null })
+  return signingOutAll
+}
+const runSignOutAll = async () => {
+  // Playback reports its stop while the logins still work.
+  await remoteControl.runPlayerCommand('stop')
+  stopMusic()
+  const saved = await multiServerManager.getAllServersArray().catch(() => [])
+  const unique = await multiServerManager.getUniqueServers().catch(() => [])
+  for (const server of unique) await multiServerManager.removeServer(server.serverId)
+  await Promise.all(siloLogins(saved).map(endSiloLogin))
+  await logout()
+}
+
+// One saved entry per distinct Silo login.
+const siloLogins = (saved) => saved.filter((e, i) => e.serverType === 'silo' && e.accessToken &&
+  saved.findIndex((o) => o.serverType === 'silo' && o.accessToken === e.accessToken) === i)
+
+// Remove Server on the sign-in screen: the server goes with every user saved on it, and each of
+// their Silo logins ends unless another saved entry still uses it. Removing the signed-in user's
+// server signs out like Sign Out does: playback stops and settings are pushed first, then the next
+// saved user takes over, or nobody. Resolves once that is done, with `wasActive` set when it was
+// that user's server. `loggedOut` settles when Silo has been told, which an unreachable server can
+// hold up for a few seconds, so the screen needn't wait on it.
+export const removeSavedServer = async (serverId) => {
+  const active = store().authenticated ? await multiServerManager.getActiveServer() : null
+  const wasActive = Boolean(active) && active.serverId === serverId
+  if (wasActive) {
+    await remoteControl.runPlayerCommand('stop')
+    stopMusic()
+    await flushSettingsPush()
+  }
+  // Read after the push, which may have rotated the tokens.
+  const saved = (await multiServerManager.getAllServersArray()).filter((e) => e.serverId === serverId)
+  await multiServerManager.removeServer(serverId)
+  // The logins end once the app has moved off the account, and even if that move fails.
+  const endLogins = () => Promise.all(siloLogins(saved).map((e) => endSiloLoginIfLast(e))).catch((e) =>
+    console.warn('[auth] Ending the Silo logins of a removed server failed:', e)
+  )
+  if (!wasActive) return { wasActive, loggedOut: endLogins() }
+  let loggedOut
+  try {
+    await signInNextOrSignOut()
+  } finally {
+    loggedOut = endLogins()
+  }
+  return { wasActive, loggedOut }
 }
 
 // Silo rotates an account's tokens on every refresh, so the saved profiles holding the old access

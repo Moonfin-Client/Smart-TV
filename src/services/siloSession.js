@@ -108,11 +108,19 @@ const keptProofs = ({proofs, remember}) => Object.keys(proofs || {}).reduce((kep
 	return kept;
 }, {});
 
-const persist = () => saveToStorage(STORAGE_KEY, sessions.map((session) => {
-	const {server, accountId, tokens, aliases, remember} = session;
-	return {server, accountId, tokens, aliases, remember, proofs: keptProofs(session)};
-}))
-	.catch((err) => console.warn('[Silo] Saving the session failed:', err));
+// Each write waits for the one before it, so a slow earlier write can't land after a later one and bring back a
+// session closed in between. The snapshot is taken at the call.
+let writing = Promise.resolve();
+const persist = () => {
+	const snapshot = sessions.map((session) => {
+		const {server, accountId, tokens, aliases, remember} = session;
+		return {server, accountId, tokens, aliases, remember, proofs: keptProofs(session)};
+	});
+	writing = writing
+		.then(() => saveToStorage(STORAGE_KEY, snapshot))
+		.catch((err) => console.warn('[Silo] Saving the session failed:', err));
+	return writing;
+};
 
 export const loadSiloSessions = () => {
 	if (!loaded) {
@@ -278,7 +286,7 @@ const runRefresh = async (session, deviceInfo, platform) => {
 	} catch (err) {
 		if (err.status === 401 && session.identity === identity && session.tokens === current) {
 			closeSiloSession(session);
-			endListeners.forEach((listener) => listener(session));
+			if (session.signingOut !== identity) endListeners.forEach((listener) => listener(session));
 		}
 		return false;
 	}

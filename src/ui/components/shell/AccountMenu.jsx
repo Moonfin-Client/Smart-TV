@@ -94,15 +94,7 @@ export default function AccountMenu(props) {
     if (items().length) carousel.setFocus()
     else focusPills('addUser')
   })
-  const onPill = async (id) => {
-    if (id !== 'signOutAll') return tell(id)
-    // Every saved server goes, including ones kept after their last user signed out, and then
-    // App's Sign Out finds nobody left and goes to sign-in.
-    // shortcut: Silo logins aren't ended on the server here. Add that along with Silo sign-out.
-    const unique = await multiServerManager.getUniqueServers().catch(() => [])
-    for (let i = 0; i < unique.length; i++) await multiServerManager.removeServer(unique[i].serverId)
-    tell('signOut')
-  }
+  const onPill = (id) => tell(id)
   return (
     <view
       ref={props.ref}

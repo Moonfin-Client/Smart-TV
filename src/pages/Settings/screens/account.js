@@ -1220,7 +1220,8 @@ SCREENS.themeStore = {
 
 SCREENS.clearAllData = async () => {
   settings.update({ ...defaultSettings })
+  // Signed out first, so the Silo logins end on the server and nothing is saved back after the wipe.
+  await auth.signOutAll().catch(() => {})
   await clearAllStorage()
-  await auth.logout().catch(() => {})
   window.location.reload()
 }

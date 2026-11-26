@@ -1361,12 +1361,31 @@ export default function Login(props) {
     s.dialog = null
     if (f) openServer(f)
   }
+  // Removing the signed-in user's server signs out first, which can take a few seconds; OK and
+  // Back wait for it.
+  let removing = false
   const confirmRemove = async () => {
     const target = s.dialog && s.dialog.server
     s.dialog = null
-    if (target) {
-      await multiServerManager.removeServer(target.serverId)
+    if (removing) return
+    if (!target) return focusLater('add-server-btn')
+    removing = true
+    try {
+      // Its Silo logins end in the background (auth.removeSavedServer).
+      const { wasActive } = await auth.removeSavedServer(target.serverId)
+      // The signed-in user's server went: the next saved user took over, or nobody is signed in.
+      if (wasActive) {
+        removing = false
+        const opts = { inHistory: false }
+        return store.authenticated ? router.to('/', { resume: true }, opts) : router.to('/login', {}, opts)
+      }
+    } catch (e) {
+      console.warn('[login] Removing the server failed:', e)
+    }
+    try {
       await reloadAccounts()
+    } finally {
+      removing = false
     }
     focusLater('add-server-btn')
   }
@@ -1666,7 +1685,7 @@ export default function Login(props) {
         return true
       }}
       onEnter={(...args) => {
-        if (wake()) return true
+        if (removing || wake()) return true
         const id = s.focusId
         if (/^saved-/.test(id)) {
           if (!args[0] || !args[0].repeat) heldId = id
@@ -1676,10 +1695,11 @@ export default function Login(props) {
         return true
       }}
       onEnterRelease={(...args) => {
-        if (/^saved-/.test(heldId)) releaseSaved(...args)
+        if (!removing && /^saved-/.test(heldId)) releaseSaved(...args)
         return true
       }}
       onBack={() => {
+        if (removing) return true
         s.dormant = false
         if (goBack()) return true
         if (isAdding() && store.authenticated) router.back()
