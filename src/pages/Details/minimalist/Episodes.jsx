@@ -33,9 +33,8 @@ const LARGE = { gap: 34, barH: 73, barGap: 10 }
 // The card title steps up a size from this width.
 const WIDE_CARD = 400
 
-// The large season strip: 8px of track around 57px pills, 21.7px labels.
-// shortcut: a large bar wider than its room clips instead of scrolling the picked tab into view.
-// Scroll it the way TabBar does once a show has that many seasons.
+// The large season strip: 8px of track around 57px pills, 21.7px labels. A strip wider than its room
+// scrolls by the least that shows the whole picked pill.
 const LARGE_PAD = 8
 const largePillW = (label, on) => 25 + textWidth(label, 21.7, on ? 'bold' : 'medium') + 25
 
@@ -57,6 +56,8 @@ export default function Episodes(props) {
   const [box, setBox] = createSignal({ h: 0, railY: 0, railH: 0, cardH: 0, trackW: 0, cw: SMALL.w, ih: 0, m: cardMetrics(false, false) })
   const [pills, setPills] = createSignal([])
   const [barW, setBarW] = createSignal(0)
+  const [barInner, setBarInner] = createSignal(0)
+  const [barScroll, setBarScroll] = createSignal(0)
   const [tabCur, setTabCur] = createSignal(0)
 
   const m = { item: null, d: null, picked: null, part: 'rail', lastPart: '', lastTab: 0, startKey: null, list: [], gap: SMALL.gap, railTop: 0, barH: 0 }
@@ -89,6 +90,7 @@ export default function Episodes(props) {
         m.startKey = null
         setCur(0)
         setScroll(0)
+        setBarScroll(0)
       }
       m.item = it
       m.d = d
@@ -114,15 +116,22 @@ export default function Episodes(props) {
       setActive(on)
       if (large && showsTabs) {
         let x = LARGE_PAD
-        setPills(
-          tb.map((tab) => {
-            const pw = largePillW(tab.label, tab.id === on)
-            const p = { id: tab.id, label: tab.label, x, w: pw, on: tab.id === on }
-            x += pw
-            return p
-          }),
-        )
-        setBarW(Math.min(x + LARGE_PAD, w))
+        const ps = tb.map((tab) => {
+          const pw = largePillW(tab.label, tab.id === on)
+          const p = { id: tab.id, label: tab.label, x, w: pw, on: tab.id === on }
+          x += pw
+          return p
+        })
+        const inner = x + LARGE_PAD
+        const bw = Math.min(inner, w)
+        const chosen = ps.find((q) => q.on) || NO_PICK
+        let s = barScroll()
+        if (chosen.x - LARGE_PAD < s) s = chosen.x - LARGE_PAD
+        else if (chosen.x + chosen.w + LARGE_PAD > s + bw) s = chosen.x + chosen.w + LARGE_PAD - bw
+        setPills(ps)
+        setBarW(bw)
+        setBarInner(inner)
+        setBarScroll(Math.max(0, Math.min(s, inner - bw)))
       } else setPills([])
       if (!list.length) {
         setCards([])
@@ -331,32 +340,34 @@ export default function Episodes(props) {
       <view alpha={props.large && tabs().length ? 1 : 0} width={barW()} height={73}>
         <view width={barW()} height={73} borderRadius={square() ? 0 : 36.5} color={t().os(0.08)} />
         <view width={barW()} height={73} clipping>
-          <view
-            x={picked().x}
-            y={8}
-            width={picked().w}
-            height={57}
-            borderRadius={square() ? 0 : 28.5}
-            color={t().accent}
-            alpha={barFocused() ? 0 : 1}
-          />
-          <view x={picked().x} width={picked().w} height={73} borderRadius={square() ? 0 : 36.5} color={t().accent} alpha={barFocused() ? 1 : 0} />
-          <view width={barW()} height={73}>
-            <Index each={pills()}>
-              {(p) => (
-                <text
-                  x={p().x + 25}
-                  y={23.31}
-                  fontFamily={uiFont(p().on ? 'bold' : 'medium')}
-                  fontSize={21.7}
-                  lineHeight={30.38}
-                  letterSpacing={themeSpacing()}
-                  color={p().on ? t().onAccent : t().os(0.75)}
-                >
-                  {p().label}
-                </text>
-              )}
-            </Index>
+          <view x={-barScroll()} width={barInner()} height={73}>
+            <view
+              x={picked().x}
+              y={8}
+              width={picked().w}
+              height={57}
+              borderRadius={square() ? 0 : 28.5}
+              color={t().accent}
+              alpha={barFocused() ? 0 : 1}
+            />
+            <view x={picked().x} width={picked().w} height={73} borderRadius={square() ? 0 : 36.5} color={t().accent} alpha={barFocused() ? 1 : 0} />
+            <view width={barInner()} height={73}>
+              <Index each={pills()}>
+                {(p) => (
+                  <text
+                    x={p().x + 25}
+                    y={23.31}
+                    fontFamily={uiFont(p().on ? 'bold' : 'medium')}
+                    fontSize={21.7}
+                    lineHeight={30.38}
+                    letterSpacing={themeSpacing()}
+                    color={p().on ? t().onAccent : t().os(0.75)}
+                  >
+                    {p().label}
+                  </text>
+                )}
+              </Index>
+            </view>
           </view>
         </view>
         <view

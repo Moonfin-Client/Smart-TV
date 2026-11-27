@@ -601,6 +601,8 @@ export default function Details(props) {
     // Every style but Modern draws in its own component, from what this page has worked out.
     if (props.quickLook && !drawsStage(t)) return openFullPage(it, true)
     const sty = pickStyle(it)
+    // A style just picked in Settings hasn't mounted yet, and draws once it has.
+    if (!sty && untrack(style) !== 'v2') return
     if (sty) {
       setBackdrop('')
       setScrim('')
@@ -1562,6 +1564,7 @@ export default function Details(props) {
                 // start() picks the style inside an effect, so the style mounts after start() drew
                 // Modern's placeholders, and its own replace them here.
                 if (untrack(loading) && !m.item && h && h.skeletonBoxes) setSkeleton(h.skeletonBoxes())
+                else if (m.item) paintSoon()
               }}
               page={dt}
               tokens={tokens()}

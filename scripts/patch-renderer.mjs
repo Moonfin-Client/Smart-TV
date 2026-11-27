@@ -1284,6 +1284,35 @@ patch(
     _fireAnimationEvents`
 )
 
+// A view without a width or height fills its parent, but at the size the parent had when the view
+// was drawn. A scroll box that grew afterwards (a long season list filling in) kept its unsized
+// wrappers at the old size, and once they scrolled out of the culling margin everything inside them
+// vanished. Such views now follow their parent's size, except in flex layouts, which size their own
+// children.
+patch(
+  'node_modules/@solidtv/solid/dist/src/core/elementNode.js',
+  '/* moonfin: filled views follow their parent */',
+  `        set(v) {
+            this._sendToLightningAnimatable(key, v);
+        },`,
+  `        set(v) {
+            this._sendToLightningAnimatable(key, v);
+            /* moonfin: filled views follow their parent */
+            if ((key === 'w' || key === 'h') && this.display !== 'flex') {
+                const kids = this.children;
+                for (let i = 0; i < kids.length; i++) {
+                    const kid = kids[i];
+                    if (!kid || kid.rendered !== true || kid.display === 'flex')
+                        continue;
+                    if (key === 'h' && kid._calcHeight === true)
+                        kid.h = v - (kid.y || 0);
+                    else if (key === 'w' && kid._calcWidth === true)
+                        kid.w = v - (kid.x || 0);
+                }
+            }
+        },`
+)
+
 // A see-through border went over the fill with mix(), which took the border color's alpha twice in
 // the result's alpha (a squared): over nothing, a #00a4dcb3 ring kept 51% of what's under it where
 // CSS keeps 30%. It now goes over premultiplied, as CSS paints a border over its background.

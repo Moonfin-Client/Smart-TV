@@ -53,4 +53,21 @@ for (let round = 0; round < 400; round++) {
     assert.equal(coversText.call(gl, { renderBound: b, props: { shader } }), each)
   }
 }
+
+// A view drawn without a size follows its parent when the parent grows, and a flex child doesn't.
+const { ElementNode } = await import(join(root, 'node_modules/@solidtv/solid/dist/src/core/elementNode.js'))
+const box = new ElementNode('view')
+const filled = new ElementNode('view')
+const flexed = new ElementNode('view')
+filled.rendered = flexed.rendered = true
+filled._calcHeight = flexed._calcHeight = filled._calcWidth = true
+filled.y = 10
+flexed.display = 'flex'
+flexed.h = 50
+box.children.push(filled, flexed)
+box.h = 2000
+box.w = 1526
+assert.equal(filled.h, 1990)
+assert.equal(filled.w, 1526)
+assert.equal(flexed.h, 50)
 console.log('patch-renderer ok')
