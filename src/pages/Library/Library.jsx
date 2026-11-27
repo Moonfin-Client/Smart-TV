@@ -1060,7 +1060,7 @@ export default function Library(props) {
     }
     else if (it.Type === 'Photo' || it.Type === 'PhotoAlbum') router.to(`/photos/${it.Type === 'PhotoAlbum' ? it.Id : it.ParentId}`)
     // A title from another server's library opens there.
-    else router.to(`/details/${it.Id}`, detailsData(it._serverUrl ? it : my.lib))
+    else router.to(`/details/${it.Id}`, { ...detailsData(it._serverUrl ? it : my.lib), card: it })
   }
   // Holding OK on a card opens its long press menu, and a short press opens the card as it lets go.
   const gridCard = () => (grid && grid.current()) || null

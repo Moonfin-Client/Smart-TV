@@ -4,7 +4,7 @@
 import $L from '../../services/i18n.js'
 import { api, getServerType, getServerUrl } from '../../services/jellyfinApi.js'
 import { isBlocked as isContentBlocked, isBlockedNow, observeItem } from '../../services/blockedContentGate.js'
-import { withoutBlockedItems } from '../../services/parentalControls.js'
+import { getActiveParentalFilter, withoutBlockedItems } from '../../services/parentalControls.js'
 import { canScoreSeedLocally, getOnlineRecommendations, getRecommendations, mergeRecommendations } from '../../services/homeRecommendations.js'
 import { fetchTmdbSeasonRatings, isRatingSourceAllowed, resolveSeriesTmdbId } from '../../services/mdblistApi.js'
 import { getItemAudioPref, getSeriesAudioPref, syncSeriesTrackChoices } from '../../services/subtitlePrefs.js'
@@ -61,9 +61,19 @@ export const fetchItem = async (id, server) => {
   return withProbedSources(withServer(server, await (api.getItemForDetail ? api.getItemForDetail(id) : api.getItem(id))))
 }
 
+// The card the page draws while the record loads, or null. While any rating is blocked only a card
+// with a rating of its own is drawn, since an unrated one may be blocked by its series or by the
+// full record.
+export const cardToShow = (card, id) => {
+  if (!card || card.Id !== id) return null
+  if (getActiveParentalFilter().isActive && !String(card.OfficialRating || '').trim()) return null
+  return isBlockedNow(card) ? null : card
+}
+
 // The record, or {blocked: true} when parental controls refuse it, or null when it can't load.
 export const loadRecord = async (id, seed, server) => {
-  if (seed && seed.Id === id && isBlockedNow(seed)) return { blocked: true }
+  // An unrated episode is judged by its series, so that lookup starts alongside the record's.
+  if (seed && seed.Id === id) isContentBlocked(withServer(server, seed)).catch(() => {})
   let data
   try {
     data = await fetchItem(id, server)

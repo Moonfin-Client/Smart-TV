@@ -79,8 +79,9 @@ export const routeForItem = (item) => {
       return [`/read/${item.Id}`, {}]
     case 'Playlist':
       return item.MediaType === 'Audio' ? [`/album/${item.Id}`, {}] : [`/details/${item.Id}`, detailsData(item)]
+    // Details draws the card while the full item loads.
     default:
-      return [`/details/${item.Id}`, detailsData(item)]
+      return [`/details/${item.Id}`, { ...detailsData(item), card: item }]
   }
 }
 
