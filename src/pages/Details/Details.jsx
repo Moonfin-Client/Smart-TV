@@ -1159,8 +1159,13 @@ export default function Details(props) {
     const L = m.lists
     const t = it.Type
     if (t === 'Series') {
-      const eps = await m.api.getEpisodes(it.Id).catch(() => null)
-      const target = pickEpisodePlayTarget((eps && eps.Items) || [], L.nextUp[0] || null)
+      // A part-watched show plays its unwatched Next Up, so the whole episode list is only fetched
+      // when that isn't known.
+      const ud = it.UserData || {}
+      const next = L.nextUp[0]
+      const known = !ud.Played && ud.PlayedPercentage > 0 && next && !(next.UserData && next.UserData.Played) ? next : null
+      const eps = known ? null : await m.api.getEpisodes(it.Id).catch(() => null)
+      const target = known || pickEpisodePlayTarget((eps && eps.Items) || [], L.nextUp[0] || null)
       if (target) playItem(target, shouldResumeTarget(target))
       else if (L.seasons.length) open(L.seasons[0])
     } else if (t === 'Season') {
