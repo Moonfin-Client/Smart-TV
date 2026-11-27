@@ -551,6 +551,7 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 
 	const readUser = async () => {
 		const state = here();
+		const userId = getUserId();
 		const [root, owner, name, configuration] = await Promise.all([
 			container('/'),
 			send('/myplex/account').then(() => true, (err) => {
@@ -563,7 +564,7 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 		state.owner = owner;
 		state.mayDeleteMedia = owner && root.allowMediaDeletion === true;
 		return {
-			Id: getUserId(),
+			Id: userId,
 			Name: name || '',
 			ServerId: root.machineIdentifier,
 			PrimaryImageTag: 'plex',
@@ -581,11 +582,19 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 		};
 	};
 
-	// Several screens ask for the user at once while the app starts, so they share one read.
+	// Several screens ask for the user at once while the app starts, so they share one read, but only
+	// while the same account is signed in. A switch to another account starts its own.
 	let userRead = null;
-	const getUser = () => userRead || (userRead = readUser().finally(() => {
-		userRead = null;
-	}));
+	const getUser = () => {
+		const account = `${trimSlash(getBaseUrl())}|${getToken()}|${getUserId()}`;
+		if (userRead?.account !== account) {
+			const read = readUser().finally(() => {
+				if (userRead?.read === read) userRead = null;
+			});
+			userRead = {account, read};
+		}
+		return userRead.read;
+	};
 
 	const decide = async (transcoder, query, itemId) => {
 		const decision = await container(`${transcoder}/decision`, query, {timeoutMs: PLAYBACK_TIMEOUT_MS});
