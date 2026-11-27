@@ -68,6 +68,17 @@ assert.deepEqual(names(await apiFor('user-1').getLibraries()), ['TV Shows', 'Mov
 // Another user on the same server keeps their own.
 assert.deepEqual(names(await apiFor('user-2').getLibraries()), ['Movies', 'TV Shows', 'Docs', 'Live TV'])
 
+// Switching to another account while the first one's read is still pending gives the new account its own.
+let signedIn = 'user-1'
+const switching = createPlexApi({ getBaseUrl: () => 'http://plex:32400', getToken: () => `tok-${signedIn}`, getUserId: () => signedIn, getDeviceInfo: () => device })
+const firstRead = switching.getUserConfiguration()
+signedIn = 'user-2'
+const secondRead = switching.getUserConfiguration()
+assert.equal((await firstRead).Id, 'user-1')
+assert.deepEqual((await firstRead).Configuration, config)
+assert.equal((await secondRead).Id, 'user-2')
+assert.deepEqual((await secondRead).Configuration, {}, "the second account doesn't get the first one's settings")
+
 refuseSaves = true
 await assert.rejects(plex.updateUserConfiguration({ MyMediaExcludes: [] }), 'a refused save is reported, not taken as kept')
 assert.deepEqual((await plex.getUserConfiguration()).Configuration, config)
