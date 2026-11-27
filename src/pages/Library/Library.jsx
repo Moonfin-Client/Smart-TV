@@ -64,7 +64,6 @@ import {
 const PAGE = 150
 const neonOn = () => activeThemeId(settings.all()) === 'neon_pulse'
 const NEON_TILE = {
-  ring: { width: 3, color: 0xff2e92ff },
   glow: { color: shadowColor('#ff2e9259'), x: 0, y: 0, blur: 12, spread: 0 },
   subColor: '#00e5ff',
 }
@@ -829,8 +828,6 @@ export default function Library(props) {
         showText: f.showText, ms: focusMs(200), slide: slideMs(200), artBg: '#ffffff0d', mutedIcon: '#ffffff4d',
         favY: 8, boldFont: uiFont('bold'), watchedBg: t.badgeWatched, onBadge: t.onBadge, textShadow: true,
         ...(neonOn() ? NEON_TILE : {}),
-        // A focused card rings in the focus color, so the Focus Color setting reaches it.
-        ring: { width: 3, color: colorNum(t.focus) },
       }
     })
   }
