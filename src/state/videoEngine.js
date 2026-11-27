@@ -50,6 +50,11 @@ let mode = null
 let video = null
 let hls = null
 let hlsStarted = () => true
+// What the playback stats overlay reads: stalls since the title started, and the bytes hls.js has
+// loaded. A fragment's stats.loaded grows as its bytes arrive, so the count moves while it loads.
+let rebuffers = 0
+let loadedBytes = 0
+let loadingFrags = []
 let tz = null
 let tzTracks = null
 let avPaused = false
@@ -287,7 +292,11 @@ const videoEvents = {
   },
   playing: () => playing(),
   pause: () => paused(),
-  waiting: () => emit('buffering', true),
+  waiting: () => {
+    // Seeks and the first load wait too. Only a stall mid-play counts as a rebuffer.
+    if (moved && !video.seeking) rebuffers++
+    emit('buffering', true)
+  },
   canplay: () => emit('buffering', false),
   ended: () => {
     if (landedOnEnd(video.currentTime)) return reopenAtTarget()
@@ -376,6 +385,13 @@ const openVideo = async (o) => {
     )
     hls = made.hls
     hlsStarted = made.started
+    loadingFrags = []
+    hls.on(Hls.Events.FRAG_LOADING, (_event, data) => {
+      countLoaded()
+      // A retry loads the same fragment again with fresh stats, so its old entry goes first.
+      loadingFrags = loadingFrags.filter((entry) => entry.frag !== data.frag)
+      loadingFrags.push({ frag: data.frag, counted: 0 })
+    })
   } else {
     // The Xbox console player opens the stream as the src is set, in Dolby Vision or with
     // passthrough when the session calls for it. Every other element ignores this.
@@ -879,6 +895,36 @@ export const liveRange = () => {
 // The web player's dropped frame count, null where there is none.
 export const droppedFrames = () =>
   mode === 'video' && video && typeof video.getVideoPlaybackQuality === 'function' ? video.getVideoPlaybackQuality().droppedVideoFrames : null
+
+const countLoaded = () => {
+  loadingFrags = loadingFrags.filter((entry) => {
+    const stats = entry.frag.stats || {}
+    const loaded = stats.loaded || 0
+    loadedBytes += Math.max(0, loaded - entry.counted)
+    entry.counted = loaded
+    return !(stats.loading && stats.loading.end > 0) && !stats.aborted
+  })
+}
+export const resetPlaybackStats = () => {
+  rebuffers = 0
+}
+// What the playback stats overlay shows, or null on AVPlay, which reports none of it. The device's
+// own player says what it has buffered but not what it downloads or how far it will buffer, so
+// `bytes` and `bufferCeiling` are null without hls.js.
+export const playbackStats = () => {
+  if (mode !== 'video' || !video) return null
+  let bufferCeiling = null
+  if (hls) {
+    countLoaded()
+    // hls.js's own limit: maxBufferLength, raised while maxBufferSize holds more at this level's
+    // bitrate, up to maxMaxBufferLength.
+    const config = hls.config
+    const level = hls.levels && hls.levels[Math.max(0, hls.currentLevel)]
+    const bySize = level && level.bitrate ? (config.maxBufferSize * 8) / level.bitrate : 0
+    bufferCeiling = Math.round(Math.min(Math.max(config.maxBufferLength, bySize), config.maxMaxBufferLength))
+  }
+  return { bufferAhead: bufferedAhead(), bufferCeiling, bytes: hls ? loadedBytes : null, rebuffers }
+}
 // The picture's box on the page, which the ASS renderer sizes itself to. Null on Tizen.
 export const subtitleRect = () => (mode === 'video' ? contentRect : null)
 

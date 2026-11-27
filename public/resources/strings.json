@@ -3200,5 +3200,11 @@
     "A panel of tiles with library artwork": "A panel of tiles with library artwork",
     "Browse all": "Browse all",
     "Continue in {section}": "Continue in {section}",
-    "Featured: {title}": "Featured: {title}"
+    "Featured: {title}": "Featured: {title}",
+    "Buffer Health": "Buffer Health",
+    "Hide Playback Stats": "Hide Playback Stats",
+    "Network Activity": "Network Activity",
+    "Not reported by this device's player": "Not reported by this device's player",
+    "Rebuffers": "Rebuffers",
+    "Show Playback Stats": "Show Playback Stats"
 }

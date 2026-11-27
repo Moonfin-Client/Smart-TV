@@ -218,6 +218,8 @@ globalThis.__platform = 'tizen'
   // Nothing drawn natively: the firmware is kept from turning a track on by itself.
   engine.silenceNativeSubtitles()
   assert.deepEqual(av.calls.at(-1), ['silent', true])
+  // AVPlay reports none of the playback stats.
+  assert.equal(engine.playbackStats(), null)
   await engine.stop()
 }
 
@@ -411,6 +413,30 @@ const makeVideo = (audioTracks) => {
   v.fire('loadeddata')
   assert.equal(v.currentTime, 50)
   globalThis.__afterFrame = false
+  await engine.stop()
+}
+{
+  // The playback stats: a stall once the picture moves is a rebuffer, the first load and a seek aren't,
+  // and the device's own player reports no bytes or buffer limit.
+  const v = makeVideo()
+  v.buffered = { length: 1, start: () => 0, end: () => 42 }
+  globalThis.__video = v
+  engine.resetPlaybackStats()
+  await engine.open({ url: 'http://s/v.mp4', playMethod: 'DirectPlay' })
+  v.fire('waiting')
+  assert.equal(engine.playbackStats().rebuffers, 0)
+  v.currentTime = 10
+  v.fire('timeupdate')
+  v.currentTime = 12
+  v.fire('timeupdate')
+  v.seeking = true
+  v.fire('waiting')
+  assert.equal(engine.playbackStats().rebuffers, 0)
+  v.seeking = false
+  v.fire('waiting')
+  assert.deepEqual(engine.playbackStats(), { bufferAhead: 30, bufferCeiling: null, bytes: null, rebuffers: 1 })
+  engine.resetPlaybackStats()
+  assert.equal(engine.playbackStats().rebuffers, 0)
   await engine.stop()
 }
 {
