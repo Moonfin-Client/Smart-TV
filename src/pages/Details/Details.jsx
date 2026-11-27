@@ -1165,7 +1165,7 @@ export default function Details(props) {
       const next = L.nextUp[0]
       const known = !ud.Played && ud.PlayedPercentage > 0 && next && !(next.UserData && next.UserData.Played) ? next : null
       const eps = known ? null : await m.api.getEpisodes(it.Id).catch(() => null)
-      const target = known || pickEpisodePlayTarget((eps && eps.Items) || [], next || null)
+      const target = known || pickEpisodePlayTarget((eps && eps.Items) || [], L.nextUp[0] || null)
       if (target) playItem(target, shouldResumeTarget(target))
       else if (L.seasons.length) open(L.seasons[0])
     } else if (t === 'Season') {
