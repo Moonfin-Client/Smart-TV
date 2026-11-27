@@ -4,6 +4,7 @@ import { uiFont, fontFor, textWidth, faceDy, themeSpacing } from '../../text.js'
 import { theme, glowShadow } from '../../theme.js'
 import { highMs } from '../../tier.js'
 import { focusActivePage } from '../../../state/pages.js'
+import { focusNav } from '../../../app/focus.js'
 import { getStore } from '../../../state/store.js'
 import { router } from '../../../app/router.js'
 import { audio } from '../../../state/audioPlayer.js'
@@ -110,6 +111,14 @@ export default function Mosaic(props) {
     }
   }
   const closeToContent = () => focusActivePage()
+  // The Magic Remote's cursor focuses the tile under it, and OK then opens it (app/pointer.js). The
+  // menu button opens the panel on a click rather than on hover, since the panel covers the page.
+  const point = (k) => {
+    if (open() && cur() !== k) {
+      setCur(k)
+      keepInView()
+    }
+  }
 
   return (
     <view
@@ -153,12 +162,12 @@ export default function Mosaic(props) {
         return true
       }}
     >
-      <view x={30} y={33} width={66} height={66} alpha={open() ? 0 : 1}>
+      <view x={30} y={33} width={66} height={66} alpha={open() ? 0 : 1} onPointerClick={() => void focusNav()}>
         <view width={66} height={66} borderRadius={33} color="#14161ab8" border={{ width: 1, color: 0xffffff24 }} />
         <view x={16.5} y={16.5} width={33} height={33} src="icons/nav_apps.webp" color="#ffffffff" />
       </view>
       <view width={1920} height={1080} alpha={open() ? 1 : 0}>
-        <view width={1920} height={1080} color="#0000008c" />
+        <view width={1920} height={1080} color="#0000008c" onPointerClick={() => void closeToContent()} />
         <view x={840} width={1080} height={1080} clipping>
           <view x={-840} width={840} height={1080} color="#00000000" shadow={PANEL_SHADOW} />
         </view>
@@ -166,7 +175,7 @@ export default function Mosaic(props) {
         <view width={840} height={1080} clipping>
           <view y={-scroll()} width={840} height={Math.max(1080, contentH())} transition={{ y: { duration: fx } }}>
             <view
-              ref={(n) => (nodes.avatar = n)}
+              ref={(n) => ((nodes.avatar = n), (n.onPointerOver = () => point('avatar')))}
               x={38}
               y={30.5}
               width={65}
@@ -230,7 +239,7 @@ export default function Mosaic(props) {
             </text>
           </view>
           <view y={-scroll()} width={840} height={Math.max(1080, contentH())} transition={{ y: { duration: fx } }}>
-            <For each={tileKeys()}>{(k) => <MosaicTile ref={(n) => (nodes[k] = n)} tile={tile(k)} focused={cur() === k} fx={fx} />}</For>
+            <For each={tileKeys()}>{(k) => <MosaicTile ref={(n) => ((nodes[k] = n), (n.onPointerOver = () => point(k)))} tile={tile(k)} focused={cur() === k} fx={fx} />}</For>
           </view>
         </view>
       </view>

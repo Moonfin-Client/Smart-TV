@@ -338,6 +338,15 @@ export default function Browse(props) {
     const drawn = (Math.floor((st.scroll + GRID_H) / m.pitchY) + 4) * m.columns - 1
     if (st.items.length && drawn >= st.items.length - 8) loadMore()
   }
+  // The Magic Remote's cursor focuses a tool, a chip or a letter, and OK then uses it (app/pointer.js).
+  const pointAt = (z, i) => {
+    if (st.dialog) return
+    batch(() => {
+      st.zone = z
+      if (z === 'tools') st.toolIdx = i
+      else st.alphaIdx = i
+    })
+  }
   const focusGrid = (i) => {
     batch(() => {
       st.gridIdx = i
@@ -677,7 +686,7 @@ export default function Browse(props) {
           {(tool) => {
             const focused = () => toolFocus() === tool.i
             return (
-              <view x={tool.x} y={185} width={70} height={70}>
+              <view x={tool.x} y={185} width={70} height={70} onPointerOver={() => pointAt('tools', tool.i)}>
                 <view width={70} height={70} borderRadius={10} color="#ffffffff" alpha={focused() ? 1 : 0} />
                 <view width={70} height={70} borderRadius={10} color="#00000000" border={{ width: 2, color: hex(t().focus) }} alpha={focused() ? 1 : 0} />
                 <view x={11.5} y={11.5} width={47} height={47} src={'icons/' + tool.icon + '.webp'} color={focused() ? '#00a4dcff' : '#ffffff80'} />
@@ -689,7 +698,7 @@ export default function Browse(props) {
       <view>
         <For each={tools().slice(3)}>
           {(chip) => (
-            <view x={chip.x} y={201} width={chip.w} height={38}>
+            <view x={chip.x} y={201} width={chip.w} height={38} onPointerOver={() => pointAt('tools', chip.i)}>
               <view width={chip.w} height={38} borderRadius={19} color={chip.on ? '#6366f1ff' : '#ffffff14'} />
               <view width={chip.w} height={38} borderRadius={19} color="#00000000" border={{ width: 2, color: hex(t().focus) }} alpha={toolFocus() === chip.i ? 1 : 0} />
               <text x={17} y={9} fontFamily={chip.on ? chipOnFont : chipFont} fontSize={20} lineHeight={24} color={chip.on ? '#ffffffff' : '#ffffffb3'}>
@@ -703,7 +712,7 @@ export default function Browse(props) {
       <view>
         <For each={letters()}>
           {(lt) => (
-            <view x={lt.x} y={268} width={lt.w} height={57}>
+            <view x={lt.x} y={268} width={lt.w} height={57} onPointerOver={() => pointAt('alpha', lt.i)}>
               <view width={lt.w} height={57} borderRadius={7} color="#ffffff1a" alpha={lt.on ? 1 : 0} />
               <view width={lt.w} height={57} borderRadius={7} color="#00000000" border={{ width: 2, color: hex(t().focus) }} alpha={letterFocus() === lt.i ? 1 : 0} />
               <text
@@ -723,7 +732,23 @@ export default function Browse(props) {
       </view>
 
       <view x={metrics().edge} y={356} width={1920 - 2 * metrics().edge} height={GRID_H} clipping>
-        <view transition={{ y: { duration: 250, easing: 'ease-out' } }} y={-st.scroll} width={1920} height={gridH()}>
+        <view
+          transition={{ y: { duration: 250, easing: 'ease-out' } }}
+          y={-st.scroll}
+          width={1920}
+          height={gridH()}
+          // The grid scrolls to its focused line, so the cursor rings a title and a click focuses it and
+          // opens it.
+          pointerChildRing
+          onPointerChildClick={(j) => {
+            if (st.dialog) return false
+            const i = visibleRows()[0] * metrics().columns + j
+            if (!st.items[i]) return false
+            st.zone = 'grid'
+            focusGrid(i)
+            return true
+          }}
+        >
           <For each={slots.keys()}>
             {(k) => {
               const c = () => slots.item(k)().card

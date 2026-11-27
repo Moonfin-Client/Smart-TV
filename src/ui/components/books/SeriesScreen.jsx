@@ -9,7 +9,7 @@ import BookShelf from './BookShelf.jsx'
 import { ScreenTitle } from './BookControls.jsx'
 import { bookCard } from './bookCards.js'
 import { countLabel } from './bookGrid.js'
-import { shelfHeight } from './bookParts.js'
+import { bookPointer, shelfHeight, showsWhole } from './bookParts.js'
 import { ellipsize, lineCount } from './bookText.js'
 import { authorOf, bookMenuItem, isFinished, readingOrder, seriesProgress } from './bookScreens.js'
 
@@ -123,6 +123,26 @@ export default function SeriesScreen(props) {
     reveal()
     return true
   }
+  // The Magic Remote's cursor (app/pointer.js): a book in full view takes focus on hover, one the page
+  // or its shelf would scroll to on a click.
+  const point = bookPointer(props, has)
+  const pointCard = (r, i, o) => {
+    const sr = rows()[r]
+    const card = sr && sr.cards[i]
+    if (!card) return false
+    const top = sr.y + sr.shelfY + 12 + (shelfHeight(sr.cards, PAD) - 24 - (card.h + 78))
+    const whole = o.whole && showsWhole(top, card.h + 78, scrollY(), props.viewH - HEADER_H)
+    return point(
+      () => {
+        batch(() => {
+          setRow(r)
+          setCol(i)
+        })
+        reveal()
+      },
+      { whole, lit: has() && row() === r && col() === i, click: o.click },
+    )
+  }
   const focusedCard = () => {
     const sr = rows()[row()]
     return sr && sr.cards[col()]
@@ -204,6 +224,7 @@ export default function SeriesScreen(props) {
                     viewW={sr().shelfW}
                     look={look()}
                     zoom={props.zoom}
+                    onPointerCard={(i, o) => pointCard(sr().r, i, o)}
                   />
                 </view>
               )

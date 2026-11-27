@@ -43,6 +43,8 @@ export default function GameSystemCard(props) {
       pivot={0.5}
       scale={props.focused ? 1.05 : 1}
       transition={{ scale: { duration: 150, easing: 'ease' } }}
+      onPointerOver={props.onPointerOver}
+      onPointerClick={props.onPointerClick}
     >
       <view x={-4} y={-4} width={433.5} height={191} borderRadius={16} color="#00000000" shadow={NEON_GLOW} alpha={props.focused && neon() ? 1 : 0} />
       <view x={-4} y={-4} width={433.5} height={191} borderRadius={16} color={neon() ? '#00a4dc' : '#ffffff'} alpha={props.focused ? 1 : 0} />

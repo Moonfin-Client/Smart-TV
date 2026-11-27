@@ -1,6 +1,7 @@
 import { For, createEffect, createMemo, createSelector, createSignal, on, untrack } from 'solid-js'
 import ChromeControl from './ChromeControl.jsx'
 import { nextControl } from './chromeNav.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // The focusable controls of a library screen's header, toolbar, bar or docked panel, as one
 // focus owner. The arrows move between controls by where they sit, unless a control names where a
@@ -74,9 +75,16 @@ export default function Chrome(props) {
     if (to) return select(to.id)
     return edge(dir, c)
   }
+  // The Magic Remote's cursor focuses the control under it, and OK then uses it (app/pointer.js).
+  let self
+  const point = (id) => {
+    pointerFocus(self)
+    if (untrack(cur) !== id) select(id)
+  }
   return (
     <view
       ref={(n) => {
+        self = n
         n.select = select
         n.selectGroup = selectGroup
         n.hasGroup = (g) => untrack(list).some((x) => x.group === g)
@@ -105,7 +113,11 @@ export default function Chrome(props) {
         {(id) => {
           let kept = byId()[id]
           const ctl = () => (kept = byId()[id] || kept)
-          return <ChromeControl c={ctl()} focused={(focused() && isCur(id)) || !!ctl().held} />
+          return (
+            <view onPointerOver={() => point(id)}>
+              <ChromeControl c={ctl()} focused={(focused() && isCur(id)) || !!ctl().held} />
+            </view>
+          )
         }}
       </For>
     </view>

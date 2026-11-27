@@ -58,7 +58,20 @@ export default function GuideRow(props) {
   const hidden = (t) => t.ck === hide() && t.over > 0
 
   return (
-    <view y={props.y || 0} width={1850} height={87}>
+    <view
+      y={props.y || 0}
+      width={1850}
+      height={87}
+      // Focus scrolls the guide to the row, so the Magic Remote's cursor rings the channel or a
+      // program and a click focuses it and presses it (app/pointer.js).
+      pointerItems={() =>
+        props.onPointerCell
+          ? [{ x: 9, y: 0, w: 278, h: 87, r: 14.5, key: 'ch' }].concat(fl().cells.map((c) => ({ x: 297 + c.x, y: 3, w: c.w, h: 81, r: 9, key: c.key })))
+          : []
+      }
+      pointerItemRing
+      onPointerItemClick={(it) => props.onPointerCell(it.key)}
+    >
       <view x={9} width={278} height={87} borderRadius={14.5} color="#353940f0" alpha={onCh() ? 0 : 1} />
       <view x={9} width={278} height={87} borderRadius={14.5} color="#00a4dc29" border={CH_EDGE} alpha={onCh() ? 1 : 0} />
       <view>

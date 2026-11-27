@@ -199,7 +199,15 @@ export default function NextUpCard(props) {
       <text alpha={look().timer ? 1 : 0} fontFamily={bold} fontSize={17} x={26} y={look().timerY + 1} lineHeight={33} color="#ffffffb3">
         {look().timer || ' '}
       </text>
-      <view x={26} y={look().actionsY} width={look().playW} height={66} alpha={look().play}>
+      <view
+        x={26}
+        y={look().actionsY}
+        width={look().playW}
+        height={66}
+        alpha={look().play}
+        onPointerOver={() => setCur(0)}
+        onPointerClick={() => props.show && say('play')}
+      >
         <view width={look().playW} height={66} borderRadius={17} color={ACCENT} />
         <view width={look().playW} height={66} borderRadius={17} color="#00000000" border={{ width: 1, color: hex('#ffffff') }} alpha={playFocused() ? 1 : 0} />
         <view x={24} y={17} width={32} height={32} src="icons/play_arrow.webp" color="#ffffffff" alpha={1 - look().ring} />
@@ -211,7 +219,7 @@ export default function NextUpCard(props) {
           {playLabel}
         </text>
       </view>
-      <view x={look().dismissX} y={look().dismissY} width={64} height={64}>
+      <view x={look().dismissX} y={look().dismissY} width={64} height={64} onPointerOver={() => setCur(1)} onPointerClick={() => props.show && say('hide')}>
         <view width={64} height={64} borderRadius={17} color="#ffffff14" border={{ width: 1, color: hex('#ffffff2e') }} alpha={dismissFocused() ? 0 : 1} />
         <view width={64} height={64} borderRadius={17} color="#00a4dc3d" border={{ width: 1, color: hex(ACCENT) }} alpha={dismissFocused() ? 1 : 0} />
         <view x={17.5} y={17.5} width={29} height={29} src="icons/close.webp" color="#ffffffff" />

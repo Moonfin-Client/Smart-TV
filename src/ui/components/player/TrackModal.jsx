@@ -116,6 +116,7 @@ export default function TrackModal(props) {
         if (props.ref) props.ref(n)
       }}
       width={1920}
+      pointerModal
       height={1080}
       transition={tx({ alpha: { duration: on() ? 200 : 0, easing: 'ease' } })}
       alpha={on() ? 1 : 0}
@@ -165,6 +166,7 @@ export default function TrackModal(props) {
                       y={30 + row().y}
                       width={660}
                       height={row().h}
+                      onPointerOver={() => !row().divider && cur() !== row().i && setCur(row().i)}
                       transition={{ color: { duration: 150, easing: 'ease-out' } }}
                       color={row().divider ? t().os(0.08) : isCur(row().i) ? t().accentA(0.3) : '#00000000'}
                     >

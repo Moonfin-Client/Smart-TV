@@ -16,6 +16,7 @@ import { tx } from '../../fx.js'
 import { usePage } from '../../../app/PageStack.jsx'
 import { afterDraw } from '../../afterDraw.js'
 import { getRenderer } from '@solidtv/solid'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // One of Home's rows in the Classic, Modern or Carousel look. The row owns Left, Right and Enter.
 // Up and Down go to the page. The focused card parks at the row's leading edge, grows to its wide
@@ -282,11 +283,22 @@ export default function MediaRow(props) {
     if (props.onCardPreview) props.onCardPreview(props.row.key, null)
   }
 
+  // The Magic Remote's cursor rings a card, and a click focuses it and presses it (app/pointer.js).
+  // Focus doesn't follow the cursor, since the row slides to the focused card. onPointerRow lets the
+  // rows around this one focus it in their own way.
+  let self
+  const pick = (i) => () => {
+    pointerFocus(self)
+    if (props.onPointerRow) props.onPointerRow()
+    move(i, i > cur() ? 1 : -1)
+    return true
+  }
   const sa = () => props.row.seeAll
   const saOn = () => onSeeAll() && focused()
   return (
     <view
       ref={(n) => {
+        self = n
         // Where focus lands coming back into the row.
         n.focusIndex = (i) => {
           const to = Math.max(0, Math.min(i, cards().length - 1))
@@ -368,6 +380,7 @@ export default function MediaRow(props) {
                       rh={ratingsH()}
                       vid={c.key === playing()}
                       onArtIn={onArtIn}
+                      onPointerClick={pick(c.idx)}
                     />
                   )
                 }}
@@ -385,6 +398,7 @@ export default function MediaRow(props) {
                     focused={isCur(c.idx) && focused()}
                     look={L()}
                     vid={c.key === playing()}
+                    onPointerClick={pick(c.idx)}
                   />
                 )}
               </For>
@@ -392,7 +406,16 @@ export default function MediaRow(props) {
           </view>
           <view width={spanW()} height={spanH()}>
             <Show when={sa()}>
-              <view x={sa().x + extra()} width={sa().w} height={sa().h} borderRadius={20} color="#ffffff14" border={{ width: 3, color: saOn() ? 0xffffffff : 0xffffff00 }}>
+              <view
+                x={sa().x + extra()}
+                width={sa().w}
+                height={sa().h}
+                borderRadius={20}
+                color="#ffffff14"
+                border={{ width: 3, color: saOn() ? 0xffffffff : 0xffffff00 }}
+                pointerRing
+                onPointerClick={pick(cards().length)}
+              >
                 <view
                   x={(sa().w - 53.4) / 2}
                   y={(sa().h - 53.4 - 13.4 - 26) / 2}

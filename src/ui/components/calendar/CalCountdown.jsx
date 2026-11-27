@@ -66,7 +66,15 @@ const Lane = (props) => {
               {(k) => {
                 const c = cards.item(k)
                 return (
-                  <view x={c().x} width={c().w} height={c().h}>
+                  <view
+                    x={c().x}
+                    width={c().w}
+                    height={c().h}
+                    // The row centers its focused card, so the Magic Remote's cursor rings a card and
+                    // a click focuses it and opens it (app/pointer.js).
+                    pointerRing={16.7}
+                    onPointerClick={() => props.onPointerCard(Math.round(c().x / (c().w + CARD_GAP)))}
+                  >
                     <view width={c().w} height={c().ah} borderRadius={16.7} color="#ffffff0f">
                       <view x={c().w / 2 - 20} y={c().ah / 2 - 20} width={40} height={40} src={c().icon} color="#ffffff4d" />
                       <view width={c().w} height={c().ah} borderRadius={16.7} src={c().src} textureOptions={COVER} alpha={c().src ? 1 : 0} />
@@ -499,6 +507,26 @@ export default function CalCountdown(props) {
     const row = my.rows.find((r) => r.k === st.zone)
     if (row) actions.select(row.entries[row.at])
   }
+  // The Magic Remote's cursor (app/pointer.js). A hero button takes focus on hover while the page is
+  // at the top (focusing one scrolls there), and on a click otherwise; Full calendar and Retry take
+  // it on hover. Hover also takes focus back from the nav.
+  const point = (fn) => {
+    if (!my.s) return
+    batch(fn)
+    if (!has() && root) root.setFocus()
+  }
+  const pointHero = (i) => st.scrollY === 0 && point(() => focusHero(i))
+  const clickHero = (i) => {
+    if (!my.s || !st.buttons[i]) return false
+    point(() => focusHero(i))
+    return true
+  }
+  const pointCard = (k, i) => {
+    const row = my.rows.find((r) => r.k === k)
+    if (!my.s || !row || !row.items[i]) return false
+    point(() => focusCard(row, i))
+    return true
+  }
   const rowIndex = () => my.rows.findIndex((r) => r.k === st.zone)
   const key = (fn) => () => {
     if (my.s) batch(fn)
@@ -638,7 +666,17 @@ export default function CalCountdown(props) {
                 {(k) => {
                   const b = buttons.item(k)
                   return (
-                    <CalPill x={b().x} y={b().y} p={b()} focused={st.zone === 'hero' && st.heroAt === b().at && has()} ring={st.ring} fill={st.fill} ink={st.ink} />
+                    <CalPill
+                      x={b().x}
+                      y={b().y}
+                      p={b()}
+                      focused={st.zone === 'hero' && st.heroAt === b().at && has()}
+                      ring={st.ring}
+                      fill={st.fill}
+                      ink={st.ink}
+                      onPointerOver={() => pointHero(b().at)}
+                      onPointerClick={() => clickHero(b().at)}
+                    />
                   )
                 }}
               </For>
@@ -646,8 +684,8 @@ export default function CalCountdown(props) {
           </view>
         </view>
 
-        <Lane row={st.week} cards={st.weekCards} x={st.pl} ring={st.ring} focused={st.zone === 'week' && has()} />
-        <Lane row={st.ready} cards={st.readyCards} x={st.pl} ring={st.ring} focused={st.zone === 'ready' && has()} />
+        <Lane row={st.week} cards={st.weekCards} x={st.pl} ring={st.ring} focused={st.zone === 'week' && has()} onPointerCard={(i) => pointCard('week', i)} />
+        <Lane row={st.ready} cards={st.readyCards} x={st.pl} ring={st.ring} focused={st.zone === 'ready' && has()} onPointerCard={(i) => pointCard('ready', i)} />
       </view>
 
       <view>
@@ -657,8 +695,24 @@ export default function CalCountdown(props) {
               <text fontFamily={m().titleFont} fontSize={m().titleSize} y={m().titleY} letterSpacing={m().ls} color="#ffffff">
                 {m().title}
               </text>
-              <CalPill x={m().full.x} y={m().full.y} p={m().full} focused={st.zone === 'full' && has()} ring={st.ring} fill={st.fill} ink={st.ink} />
-              <CalMessage m={m().state} retryFocused={st.zone === 'retry' && has()} ring={st.ring} fill={st.fill} ink={st.ink} />
+              <CalPill
+                x={m().full.x}
+                y={m().full.y}
+                p={m().full}
+                focused={st.zone === 'full' && has()}
+                ring={st.ring}
+                fill={st.fill}
+                ink={st.ink}
+                onPointerOver={() => point(() => (st.zone = 'full'))}
+              />
+              <CalMessage
+                m={m().state}
+                retryFocused={st.zone === 'retry' && has()}
+                ring={st.ring}
+                fill={st.fill}
+                ink={st.ink}
+                onPointerRetry={() => point(() => (st.zone = 'retry'))}
+              />
             </view>
           )}
         </Show>

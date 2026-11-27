@@ -89,6 +89,7 @@ export default function CorePicker(props) {
                 <text x={84} y={50} fontFamily={r.detailFont} fontSize={20} lineHeight={24} maxWidth={540} maxLines={1} color="#ffffffb3">
                   {r.detail}
                 </text>
+                <view width={660} height={r.h} onPointerOver={() => cur() !== r.i && setCur(r.i)} />
               </view>
             )}
           </For>

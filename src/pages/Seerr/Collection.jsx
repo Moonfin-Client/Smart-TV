@@ -435,7 +435,16 @@ export default function Collection(props) {
             <text x={72} y={150} fontFamily={h().overviewFont} fontSize={22} lineHeight={31.9} maxWidth={1100} maxLines={3} color="#ffffffbf">
               {h().overview}
             </text>
-            <view x={72} y={h().buttonY} width={h().buttonW} height={67} pivot={0.5} scale={buttonFocused() ? 1.03 : 1} alpha={showRequest() ? 1 : 0}>
+            <view
+              x={72}
+              y={h().buttonY}
+              width={h().buttonW}
+              height={67}
+              pivot={0.5}
+              scale={buttonFocused() ? 1.03 : 1}
+              alpha={showRequest() ? 1 : 0}
+              onPointerOver={() => !sheet() && zone() !== 'button' && setZone('button')}
+            >
               <view width={h().buttonW} height={67} borderRadius={10} color="#00a4dcff" />
               <view width={h().buttonW} height={67} borderRadius={10} color="#00000000" border={WHITE_RING} alpha={buttonFocused() ? 1 : 0} />
               <text x={37} y={19} fontFamily={buttonFont} fontSize={24} lineHeight={33} color="#ffffffff">
@@ -448,7 +457,19 @@ export default function Collection(props) {
                   {(card) => {
                     const on = () => card.i === cardFocus()
                     return (
-                      <view x={card.x} width={222} height={378} pivot={0.5} scale={on() ? 1.04 : 1}>
+                      <view
+                        x={card.x}
+                        width={222}
+                        height={378}
+                        pivot={0.5}
+                        scale={on() ? 1.04 : 1}
+                        // The Magic Remote's cursor focuses a part, and OK then opens it (app/pointer.js).
+                        onPointerOver={() => {
+                          if (sheet()) return
+                          if (zone() !== 'parts') setZone('parts')
+                          if (cur() !== card.i) focusPart(card.i)
+                        }}
+                      >
                         <view width={222} height={378} borderRadius={10} color="#00000000" border={WHITE_RING} alpha={on() ? 1 : 0} />
                         <view x={11} y={11} width={200} height={280} borderRadius={8} color="#252525ff" />
                         <Show when={card.image}>

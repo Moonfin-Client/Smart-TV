@@ -76,6 +76,7 @@ export default function Row(props) {
       <Show when={smart()}>
         <MediaRow
           ref={(n) => (inner = n)}
+          onPointerRow={props.onPointerRow}
           row={smart().row}
           box={smart().row.box}
           look={smart().look}

@@ -6,6 +6,7 @@ import * as settings from '../../../state/settings.js'
 import { theme } from '../../theme.js'
 import { hex } from '../../color.js'
 import { cssShift, fontFor, uiFont } from '../../text.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // One of Home's tile rows: Seerr's genre, shortcut, studio and network tiles, or a game library's
 // recent games as box art cards with the focused game's description under them in a Modern look.
@@ -79,6 +80,16 @@ export default function TileRow(props) {
     const at = cur()
     noteTimer = setTimeout(() => props.onRowFocus && props.onRowFocus(c, props.row.key, at), FOCUS_ITEM_MS)
   }
+  // The Magic Remote's cursor rings a card, and a click focuses it and opens it (app/pointer.js). The
+  // row slides to its focused card, so hover doesn't move focus.
+  let self
+  const pick = (c) => {
+    if (!c) return false
+    pointerFocus(self)
+    if (props.onPointerRow) props.onPointerRow()
+    if (c.idx !== cur()) move(c.idx)
+    return true
+  }
   const move = (to) => {
     if (to === cur() || to < 0 || to >= cards().length) return
     setCur(to)
@@ -88,6 +99,7 @@ export default function TileRow(props) {
   return (
     <view
       ref={(n) => {
+        self = n
         n.focusIndex = (i) => setCur(Math.max(0, Math.min(i, cards().length - 1)))
         n.cur = cur
         if (props.ref) props.ref(n)
@@ -128,7 +140,15 @@ export default function TileRow(props) {
         {props.row.title || ''}
       </text>
       <view x={L().clipX} y={props.box.scrollerY} width={L().viewW} height={props.box.laneH} clipping>
-        <view y={20} x={L().pad - scroll()} width={L().pad * 2 + laneW() + 1920} height={props.box.laneH} transition={{ x: { duration: 220, easing: 'cubic-bezier(0.33, 1, 0.68, 1)' } }}>
+        <view
+          y={20}
+          x={L().pad - scroll()}
+          width={L().pad * 2 + laneW() + 1920}
+          height={props.box.laneH}
+          transition={{ x: { duration: 220, easing: 'cubic-bezier(0.33, 1, 0.68, 1)' } }}
+          pointerChildRing
+          onPointerChildClick={(i) => pick(shown()[i])}
+        >
           <Show
             when={props.row.isGameRow}
             fallback={<For each={shown()}>{(c) => <TileCard card={c} look={L()} focused={isCur(c.idx) && focused()} />}</For>}

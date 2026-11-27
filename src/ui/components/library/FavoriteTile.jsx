@@ -63,6 +63,8 @@ export default function FavoriteTile(props) {
           </view>
         </Show>
       </view>
+      {/* The pointer's hit area and hover ring, the size of the focus ring (Grid passes the click). */}
+      <view width={bw()} height={bh()} pointerRing={c().image ? r() : undefined} onPointerClick={props.onPointerClick} />
     </view>
   )
 }

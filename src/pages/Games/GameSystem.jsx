@@ -120,6 +120,15 @@ export default function GameSystem(props) {
     else if (root) root.setFocus()
   }
 
+  // The Magic Remote's cursor (app/pointer.js): the search box, Back and the letters take focus on
+  // hover, and OK then uses them.
+  const point = (zone, tool) => {
+    if (st.typing) return
+    if (st.focused && st.zone === zone && (tool == null || st.tool === tool)) return
+    st.zone = zone
+    if (tool != null) st.tool = tool
+    if (root) root.setFocus()
+  }
   const load = async () => {
     const lib = decodeParam(props.lib)
     const system = decodeParam(props.system)
@@ -349,7 +358,7 @@ export default function GameSystem(props) {
       >
         {title}
       </text>
-      <view x={1270} y={12} width={580} height={66} borderRadius={33} color="#1e1e28b8" />
+      <view x={1270} y={12} width={580} height={66} borderRadius={33} color="#1e1e28b8" onPointerOver={() => point('search')} />
       <view x={1270} y={12} width={580} height={66} borderRadius={33} color="#00000000" border={RING} alpha={st.focused && st.zone === 'search' ? 1 : 0} />
       <view x={1290} y={31} width={28} height={28} src="icons/game_search.webp" />
       {/* An input clips what doesn't fit rather than cutting it with an ellipsis. */}
@@ -395,21 +404,36 @@ export default function GameSystem(props) {
       <view y={showDetails() ? 0 : -INFO_H} width={1920} height={1080}>
         <view x={70} y={248} width={44} height={44} borderRadius={9} color="#ffffff" alpha={backOn() ? 1 : 0} />
         <view x={77.5} y={255.5} width={29} height={29} src="icons/game_back.webp" color={backOn() ? '#101010' : neon() ? '#00e5ff' : '#ffffff80'} />
+        <view x={70} y={248} width={44} height={44} onPointerOver={() => point('tools', 0)} />
         <view>
           <Index each={letters()}>
-            {(lt) => (
+            {(lt, i) => (
               <view x={lt().x} y={248} width={lt().w} height={44}>
                 <view width={lt().w} height={44} borderRadius={6} color="#00000000" border={LETTER_RING} alpha={lt().focused ? 1 : 0} />
                 <text x={lt().w / 2} y={23} mountX={0.5} mountY={0.5} fontFamily={lt().font} fontSize={22} color={lt().color}>
                   {lt().label}
                 </text>
+                <view width={lt().w} height={44} onPointerOver={() => point('tools', i + 1)} />
               </view>
             )}
           </Index>
         </view>
         <view y={316} width={1920} height={st.geo.viewH} clipping>
           <view alpha={!st.loading && visible().length > 0 ? 1 : 0}>
-            <GameGrid ref={(n) => (grid = n)} x={70} items={visible()} geo={st.geo} neon={neon()} onGridFocus={onGridFocus} onGridSelect={onGridSelect} />
+            <GameGrid
+              ref={(n) => (grid = n)}
+              x={70}
+              items={visible()}
+              geo={st.geo}
+              neon={neon()}
+              onGridFocus={onGridFocus}
+              onGridSelect={onGridSelect}
+              onPointerGrid={() => {
+                if (st.typing) return
+                st.zone = 'grid'
+                focusZone()
+              }}
+            />
           </view>
         </view>
       </view>

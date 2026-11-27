@@ -165,6 +165,20 @@ export default function IdentifyModal(props) {
     return true
   }
 
+  // The Magic Remote's cursor (app/pointer.js): a control in full view takes focus on hover, one the
+  // dialog would scroll to only on a click, so it doesn't move under the cursor.
+  const pointAt = (i) => {
+    const f = laid().focusables[i]
+    if (!f || kbOn() || cur() === i || f.y < scroll() || f.y + f.h > scroll() + laid().h) return
+    setCur(i)
+  }
+  const clickAt = (i) => {
+    if (kbOn() || !laid().focusables[i]) return false
+    setCur(i)
+    reveal()
+    return true
+  }
+
   return (
     <view
       ref={(n) => {
@@ -205,6 +219,13 @@ export default function IdentifyModal(props) {
             <Rects list={rings()} />
             <Rects list={frames()} />
             <Texts list={laid().texts} />
+            <view
+              width={laid().w}
+              height={laid().fullH}
+              pointerItems={() => laid().focusables}
+              onPointerItem={(_, i) => pointAt(i)}
+              onPointerItemClick={(_, i) => clickAt(i)}
+            />
           </view>
         </view>
       </view>

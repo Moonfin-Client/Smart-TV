@@ -12,6 +12,7 @@ import { focusNav } from '../../../app/focus.js'
 import { createBarContext } from './barContext.js'
 import { roundedZoom } from './zoomShader.js'
 import { backdropOf, glowOf, imageOf, logoOf, loadReleases, releaseOf, restartCarousel, stopCarousel, toNum } from './barKit.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // The Banner media bar: a card across the top with Home's rows under it. The slide's banner art
 // shows whole over a blurred copy of itself, or else its backdrop with the logo or title over it.
@@ -206,6 +207,12 @@ export default function BannerBar(props) {
       width={card().w}
       height={CARD_H}
       alpha={props.alpha === undefined ? 1 : props.alpha}
+      // A click on the banner opens its title (app/pointer.js). The bar spans the screen under
+      // Home's rows, so hovering it doesn't take focus from them.
+      onPointerClick={(n) => {
+        pointerFocus(n)
+        return true
+      }}
       onFocusChanged={onFocusChanged}
       onLeft={() => {
         if (cfg().left && cur() === 0) focusNav()

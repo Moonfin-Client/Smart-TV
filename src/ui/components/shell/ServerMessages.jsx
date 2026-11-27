@@ -325,7 +325,15 @@ export default function ServerMessages(props) {
           <view width={frame().bodyW} height={laid().listH}>
             <Index each={laid().actions}>
               {(a) => (
-                <view x={a().x} y={a().y} width={a().w} height={52.1} borderRadius={13.36} color={pill(a().ti === cur() && !qr())}>
+                <view
+                  x={a().x}
+                  y={a().y}
+                  width={a().w}
+                  height={52.1}
+                  borderRadius={13.36}
+                  color={pill(a().ti === cur() && !qr())}
+                  onPointerOver={() => !qr() && cur() !== a().ti && setCur(a().ti)}
+                >
                   <text
                     fontFamily={a().font}
                     fontSize={21.704}

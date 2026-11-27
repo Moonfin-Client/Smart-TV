@@ -52,6 +52,13 @@ export default function MiniPlayer(props) {
     setCur(0)
     root.setFocus()
   }
+  // The Magic Remote's cursor focuses the pill and the part under it, and OK then uses it
+  // (app/pointer.js).
+  const point = (i) => {
+    if (!shown()) return
+    if (cur() !== i) setCur(i)
+    if (!active()) root.setFocus()
+  }
   return (
     <view
       ref={(n) => {
@@ -123,6 +130,7 @@ export default function MiniPlayer(props) {
         active
         weight="bold"
       />
+      <view x={33} y={13} width={titleW() + 100} height={64} onPointerOver={() => point(0)} />
       <view>
         <For each={CONTROLS}>
           {(ct) => (
@@ -133,6 +141,7 @@ export default function MiniPlayer(props) {
               height={64}
               borderRadius={32}
               color={isOn(ct.i) ? '#ffffffff' : '#ffffff00'}
+              onPointerOver={() => point(ct.i)}
             >
               <view
                 x={12}

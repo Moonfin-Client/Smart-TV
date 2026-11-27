@@ -587,6 +587,20 @@ export default function Discover(props) {
       height={1080}
       color="#101010ff"
       linearGradient={SCRIM}
+      // The row the Magic Remote's cursor focuses becomes the current one (app/pointer.js).
+      onPointerFocus={(n) => {
+        for (let p = n; p; p = p.parent) {
+          const at = rows().findIndex((r) => rowNodes[r.key] === p)
+          if (at < 0) continue
+          batch(() => {
+            setZone('rows')
+            setRowIndex(at)
+          })
+          focusZone()
+          return true
+        }
+        return false
+      }}
       forwardFocus={() => {
         const el = zoneNode()
         if (!el) return false
@@ -739,7 +753,16 @@ export default function Discover(props) {
         </view>
       </view>
 
-      <view>
+      <view
+        // The Magic Remote's cursor focuses a pill, and OK then opens it (app/pointer.js).
+        onPointerChildOver={(i) => {
+          if (zone() !== 'pills') {
+            setZone('pills')
+            focusZone()
+          }
+          if (pillCur() !== i) setPillCur(i)
+        }}
+      >
         <Show when={showPills()}>
           <For each={pills()}>
             {(p) => (

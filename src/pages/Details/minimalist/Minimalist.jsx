@@ -195,6 +195,17 @@ export default function Minimalist(props) {
   return (
     <view
       ref={root}
+      // The part the Magic Remote's cursor focuses becomes the zone (app/pointer.js).
+      onPointerFocus={(n) => {
+        if (m.zone === 'sheet') return true
+        for (let p = n; p; p = p.parent) {
+          const z = p === actions ? 'actions' : p === episodes ? 'episodes' : ''
+          if (!z) continue
+          if (m.zone !== z || activeElement() === root) focusZone(z)
+          return true
+        }
+        return false
+      }}
       width={1920}
       height={1080}
       onUp={() => {

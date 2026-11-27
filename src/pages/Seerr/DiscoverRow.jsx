@@ -3,6 +3,7 @@ import { For, Show, createMemo, createSelector, createSignal } from 'solid-js'
 import SeerrTile from '../../ui/components/seerr/SeerrTile.jsx'
 import SeerrPosterCard from '../../ui/components/seerr/SeerrPosterCard.jsx'
 import { uiFont, cssShift } from '../../ui/text.js'
+import { pointerFocus } from '../../app/pointer.js'
 
 // A Discover tile row (shortcuts, genres, studios, networks) or, in the Classic style, a row of
 // posters. The focused card parks at the leading edge and the row slides under it, focus wraps
@@ -52,6 +53,16 @@ export default function DiscoverRow(props) {
     if (c && props.onRowFocus) props.onRowFocus(props.rowIndex, c)
     if (cur() >= cards().length - 3 && props.onRowMore) props.onRowMore(props.rowIndex)
   }
+  // The Magic Remote's cursor rings a card, and a click focuses it and opens it (app/pointer.js). The
+  // row slides to its focused card, so hover doesn't move focus.
+  let self
+  const pick = (c) => {
+    if (!c) return false
+    pointerFocus(self)
+    if (props.onPointerRow) props.onPointerRow()
+    if (c.idx !== cur()) move(c.idx)
+    return true
+  }
   const move = (to) => {
     if (to === cur() || to < 0 || to >= cards().length) return
     setCur(to)
@@ -61,6 +72,7 @@ export default function DiscoverRow(props) {
   return (
     <view
       ref={(n) => {
+        self = n
         n.focusIndex = (i) => setCur(Math.max(0, Math.min(i, cards().length - 1)))
         if (props.ref) props.ref(n)
       }}
@@ -93,14 +105,14 @@ export default function DiscoverRow(props) {
       </text>
       <view y={49} width={1920} height={laneH()} clipping>
         <view x={L().inset + 6 - scroll()} y={itemsY()} width={spanW()} height={laneH()}>
-          <view width={spanW()} height={laneH()}>
+          <view width={spanW()} height={laneH()} pointerChildRing onPointerChildClick={(i) => pick(shown()[i])}>
             <Show when={tile()}>
               <For each={shown()}>
                 {(t) => <SeerrTile x={t.x} tile={t} w={L().sizes.tileWidth} h={L().sizes.tileHeight} focused={isFocused(t.idx)} ring={L().focus} />}
               </For>
             </Show>
           </view>
-          <view width={spanW()} height={laneH()}>
+          <view width={spanW()} height={laneH()} pointerChildRing onPointerChildClick={(i) => pick(shown()[i])}>
             <Show when={!tile()}>
               <For each={shown()}>
                 {(c) => (

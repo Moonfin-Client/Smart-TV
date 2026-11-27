@@ -416,6 +416,14 @@ export default function Recordings(props) {
     }
   }
 
+  // The Magic Remote's cursor (app/pointer.js): a pill takes focus on hover. Focus scrolls the rails
+  // to a card, so the cursor rings a card and a click focuses it and opens it.
+  const pointPill = (i) => !st.popup && !(st.zone === 'pills' && st.pillCur === i) && focusPills(i)
+  const pointCard = (ri, ci) => {
+    if (st.popup || !my.lanes[ri]) return false
+    focusCard(ri, ci)
+    return true
+  }
   const enterKey = () => {
     if (st.zone === 'none') return
     if (st.zone === 'lost') return focusCard(st.rail, st.col)
@@ -489,7 +497,7 @@ export default function Recordings(props) {
             {(k) => {
               const p = pills.item(k)
               return (
-                <view x={p().x} y={p().y} width={p().w} height={p().h}>
+                <view x={p().x} y={p().y} width={p().w} height={p().h} onPointerOver={() => pointPill(p().i)}>
                   <view width={p().w} height={p().h} borderRadius={30} color={p().on ? '#00a4dcb3' : '#ffffff1a'} alpha={pillOn(p().i) ? 0 : 1} />
                   <view width={p().w} height={p().h} borderRadius={30} color="#00a4dc" alpha={pillOn(p().i) ? 1 : 0} />
                   <text fontFamily={font} fontSize={20} x={21} y={p().ty} lineHeight={1} color={p().on || pillOn(p().i) ? '#ffffff' : '#ffffffcc'}>
@@ -500,7 +508,7 @@ export default function Recordings(props) {
             }}
           </For>
         </view>
-        <view x={1815} y={30} width={69} height={47}>
+        <view x={1815} y={30} width={69} height={47} onPointerOver={() => pointPill(3)}>
           <view width={69} height={47} borderRadius={30} color="#ffffff1a" alpha={pillOn(3) ? 0 : 1} />
           <view width={69} height={47} borderRadius={30} color="#00a4dc" alpha={pillOn(3) ? 1 : 0} />
           <view x={21} y={10} width={27} height={27} src="icons/arrow_back.webp" color={pillOn(3) ? '#ffffff' : '#ffffffcc'} />
@@ -546,6 +554,8 @@ export default function Recordings(props) {
                                 pivot={0.5}
                                 scale={on() ? 1.08 : 1}
                                 alpha={on() ? 1 : 0.75}
+                                pointerRing={6}
+                                onPointerClick={() => pointCard(my.lanes.findIndex((l) => l.k === lk), c().c)}
                               >
                                 <view width={300} height={168} borderRadius={6} color="#ffffff0f" />
                                 <view

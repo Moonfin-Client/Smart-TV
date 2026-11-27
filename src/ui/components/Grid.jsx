@@ -5,6 +5,7 @@ import { CARD_SIZES } from '../models.js'
 import { moveIndex, scrollRowFor } from './library/tileGridMath.js'
 import { edgeOffset, windowOf } from './gridWindow.js'
 import { tx } from '../fx.js'
+import { pointerFocus } from '../../app/pointer.js'
 
 // A grid for long lists. Only the lines around the visible ones exist, and in tile mode their tiles
 // are keyed by slot, so scrolling a line re-fills the tiles that left rather than building new ones.
@@ -138,9 +139,18 @@ export default function Grid(props) {
   )
 
   const slide = () => (props.slideMs == null ? 200 : props.slideMs)
+  // The Magic Remote's cursor rings a tile, and a click focuses it and opens it (app/pointer.js). The
+  // grid slides to its focused tile, so hover doesn't move focus.
+  let self
+  const pick = (i) => {
+    pointerFocus(self)
+    moveTo(i)
+    return true
+  }
   return (
     <view
       ref={(n) => {
+        self = n
         n.focusIndex = (i) => moveTo(Math.max(0, Math.min(i, items().length - 1)))
         // Puts the grid back on its first item without telling the holder, for a new list.
         n.reset = () => {
@@ -195,14 +205,17 @@ export default function Grid(props) {
           {(key) => {
             let last = win().at[key]
             const at = () => (last = win().at[key] || last)
+            // A tile lays out its own art inside the cell, so it takes the pointer itself
+            // (onPointerClick) and rings its art; the cell's box would ring the wrong size.
             return (
-              <view x={at().x} y={at().y}>
+              <view x={at().x} y={at().y} width={size().w} height={size().h} pointerRing={!tile()} onPointerClick={tile() ? undefined : () => pick(at().i)}>
                 <Dynamic
                   component={props.tile || Card}
                   card={items()[at().i]}
                   w={size().w}
                   h={size().h}
                   opts={props.opts}
+                  onPointerClick={tile() ? () => pick(at().i) : undefined}
                   focused={(focused() && isCur(at().i)) || (!!props.held && at().i === 0)}
                 />
               </view>

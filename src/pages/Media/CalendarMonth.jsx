@@ -378,6 +378,31 @@ export default function CalendarMonth(props) {
     const mid = b.x + b.w / 2 - my.at.left
     return Math.max(0, Math.min(6, Math.floor(mid / my.grid.colW)))
   }
+  // The Magic Remote's cursor (app/pointer.js). The buttons and Retry take focus on hover. A day
+  // changes the list beside the grid, so the cursor only rings a day (crossing the grid to the list
+  // would change it) and a click picks it. The list centers its focused row, so a row too rings and
+  // a click focuses it and opens it. Hover also takes focus back from the nav.
+  const point = (fn) => {
+    if (!my.s) return
+    batch(fn)
+    if (!has() && root) root.setFocus()
+  }
+  const gridBox = () => {
+    const list = my.cells || []
+    if (!list.length) return { x: 0, y: 0, w: 0, h: 0 }
+    const x = Math.min(...list.map((c) => c.x))
+    const y = Math.min(...list.map((c) => c.y))
+    return { x, y, w: Math.max(...list.map((c) => c.x + c.w)) - x, h: Math.max(...list.map((c) => c.y + c.h)) - y }
+  }
+  const pointDay = (i) => {
+    if (my.s && !st.message && my.days[i]) point(() => focusCellAt(i))
+    return false
+  }
+  const pointRow = (i) => {
+    if (!my.s || !st.rows[i]) return false
+    point(() => focusPanelRow(i))
+    return true
+  }
   const key = (fn) => () => {
     if (my.s) batch(fn)
     return true
@@ -496,7 +521,21 @@ export default function CalendarMonth(props) {
           {(k) => {
             const b = buttons.item(k)
             return (
-              <CalPill x={b().x} y={b().y} p={b()} focused={st.zone === 'header' && st.btnAt === b().at && has()} ring={st.ring} fill={st.fill} ink={st.ink} />
+              <CalPill
+                x={b().x}
+                y={b().y}
+                p={b()}
+                focused={st.zone === 'header' && st.btnAt === b().at && has()}
+                ring={st.ring}
+                fill={st.fill}
+                ink={st.ink}
+                onPointerOver={() =>
+                  point(() => {
+                    st.zone = 'header'
+                    st.btnAt = b().at
+                  })
+                }
+              />
             )
           }}
         </For>
@@ -563,9 +602,30 @@ export default function CalendarMonth(props) {
         border={{ width: 3, color: hex(st.ring) }}
         alpha={st.zone === 'grid' && has() && !st.message ? 1 : 0}
       />
+      <view
+        x={st.cells.length ? gridBox().x : 0}
+        y={st.cells.length ? gridBox().y : 0}
+        width={st.cells.length ? gridBox().w : 0}
+        height={st.cells.length ? gridBox().h : 0}
+        pointerItems={() => {
+          const box = gridBox()
+          return (my.cells || []).map((c) => ({ x: c.x - box.x, y: c.y - box.y, w: c.w, h: c.h }))
+        }}
+        pointerItemRing={16.7}
+        onPointerItemClick={(_, i) => pointDay(i)}
+      />
       <view>
         <Show when={st.message}>
-          {(m) => <CalMessage m={m()} retryFocused={st.zone === 'retry' && has()} ring={st.ring} fill={st.fill} ink={st.ink} />}
+          {(m) => (
+            <CalMessage
+              m={m()}
+              retryFocused={st.zone === 'retry' && has()}
+              ring={st.ring}
+              fill={st.fill}
+              ink={st.ink}
+              onPointerRetry={() => point(() => (st.zone = 'retry'))}
+            />
+          )}
         </Show>
       </view>
 
@@ -597,6 +657,13 @@ export default function CalendarMonth(props) {
               color={CLEAR}
               border={{ width: 3, color: hex(st.ring) }}
               alpha={st.zone === 'panel' && has() ? 1 : 0}
+            />
+            <view
+              width={st.panel.w}
+              height={Math.max(st.panel.listH, st.panelH)}
+              pointerItems={() => st.rows.map((r) => ({ x: 0, y: r.y, w: st.panel.w, h: r.h }))}
+              pointerItemRing={16.7}
+              onPointerItemClick={(_, i) => pointRow(i)}
             />
           </view>
         </view>

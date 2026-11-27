@@ -4,7 +4,7 @@ import MusicCard from '../MusicCard.jsx'
 import MusicTrackList, { trackRows, trackListHeight } from '../MusicTrackList.jsx'
 import HeroButtons, { heroButtons } from '../HeroButtons.jsx'
 import MusicFilterPanel from '../MusicFilterPanel.jsx'
-import { ScreenHeader, clampText, headerHeight, layoutControls, cardSide, contentWidth, gridRows, rowIndexOf, gridMove, keepInView } from '../screenParts.jsx'
+import { ScreenHeader, pointerIn, wholeInView, clampText, headerHeight, layoutControls, cardSide, contentWidth, gridRows, rowIndexOf, gridMove, keepInView } from '../screenParts.jsx'
 import { lineY } from '../../books/bookGrid.js'
 import { wrapLines } from '../../details/measure.js'
 import { Kept } from '../../library/pageKit.js'
@@ -52,10 +52,10 @@ function Panel(props) {
       <text fontFamily={uiFont()} fontSize={19} maxWidth={495} maxLines={1} x={36} y={p().subY} color={look().os(0.65)}>
         {p().subMeta}
       </text>
-      <HeroButtons x={36} y={p().buttonsY} buttons={p().buttons} focus={props.bfocus} look={look()} />
+      <HeroButtons x={36} y={p().buttonsY} buttons={p().buttons} focus={props.bfocus} look={look()} onPointerButton={props.onPointerButton} />
       <view>
         <Show when={p().rows}>
-          <MusicTrackList x={579} y={30} rows={p().rows} focus={props.tfocus} w={p().w - 615} columns={2} look={look()} />
+          <MusicTrackList x={579} y={30} rows={p().rows} focus={props.tfocus} w={p().w - 615} columns={2} look={look()} onPointerTrack={props.onPointerTrack} />
         </Show>
       </view>
       <view>
@@ -284,6 +284,22 @@ export default function AlbumsScreen(props) {
     const y = panelY() + 30 + Math.floor(i / 2) * 51
     scrollTo(y, y + 51)
   }
+  // The Magic Remote's cursor (app/pointer.js): the header's stops and the open album's buttons and
+  // tracks take focus on hover; an album in full view too, one the grid would scroll to on a click.
+  const point = pointerIn(st, my, props)
+  const cardShows = (i) => {
+    const top = rowTops().tops[rowIndexOf(rows(), i)] || 0
+    return wholeInView(st.scrollY, VIEW_H - headerH(), top, top + side + 86)
+  }
+  const pointCard = (i) => {
+    if (st.showGenres || !cardShows(i) || (on() && st.zone === 'grid' && st.cur === i)) return
+    point(() => focusIndex(i))
+  }
+  const clickCard = (i) => {
+    if (st.showGenres || !st.items[i]) return false
+    point(() => focusIndex(i))
+    return true
+  }
   const focusBelow = () => {
     const below = gridMove(rows(), openRow(), st.openIndex, 'down')
     if (below != null) focusIndex(below)
@@ -436,13 +452,34 @@ export default function AlbumsScreen(props) {
                   size={side}
                   look={look()}
                   focused={gridSel(c.idx)}
+                  onPointerOver={() => pointCard(c.idx)}
+                  onPointerClick={() => clickCard(c.idx)}
                 />
               )}
             </For>
           </view>
           <view width={vw} height={rowTops().end}>
             <Show when={panel()}>
-              <Panel x={60} y={panelY()} panel={panel()} look={look()} bfocus={bFocus()} tfocus={tFocus()} />
+              <Panel
+                x={60}
+                y={panelY()}
+                panel={panel()}
+                look={look()}
+                bfocus={bFocus()}
+                tfocus={tFocus()}
+                onPointerButton={(i) =>
+                  point(() => {
+                    st.zone = 'pbuttons'
+                    st.pb = i
+                  })
+                }
+                onPointerTrack={(i) =>
+                  point(() => {
+                    st.zone = 'ptracks'
+                    st.pt = i
+                  })
+                }
+              />
             </Show>
           </view>
         </view>
@@ -454,7 +491,20 @@ export default function AlbumsScreen(props) {
           </Show>
         </view>
       </view>
-      <ScreenHeader title={$L('Albums')} count={countText()} controls={controls()} focus={headFocus()} look={look()} />
+      <ScreenHeader
+        title={$L('Albums')}
+        count={countText()}
+        controls={controls()}
+        focus={headFocus()}
+        look={look()}
+        onPointerStop={(i) =>
+          !st.showGenres &&
+          point(() => {
+            st.zone = 'header'
+            st.hcur = i
+          })
+        }
+      />
       <view>
         <Show when={st.showGenres}>
           <Kept gone={() => (genresPanel = null)}>

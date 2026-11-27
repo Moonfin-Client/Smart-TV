@@ -141,7 +141,12 @@ export default function LibraryPanel(props) {
             <For each={rows.keys()}>
               {(k) => {
                 const row = rows.item(k)
-                return <PanelRow r={row()} neon={props.neon} focused={focused() && row().fi === cur()} />
+                // The Magic Remote's cursor focuses the row under it, and OK then picks it (app/pointer.js).
+                return (
+                  <view onPointerOver={() => row().fi >= 0 && focused() && row().fi !== cur() && setCur(row().fi)}>
+                    <PanelRow r={row()} neon={props.neon} focused={focused() && row().fi === cur()} />
+                  </view>
+                )
               }}
             </For>
           </view>

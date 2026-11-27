@@ -56,6 +56,7 @@ export default function OverflowMenu(props) {
     <view
       ref={props.ref}
       width={1920}
+      pointerModal
       height={1080}
       onUp={() => move(-1)}
       onDown={() => move(1)}
@@ -75,7 +76,15 @@ export default function OverflowMenu(props) {
       <view x={laid().x} y={laid().y} width={W} height={laid().h}>
         <view width={W} height={laid().h} borderRadius={20} color={t().surfaceA(0.97)} border={{ width: 1, color: hex(t().os(0.12)) }} />
         <view x={1} y={1} width={W - 2} height={laid().h - 2} clipping>
-          <view x={-1} y={-1 - scroll()} width={W} height={laid().fullH}>
+          <view
+            x={-1}
+            y={-1 - scroll()}
+            width={W}
+            height={laid().fullH}
+            // The Magic Remote's cursor focuses the row under it, and OK then picks it (app/pointer.js).
+            pointerItems={() => buttons().map((b, i) => ({ x: ROW.x, y: rowY(i), w: ROW.w, h: ROW.h }))}
+            onPointerItem={(it, i) => cur() !== i && setCur(i)}
+          >
             <text
               fontFamily={uiFont('bold')}
               fontSize={28}

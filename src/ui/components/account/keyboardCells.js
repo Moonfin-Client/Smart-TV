@@ -436,7 +436,7 @@ export const popupCellsFor = ({ pop, key, look, p, fonts, measure }) => {
     cells.push(panel(at, w, h))
     pop.options.forEach((opt, i) => {
       const s = pick(i === pop.index)
-      cells.push({ k: opt, x: at.x + bw + 16, y: at.y + bw + 16 + i * 80, w: 320, h: 72, r: classic ? p.chipRadius : 20, ...s, text: styles[i].label, size: 30, font: fonts.medium, textX: 24, check: opt === look ? 1 : 0 })
+      cells.push({ k: opt, i, x: at.x + bw + 16, y: at.y + bw + 16 + i * 80, w: 320, h: 72, r: classic ? p.chipRadius : 20, ...s, text: styles[i].label, size: 30, font: fonts.medium, textX: 24, check: opt === look ? 1 : 0 })
     })
   } else {
     // Classic's choices are bold, the others' medium.
@@ -449,7 +449,7 @@ export const popupCellsFor = ({ pop, key, look, p, fonts, measure }) => {
     let ox = at.x + bw + 16
     pop.options.forEach((opt, i) => {
       const s = pick(i === pop.index)
-      cells.push({ k: `${i}${opt}`, x: ox, y: at.y + bw + 16, w: widths[i], h: 72, r: classic ? p.chipRadius : 20, ...s, text: opt, size: 36, font, textX: widths[i] / 2, center: 1, check: 0 })
+      cells.push({ k: `${i}${opt}`, i, x: ox, y: at.y + bw + 16, w: widths[i], h: 72, r: classic ? p.chipRadius : 20, ...s, text: opt, size: 36, font, textX: widths[i] / 2, center: 1, check: 0 })
       ox += widths[i] + 12
     })
   }

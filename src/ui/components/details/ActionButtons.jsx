@@ -5,6 +5,7 @@ import { hex } from '../../color.js'
 import { holdPress } from '../../../utils/longPress.js'
 import { BACKDROP_BLUR } from './env.js'
 import LoopMarquee from './LoopMarquee.jsx'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // Modern's action row: round glass buttons that open into a labeled pill while focused, Play and
 // Resume into a wider one with the icon beside the label. The row is clipped to the hero column and
@@ -137,6 +138,17 @@ export default function ActionButtons(props) {
       height={H}
       clipping
       alpha={props.held ? 0 : 1}
+      // The Magic Remote's cursor focuses the button under it, and OK then presses it (app/pointer.js).
+      pointerItems={() =>
+        placed().map((p) => (p ? { x: (p.open ? pill().x : p.x) - shift(), y: 0, w: p.open ? pill().w : CIRCLE, h: H } : null))
+      }
+      onPointerItem={(it, i, n) => {
+        pointerFocus(n)
+        if (cur() !== i) {
+          setCur(i)
+          reveal()
+        }
+      }}
       onFocusChanged={(has) => {
         setFocused(has)
         if (has) {

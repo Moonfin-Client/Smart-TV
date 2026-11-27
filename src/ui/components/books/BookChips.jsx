@@ -37,6 +37,17 @@ export default function BookChips(props) {
     if (c) setSx(focusScroll(c.x, c.w, sx(), 1920, maxScroll()))
   }
   const glow = () => ({ color: shadowColor(props.look.accent45), x: 0, y: 0, blur: 14, spread: 1 })
+  // The Magic Remote's cursor (app/pointer.js): a chip in full view takes focus on hover, one the row
+  // would scroll to on a click.
+  const point = (i, click) => {
+    const c = chips()[i]
+    if (!c) return false
+    if (!click && (c.x < sx() || c.x + c.w > sx() + 1920 || (has() && cur() === i))) return false
+    if (!has()) props.host.pointNav()
+    setCur(i)
+    reveal()
+    return click
+  }
   const move = (step) => {
     const next = cur() + step
     if (next >= 0 && next < chips().length) {
@@ -77,7 +88,7 @@ export default function BookChips(props) {
             const lit = () => has() && isCur(ch().i)
             const ink = () => (lit() ? props.look.onAccent : ch().current ? props.look.accent : props.look.os80)
             return (
-              <view x={ch().x} width={ch().w} height={57}>
+              <view x={ch().x} width={ch().w} height={57} onPointerOver={() => point(ch().i)} onPointerClick={() => point(ch().i, true)}>
                 <view width={ch().w} height={57} borderRadius={22} color={CLEAR} shadow={glow()} alpha={lit() ? 1 : 0} />
                 <view width={ch().w} height={57} borderRadius={22} color={lit() ? props.look.accent : ch().current ? props.look.accent16 : props.look.os09} />
                 <view x={20} y={16.5} width={24} height={24} src={'icons/' + ch().icon + '.webp'} color={ink()} />

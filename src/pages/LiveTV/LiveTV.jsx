@@ -933,6 +933,25 @@ export default function LiveTV(props) {
       focusCellAt(my.row, i + 1)
     } else shiftWindow(HALF_HOUR)
   }
+  // The Magic Remote's cursor (app/pointer.js): the filters and the buttons take focus on hover; in
+  // the grid, which scrolls to the focused row, a click focuses the channel or the program and OK
+  // then presses it.
+  const pointChip = (i) => !st.popup && !(st.zone === 'chips' && st.chipCur === i) && focusChip(i)
+  const pointBar = (i) => !st.popup && !(st.zone === 'bar' && st.barCur === i) && focusBar(i)
+  const pointCell = (row, key) => {
+    const ch = my.channels[row]
+    if (st.popup || !ch || !my.store) return false
+    if (key === 'ch') {
+      focusChannelRow(row)
+      return true
+    }
+    const cells = cellsFor(ch.Id)
+    if (isLoadingCells(cells)) return false
+    const at = cells.findIndex((c) => `${c.kind}-${c.start}` === key)
+    if (at < 0) return false
+    focusCellAt(row, at)
+    return true
+  }
   const enterKey = () => {
     if (st.zone === 'chips') {
       const c = st.chips[st.chipCur]
@@ -1045,7 +1064,7 @@ export default function LiveTV(props) {
           {(k) => {
             const c = chips.item(k)
             return (
-              <view x={c().x} y={12} width={c().w} height={44}>
+              <view x={c().x} y={12} width={c().w} height={44} onPointerOver={() => pointChip(c().i)}>
                 <view width={c().w} height={44} borderRadius={19} color={c().bg} border={{ width: 3, color: hex(c().border) }} />
                 <view
                   width={c().w}
@@ -1154,7 +1173,7 @@ export default function LiveTV(props) {
           {(k) => {
             const b = barButtons.item(k)()
             return (
-              <view x={b.x} y={b.y} width={b.w} height={b.h}>
+              <view x={b.x} y={b.y} width={b.w} height={b.h} onPointerOver={() => pointBar(b.i)}>
                 <view width={b.w} height={b.h} borderRadius={b.r} color="#ffffff1a" alpha={barOn(b.i) ? 0 : 1} />
                 <view width={b.w} height={b.h} borderRadius={b.r} color="#00a4dc" alpha={barOn(b.i) ? 1 : 0} />
                 <view x={b.ix} y={b.iy} width={b.is} height={b.is} src={b.src} alpha={b.src ? 1 : 0} color={barOn(b.i) ? '#ffffff' : '#ffffffcc'} />
@@ -1198,6 +1217,7 @@ export default function LiveTV(props) {
                     focusKey={focused() ? gridKey() : ''}
                     mq={focused() ? st.mq : []}
                     mqOn={focused() ? st.mqOn && st.zone === 'grid' : false}
+                    onPointerCell={(key) => pointCell(row().idx, key)}
                   />
                 )
               }}

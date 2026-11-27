@@ -112,6 +112,7 @@ export default function TrailerPicker(props) {
     <view
       ref={props.ref}
       width={1920}
+      pointerModal
       height={1080}
       onUp={() => {
         if (cur() > 0) setCur(cur() - 1)
@@ -148,7 +149,15 @@ export default function TrailerPicker(props) {
       </text>
       <view x={1279} y={119} width={641} height={1} color="#ffffff14" />
       <view x={1279} y={119.5} width={641} height={960.5} clipping>
-        <view x={-1279} y={-119.5 - scroll()} width={1920} height={Math.max(1080, ROW.top + choices().length * (ROW.h + ROW.gap) + 21)}>
+        <view
+          x={-1279}
+          y={-119.5 - scroll()}
+          width={1920}
+          height={Math.max(1080, ROW.top + choices().length * (ROW.h + ROW.gap) + 21)}
+          // The Magic Remote's cursor focuses the row under it, and OK then picks it (app/pointer.js).
+          pointerItems={() => choices().map((c, i) => ({ x: ROW.x, y: ROW.top + i * (ROW.h + ROW.gap), w: ROW.w, h: ROW.h }))}
+          onPointerItem={(it, i) => cur() !== i && setCur(i)}
+        >
           <view
             x={1303}
             y={focusY()}

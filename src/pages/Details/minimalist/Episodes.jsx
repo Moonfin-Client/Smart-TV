@@ -11,6 +11,7 @@ import { effectiveSeason, groupEpisodesBySeason, seasonOptions } from '../nouvea
 import { minimalistCardUrl } from './minimalistRules.js'
 import EpisodeCard, { cardMetrics } from './EpisodeCard.jsx'
 import { railScroll, revealScroll } from './rail.js'
+import { pointerFocus } from '../../../app/pointer.js'
 
 // Season tabs over a rail of episode cards, and nothing else. A tab picks the season and the rail
 // follows. Stage and Premiere draw the same section at their size.
@@ -62,6 +63,7 @@ export default function Episodes(props) {
   const m = { item: null, d: null, picked: null, part: 'rail', lastPart: '', lastTab: 0, startKey: null, list: [], gap: SMALL.gap, railTop: 0, barH: 0 }
   let bar
   let focusSelf = () => {}
+  let self
 
   const t = () => props.tokens || DEFAULT_TOKENS
   const viewW = () => rw() + (Number(props.bleedRight) || 0)
@@ -245,6 +247,7 @@ export default function Episodes(props) {
   return (
     <view
       ref={(n) => {
+        self = n
         const own = n.setFocus
         focusSelf = () => own.call(n)
         n.draw = draw
@@ -341,7 +344,16 @@ export default function Episodes(props) {
             alpha={barFocused() ? 0 : 1}
           />
           <view x={picked().x} width={picked().w} height={73} borderRadius={square() ? 0 : 36.5} color={t().accent} alpha={barFocused() ? 1 : 0} />
-          <view width={barW()} height={73}>
+          <view
+            width={barW()}
+            height={73}
+            // The Magic Remote's cursor focuses a season tab, and OK then opens it (app/pointer.js).
+            onPointerChildOver={(i) => {
+              pointerFocus(self)
+              if (focusedPart() !== 'tabs') enterTabs(i)
+              if (tabCur() !== i) setTabCur(i)
+            }}
+          >
             <Index each={pills()}>
               {(p) => (
                 <text
@@ -369,7 +381,25 @@ export default function Episodes(props) {
         />
       </view>
       <view y={box().railY - CLEARANCE} width={viewW()} height={box().railH} clipping>
-        <view x={-scroll()} y={CLEARANCE} width={Math.max(1, box().trackW)} height={Math.max(1, box().cardH)}>
+        <view
+          x={-scroll()}
+          y={CLEARANCE}
+          width={Math.max(1, box().trackW)}
+          height={Math.max(1, box().cardH)}
+          // The rail slides to its focused episode, so the Magic Remote's cursor rings one and a click
+          // focuses it and opens it (app/pointer.js).
+          pointerChildRing
+          onPointerChildClick={(i) => {
+            const c = at.at(at.keys()[i])
+            if (!c) return false
+            pointerFocus(self)
+            enterRail()
+            setCur(c.idx)
+            reveal()
+            notify()
+            return true
+          }}
+        >
           <For each={at.keys()}>
             {(k) => {
               const c = () => at.at(k)

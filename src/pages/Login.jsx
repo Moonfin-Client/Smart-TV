@@ -464,6 +464,11 @@ export default function Login(props) {
     applyFocus()
   }
   const focusLater = (id) => later(() => focusOn(id), 100)
+  // The Magic Remote's cursor focuses a control, and OK then presses it like Enter (app/pointer.js).
+  const over = (id) => () => {
+    if (s.keyboardOpen || (s.dialog && s.dialog.kind === 'remove')) return
+    if (s.focusId !== id) focusOn(id)
+  }
   // What takes focus on screen now, top to bottom, side by side within a row.
   const focusRows = () => {
     const st = s.step
@@ -1738,7 +1743,7 @@ export default function Login(props) {
               </text>
               <view>
                 <For each={savedItems()}>
-                  {(it) => <ServerTile y={it.y} serverType={it.serverType} name={it.name} detail={it.detail} focused={isFocus(it.id)} />}
+                  {(it) => <ServerTile y={it.y} serverType={it.serverType} name={it.name} detail={it.detail} focused={isFocus(it.id)} onPointerOver={over(it.id)} />}
                 </For>
               </view>
             </view>
@@ -1755,7 +1760,7 @@ export default function Login(props) {
               </text>
               <view>
                 <For each={discoveredItems()}>
-                  {(it) => <ServerTile y={it.y} serverType={it.serverType} name={it.name} detail={it.detail} focused={isFocus(it.id)} />}
+                  {(it) => <ServerTile y={it.y} serverType={it.serverType} name={it.name} detail={it.detail} focused={isFocus(it.id)} onPointerOver={over(it.id)} />}
                 </For>
               </view>
               <view alpha={rows().spinner ? 1 : 0}>
@@ -1788,7 +1793,7 @@ export default function Login(props) {
             >
               {s.error || ' '}
             </text>
-            <AddServerButton y={rows().add || 0} focused={isFocus('add-server-btn')} disabled={s.isConnecting} />
+            <AddServerButton y={rows().add || 0} focused={isFocus('add-server-btn')} onPointerOver={over('add-server-btn')} disabled={s.isConnecting} />
           </view>
 
           <view alpha={s.step === 'signin' ? 1 : 0} x={54.43} y={54.43 + (rows().mainY || 0)}>
@@ -1818,7 +1823,7 @@ export default function Login(props) {
             </text>
             <view>
               <Index each={toggleBtns()}>
-                {(b) => <LoginButton x={b().x} w={b().w} y={112.73} kind="toggle" label={b().label} selected={b().selected} focused={isFocus(b().id)} />}
+                {(b) => <LoginButton x={b().x} w={b().w} y={112.73} kind="toggle" label={b().label} selected={b().selected} focused={isFocus(b().id)} onPointerOver={over(b().id)} />}
               </Index>
             </view>
             <view alpha={rows().qc ? 1 : 0} y={rows().qc || 0}>
@@ -1871,7 +1876,7 @@ export default function Login(props) {
               >
                 {s.error || ' '}
               </text>
-              <LoginButton x={(mainW() - (rows().backW || 0)) / 2} y={rows().qcBack || 0} w={rows().backW} label={T.back} focused={isFocus('back-btn')} />
+              <LoginButton x={(mainW() - (rows().backW || 0)) / 2} y={rows().qcBack || 0} w={rows().backW} label={T.back} focused={isFocus('back-btn')} onPointerOver={over('back-btn')} />
             </view>
             <view alpha={rows().form ? 1 : 0} y={rows().form || 0}>
               <text
@@ -1892,7 +1897,7 @@ export default function Login(props) {
                 w={892.9}
                 value={s.username}
                 placeholder={T.username}
-                focused={isFocus('username-input')}
+                focused={isFocus('username-input')} onPointerOver={over('username-input')}
                 editing={s.editing === 'username'}
                 alpha={rows().user >= 0 ? 1 : 0}
               />
@@ -1903,7 +1908,7 @@ export default function Login(props) {
                 value={s.password}
                 placeholder={passwordPlaceholder()}
                 secret
-                focused={isFocus('password-input')}
+                focused={isFocus('password-input')} onPointerOver={over('password-input')}
                 editing={s.editing === 'password'}
                 alpha={rows().pass >= 0 ? 1 : 0}
               />
@@ -1927,7 +1932,7 @@ export default function Login(props) {
                       w={b().w}
                       y={rows().formButtonsY}
                       label={b().label}
-                      focused={isFocus(b().id)}
+                      focused={isFocus(b().id)} onPointerOver={over(b().id)}
                       busy={b().busy}
                       disabled={b().disabled}
                     />
@@ -1982,7 +1987,7 @@ export default function Login(props) {
               w={892.9}
               value={s.username}
               placeholder={T.emailOrUser}
-              focused={isFocus('emby-username-input')}
+              focused={isFocus('emby-username-input')} onPointerOver={over('emby-username-input')}
               editing={s.editing === 'emby-username'}
             />
             <LoginField
@@ -1992,7 +1997,7 @@ export default function Login(props) {
               value={s.password}
               placeholder={T.password}
               secret
-              focused={isFocus('emby-password-input')}
+              focused={isFocus('emby-password-input')} onPointerOver={over('emby-password-input')}
               editing={s.editing === 'emby-password'}
             />
             <text
@@ -2009,7 +2014,7 @@ export default function Login(props) {
             </text>
             <view>
               <Index each={s.step === 'embyconnect' ? formBtns() : []}>
-                {(b) => <LoginButton x={b().x} w={b().w} y={rows().formButtonsY} label={b().label} focused={isFocus(b().id)} disabled={b().disabled} />}
+                {(b) => <LoginButton x={b().x} w={b().w} y={rows().formButtonsY} label={b().label} focused={isFocus(b().id)} onPointerOver={over(b().id)} disabled={b().disabled} />}
               </Index>
             </view>
           </view>
@@ -2038,7 +2043,7 @@ export default function Login(props) {
             </text>
             <view>
               <Index each={listTiles()}>
-                {(it) => <ServerTile y={it().y} serverType={it().serverType} name={it().name} detail={it().detail} focused={isFocus(it().id)} />}
+                {(it) => <ServerTile y={it().y} serverType={it().serverType} name={it().name} detail={it().detail} focused={isFocus(it().id)} onPointerOver={over(it().id)} />}
               </Index>
             </view>
             <text
@@ -2053,7 +2058,7 @@ export default function Login(props) {
             >
               {s.error || ' '}
             </text>
-            <LoginButton kind="action" y={rows().add || 0} w={1059.9} label={T.back} disabled={s.isConnecting} focused={isFocus('list-back-btn')} />
+            <LoginButton kind="action" y={rows().add || 0} w={1059.9} label={T.back} disabled={s.isConnecting} focused={isFocus('list-back-btn')} onPointerOver={over('list-back-btn')} />
           </view>
 
           <view alpha={s.step === 'plex' ? 1 : 0} x={54.43} y={54.43 + (rows().mainY || 0)}>
@@ -2121,7 +2126,7 @@ export default function Login(props) {
               </text>
               <view>
                 <Index each={plexBtns()}>
-                  {(b) => <LoginButton x={b().x} w={b().w} y={rows().qcBack || 0} label={b().label} focused={isFocus(b().id)} disabled={s.isConnecting} />}
+                  {(b) => <LoginButton x={b().x} w={b().w} y={rows().qcBack || 0} label={b().label} focused={isFocus(b().id)} onPointerOver={over(b().id)} disabled={s.isConnecting} />}
                 </Index>
               </view>
             </view>
@@ -2132,7 +2137,7 @@ export default function Login(props) {
                 w={892.9}
                 value={s.username}
                 placeholder={T.emailOrUser}
-                focused={isFocus('plex-username-input')}
+                focused={isFocus('plex-username-input')} onPointerOver={over('plex-username-input')}
                 editing={s.editing === 'plex-username'}
               />
               <LoginField
@@ -2142,7 +2147,7 @@ export default function Login(props) {
                 value={s.password}
                 placeholder={T.password}
                 secret
-                focused={isFocus('plex-password-input')}
+                focused={isFocus('plex-password-input')} onPointerOver={over('plex-password-input')}
                 editing={s.editing === 'plex-password'}
               />
               <LoginField
@@ -2151,7 +2156,7 @@ export default function Login(props) {
                 w={892.9}
                 value={s.plexCode}
                 placeholder={T.verification}
-                focused={isFocus('plex-code-input')}
+                focused={isFocus('plex-code-input')} onPointerOver={over('plex-code-input')}
                 editing={s.editing === 'plex-code'}
                 alpha={s.plexNeedsCode ? 1 : 0}
               />
@@ -2169,7 +2174,7 @@ export default function Login(props) {
               </text>
               <view>
                 <Index each={s.step === 'plex' ? formBtns() : []}>
-                  {(b) => <LoginButton x={b().x} w={b().w} y={rows().formButtonsY} label={b().label} focused={isFocus(b().id)} disabled={b().disabled} />}
+                  {(b) => <LoginButton x={b().x} w={b().w} y={rows().formButtonsY} label={b().label} focused={isFocus(b().id)} onPointerOver={over(b().id)} disabled={b().disabled} />}
                 </Index>
               </view>
             </view>
@@ -2235,6 +2240,7 @@ export default function Login(props) {
         </text>
         <ProfileCarousel
           ref={(n) => (carousel = n)}
+          onPointerFace={() => s.focusId !== 'carousel' && focusOn('carousel')}
           y={uLay().carouselY}
           items={carouselItems()}
           colors={COLORS}
@@ -2283,7 +2289,7 @@ export default function Login(props) {
         >
           {s.error || ' '}
         </text>
-        <PillRow ref={(n) => (pills = n)} y={943.13} pills={USER_PILLS} colors={COLORS} onPill={onPill} />
+        <PillRow ref={(n) => (pills = n)} y={943.13} pills={USER_PILLS} colors={COLORS} onPill={onPill} onPointerPill={(id) => over(id)()} />
       </view>
 
       <view alpha={dlg().indexOf('add:') === 0 ? 1 : 0} width={1920} height={1080} color="#05071099">
@@ -2313,13 +2319,13 @@ export default function Login(props) {
               >
                 {T.chooseHow}
               </text>
-              <LoginButton kind="round" icon="closeRounded" x={722.6} focused={isFocus('add-close-btn')} />
-              <ChoiceCard y={127.19} tile="accent" title={T.serverAddress} detail={T.serverAddressDetail} focused={isFocus('add-choice-address')} />
-              <ChoiceCard y={269.39} tile="plex" title={T.signInPlex} detail={T.plexDetail} focused={isFocus('add-choice-plex')} />
-              <ChoiceCard y={411.59} tile="emby" title={T.embyConnect} detail={T.embySub} focused={isFocus('add-choice-emby')} />
+              <LoginButton kind="round" icon="closeRounded" x={722.6} focused={isFocus('add-close-btn')} onPointerOver={over('add-close-btn')} />
+              <ChoiceCard y={127.19} tile="accent" title={T.serverAddress} detail={T.serverAddressDetail} focused={isFocus('add-choice-address')} onPointerOver={over('add-choice-address')} />
+              <ChoiceCard y={269.39} tile="plex" title={T.signInPlex} detail={T.plexDetail} focused={isFocus('add-choice-plex')} onPointerOver={over('add-choice-plex')} />
+              <ChoiceCard y={411.59} tile="emby" title={T.embyConnect} detail={T.embySub} focused={isFocus('add-choice-emby')} onPointerOver={over('add-choice-emby')} />
             </view>
             <view alpha={dlg() === 'add:address' ? 1 : 0}>
-              <LoginButton kind="round" icon="arrowBack" disabled={s.isConnecting} focused={isFocus('add-back-btn')} />
+              <LoginButton kind="round" icon="arrowBack" disabled={s.isConnecting} focused={isFocus('add-back-btn')} onPointerOver={over('add-back-btn')} />
               <text
                 fontFamily={bold}
                 fontSize={36.73}
@@ -2344,7 +2350,7 @@ export default function Login(props) {
               >
                 {T.addressHelp}
               </text>
-              <LoginButton kind="round" icon="closeRounded" x={722.6} disabled={s.isConnecting} focused={isFocus('add-close-btn')} />
+              <LoginButton kind="round" icon="closeRounded" x={722.6} disabled={s.isConnecting} focused={isFocus('add-close-btn')} onPointerOver={over('add-close-btn')} />
               <text
                 fontFamily={medium}
                 fontSize={20.035}
@@ -2362,7 +2368,7 @@ export default function Login(props) {
                 w={789.4}
                 value={s.addressValue}
                 placeholder="https://your-server.example.com"
-                focused={isFocus('add-address-input')}
+                focused={isFocus('add-address-input')} onPointerOver={over('add-address-input')}
                 editing={s.editing === 'address'}
               />
               <LoginButton
@@ -2372,7 +2378,7 @@ export default function Login(props) {
                 label={T.connect}
                 busy={s.isConnecting}
                 disabled={s.isConnecting}
-                focused={isFocus('add-connect-btn')}
+                focused={isFocus('add-connect-btn')} onPointerOver={over('add-connect-btn')}
               />
               <text
                 fontFamily={regular}
@@ -2511,7 +2517,7 @@ export default function Login(props) {
                 w={found().otherW}
                 y={found().actions}
                 label={T.otherAddress}
-                focused={isFocus('add-other-address-btn')}
+                focused={isFocus('add-other-address-btn')} onPointerOver={over('add-other-address-btn')}
               />
               <LoginButton
                 kind="primary"
@@ -2519,7 +2525,7 @@ export default function Login(props) {
                 w={found().continueW}
                 y={found().actions}
                 label={T.continue}
-                focused={isFocus('add-continue-btn')}
+                focused={isFocus('add-continue-btn')} onPointerOver={over('add-continue-btn')}
               />
             </view>
           </view>

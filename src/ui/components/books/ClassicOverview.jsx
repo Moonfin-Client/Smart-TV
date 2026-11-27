@@ -24,6 +24,7 @@ import {
 } from '../../../utils/bookLibrary.js'
 import { serverBlurredUrl } from '../../../utils/serverBlur.js'
 import BookShelf from './BookShelf.jsx'
+import { bookPointer } from './bookParts.js'
 import { bookCard } from './bookCards.js'
 import { ellipsize, textWidth } from './bookText.js'
 import { CARD_W, avatarCard, byName, chipCard, classicShelves, loadClassicRows, scopedAuthors } from './classicShelves.js'
@@ -73,7 +74,16 @@ function ChipRow(props) {
           const i = () => index()[k]
           const lit = () => isFocused(i())
           return chip() ? (
-            <view x={48 + i() * (card().w + 20)} width={250} height={73} pivot={0.5} transition={{ scale: { duration: 150 } }} scale={lit() ? 1.04 : 1}>
+            <view
+              x={48 + i() * (card().w + 20)}
+              width={250}
+              height={73}
+              pivot={0.5}
+              transition={{ scale: { duration: 150 } }}
+              scale={lit() ? 1.04 : 1}
+              pointerRing={36.5}
+              onPointerClick={() => props.onPointerCard(i())}
+            >
               <view width={250} height={73} borderRadius={36.5} color={props.look.os08} />
               <view x={-4} y={-4} width={258} height={81} borderRadius={40.5} color={CLEAR} border={WHITE_RING} alpha={lit() ? 1 : 0} />
               <text fontFamily={card().labelFont} fontSize={22} x={125} mountX={0.5} y={25} color="#ffffff">
@@ -81,7 +91,16 @@ function ChipRow(props) {
               </text>
             </view>
           ) : (
-            <view x={48 + i() * (card().w + 20)} width={198} height={242} pivot={0.5} transition={{ scale: { duration: 150 } }} scale={lit() ? 1.05 : 1}>
+            <view
+              x={48 + i() * (card().w + 20)}
+              width={198}
+              height={242}
+              pivot={0.5}
+              transition={{ scale: { duration: 150 } }}
+              scale={lit() ? 1.05 : 1}
+              pointerRing={99}
+              onPointerClick={() => props.onPointerCard(i())}
+            >
               <view
                 width={198}
                 height={198}
@@ -351,6 +370,32 @@ export default function ClassicOverview(props) {
     const card = row.cards[col()]
     if (card) props.host.openItem(card.raw)
   }
+  // The Magic Remote's cursor (app/pointer.js). Each stop scrolls the page to itself, so the button
+  // and the scope bar take focus on hover only while the page already sits there, and on a click
+  // otherwise. The shelves glide to their focused card, so a card or See All rings and takes focus
+  // on a click.
+  const point = bookPointer(props, has)
+  const sits = (s) => (s.kind === 'hero' ? 0 : Math.max(0, Math.min(s.y - SCROLL_PAD, Math.max(0, layoutRows().height - props.viewH)))) === scrollY()
+  const pointStop = (kind, click) => {
+    const n = layoutRows().stops.findIndex((s) => s.kind === kind)
+    if (n < 0) return false
+    return point(() => go(n), { whole: sits(layoutRows().stops[n]), lit: has() && node() === n, click })
+  }
+  const pointRow = (r, i, all) => {
+    const n = layoutRows().stops.findIndex((s) => s.kind === 'row' && s.r === r)
+    if (n < 0) return false
+    return point(
+      () => {
+        batch(() => {
+          setNode(n)
+          setCol(all ? lastCols[r] || 0 : i)
+          setSeeAll(all)
+        })
+        reveal()
+      },
+      { click: true },
+    )
+  }
   const focusedBook = () => {
     const s = stop()
     if (!s || s.kind !== 'row' || seeAll()) return null
@@ -433,7 +478,15 @@ export default function ClassicOverview(props) {
               {hero().subtitle}
             </text>
             <view y={hero().actionsY}>
-              <view width={hero().ctaW} height={63} pivot={0.5} transition={{ scale: { duration: 150, easing: 'ease-out' } }} scale={ctaFocused() ? 1.06 : 1}>
+              <view
+                width={hero().ctaW}
+                height={63}
+                pivot={0.5}
+                transition={{ scale: { duration: 150, easing: 'ease-out' } }}
+                scale={ctaFocused() ? 1.06 : 1}
+                onPointerOver={() => pointStop('hero', false)}
+                onPointerClick={() => pointStop('hero', true)}
+              >
                 <view x={-4} y={-4} width={hero().ctaW + 8} height={71} borderRadius={35.5} color={CLEAR} border={WHITE_RING} alpha={ctaFocused() ? 1 : 0} />
                 <view width={hero().ctaW} height={63} borderRadius={31.5} color={ACCENT} />
                 <view x={27} y={18} width={27} height={27} src="icons/book_play_arrow.webp" color="#ffffff" />
@@ -467,7 +520,15 @@ export default function ClassicOverview(props) {
             }}
           </For>
         </view>
-        <view x={scopeBar().x} y={layoutRows().scopeY + 13} width={scopeBar().w} height={57} alpha={mixed() ? 1 : 0}>
+        <view
+          x={scopeBar().x}
+          y={layoutRows().scopeY + 13}
+          width={scopeBar().w}
+          height={57}
+          alpha={mixed() ? 1 : 0}
+          onPointerOver={() => pointStop('scope', false)}
+          onPointerClick={() => pointStop('scope', true) && false}
+        >
           <view x={-4} y={-4} width={scopeBar().w + 8} height={65} borderRadius={32.5} color={CLEAR} border={WHITE_RING} alpha={scopeFocused() ? 1 : 0} />
           <view width={scopeBar().w} height={57} borderRadius={28.5} color={look().os08} />
           <view transition={{ x: { duration: 200, easing: 'ease-out' } }} x={scopeBar().thumbX} width={scopeBar().segW} height={57} borderRadius={28.5} color={ACCENT} />
@@ -509,13 +570,27 @@ export default function ClassicOverview(props) {
                     <text fontFamily={textFont} fontSize={18} x={12} y={15} color={look().os(0.7)}>
                       {seeAllLabel}
                     </text>
+                    <view width={rw().seeAllW} height={49} pointerRing={16} onPointerClick={() => rw().seeAll && pointRow(rw().r, 0, true)} />
                   </view>
                   <view y={90} width={1920} height={rw().h} clipping>
                     <Show
                       when={rw().kind}
-                      fallback={<BookShelf cards={rw().cards} top focus={focus()} gap={20} pad={SHELF_PAD} viewW={1920} look={look()} zoom={props.zoom} />}
+                      fallback={
+                        <BookShelf
+                          cards={rw().cards}
+                          top
+                          focus={focus()}
+                          gap={20}
+                          pad={SHELF_PAD}
+                          viewW={1920}
+                          look={look()}
+                          zoom={props.zoom}
+                          pointerRing={12}
+                          onPointerCard={(i, o) => o.click && pointRow(rw().r, i, false)}
+                        />
+                      }
                     >
-                      <ChipRow row={rw()} focus={focus()} look={look()} />
+                      <ChipRow row={rw()} focus={focus()} look={look()} onPointerCard={(i) => pointRow(rw().r, i, false)} />
                     </Show>
                   </view>
                 </view>

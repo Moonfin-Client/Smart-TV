@@ -10,6 +10,7 @@ import { uiFont, textReady } from '../../ui/text.js'
 import { theme } from '../../ui/theme.js'
 import { reactive } from '../../state/reactive.js'
 import { router } from '../../app/router.js'
+import { localPoint } from '../../app/pointer.js'
 import { api, getServerUrl } from '../../services/jellyfinApi.js'
 import { getImageUrl } from '../../utils/helpers.js'
 import { getAmbientPalette, accentPalette } from '../../utils/ambientPalette.js'
@@ -170,6 +171,32 @@ export default function NowPlaying() {
     st.pcur = panel() === 'lyrics' ? Math.max(activeLine(), 0) : Math.max(currentRow(), 0)
   }
   const leavePanel = () => (st.row = 'progress')
+  // The Magic Remote's cursor (app/pointer.js): the dock's buttons and the seek bar take focus on
+  // hover, and a click on the bar seeks there. The queue and the lyrics scroll to their focused row,
+  // so the cursor rings a row and a click focuses it and presses it.
+  const pointDock = (i) => {
+    if (st.modalOpen || (st.row === 'bottom' && st.dcur === i)) return
+    st.row = 'bottom'
+    st.dcur = i
+  }
+  const pointBar = () => {
+    if (st.modalOpen || st.row === 'progress') return
+    if (st.row === 'bottom') st.dockNote = st.dcur
+    st.row = 'progress'
+  }
+  const clickBar = (n, p) => {
+    if (st.modalOpen) return false
+    pointBar()
+    if (audio.duration) player.seek(Math.max(0, Math.min(1, localPoint(n, p).x / 1872)) * audio.duration)
+    return false
+  }
+  const pointRow = (i) => {
+    if (st.modalOpen) return false
+    if (st.row !== 'panel') st.dockNote = st.dcur
+    st.row = 'panel'
+    st.pcur = i
+    return true
+  }
   const panelCount = () => (panel() === 'lyrics' ? st.lyrics.length : queueRows().length)
   const toggleFavorite = async () => {
     const t = player.current()
@@ -367,7 +394,9 @@ export default function NowPlaying() {
       <view x={PANEL_X} y={PANEL_Y} width={PANEL_W} height={PANEL_H}>
         <Show
           when={showLyrics()}
-          fallback={<QueuePanel rows={queueRows()} currentIndex={currentRow()} cursor={st.row === 'panel'} cur={st.pcur} w={PANEL_W} h={PANEL_H} />}
+          fallback={
+            <QueuePanel rows={queueRows()} currentIndex={currentRow()} cursor={st.row === 'panel'} cur={st.pcur} w={PANEL_W} h={PANEL_H} onPointerRow={pointRow} />
+          }
         >
           <LyricsPanel
             lines={st.lyrics}
@@ -379,6 +408,7 @@ export default function NowPlaying() {
             cur={st.pcur}
             w={PANEL_W}
             h={PANEL_H}
+            onPointerLine={pointRow}
           />
         </Show>
       </view>
@@ -390,6 +420,8 @@ export default function NowPlaying() {
           buffered={audio.duration ? audio.buffered / audio.duration : 0}
           focused={st.row === 'progress' && !st.modalOpen}
           colors={seekColors()}
+          onPointerOver={pointBar}
+          onPointerClick={clickBar}
         />
         <text fontFamily={uiFont()} fontSize={18} x={48} y={timeY} color="#ffffffb3">
           {formatPlaybackDuration(shown())}
@@ -397,7 +429,7 @@ export default function NowPlaying() {
         <text fontFamily={uiFont()} fontSize={18} x={1872} y={timeY} mountX={1} color="#ffffffb3">
           {trailing()}
         </text>
-        <Dock y={956} buttons={buttons()} focus={dockFocus()} />
+        <Dock y={956} buttons={buttons()} focus={dockFocus()} onPointerButton={pointDock} />
       </view>
       <view>
         <Show when={audio.waiting}>

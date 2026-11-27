@@ -112,7 +112,7 @@ export default function UpdateNotification(props) {
         <view>
           <For each={keys()}>
             {(k, i) => (
-              <view y={i() * OPTION_H} width={L().bodyW} height={76.8}>
+              <view y={i() * OPTION_H} width={L().bodyW} height={76.8} onPointerOver={() => cur() !== i() && setCur(i())}>
                 <view width={L().bodyW} height={76.8} color={i() === cur() ? '#ffffff1f' : '#00000000'} />
                 <view x={40.07} y={20.03} width={36.73} height={36.73} src={`icons/${options()[k].icon}.webp`} color="#ffffffb3" />
                 <text fontFamily={roboto()} fontSize={25.044} x={103.51} y={26.25} lineHeight={29.301} color="#ffffffff">

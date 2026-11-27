@@ -206,6 +206,8 @@ export default function SeerrIssueThread(props) {
     kb.open({ value: comment(), purpose: 'text' })
     kb.setFocus()
   }
+  // The Magic Remote's cursor focuses a control, and OK then uses it (app/pointer.js).
+  const point = (z) => !editing() && zone() !== z && go(z)
   const row = () => stops().find((r) => r.indexOf(zone()) !== -1) || []
 
   onMount(() => {
@@ -279,7 +281,7 @@ export default function SeerrIssueThread(props) {
                 )}
               </For>
             </view>
-            <view x={1014 - m().closeW} width={m().closeW} height={50} borderRadius={10} color="#ffffff14">
+            <view x={1014 - m().closeW} width={m().closeW} height={50} borderRadius={10} color="#ffffff14" onPointerOver={() => point('close')}>
               <view width={m().closeW} height={50} borderRadius={10} color="#00000000" border={THIN} alpha={ringAt() === 'close' ? 1 : 0} />
               <text x={27} y={17} fontFamily={btnFont} fontSize={20} lineHeight={1} color="#ffffffff">
                 {closeLabel}
@@ -309,12 +311,20 @@ export default function SeerrIssueThread(props) {
           </view>
           <view>
             <Show when={m().canAct}>
-              <view x={43} y={m().composeY} width={1014} height={54}>
+              <view x={43} y={m().composeY} width={1014} height={54} onPointerOver={() => point('input')}>
+                <view width={1014 - m().sendW} height={54} onPointerOver={() => point('input')} />
                 <text y={13.5} fontFamily={inputFont} fontSize={30} lineHeight={33} maxWidth={m().inputW} maxLines={1} color={comment() ? '#e6e6e6ff' : '#e6e6e673'}>
                   {fieldText()}
                 </text>
                 <view y={10.5} x={caretX()} width={2} height={33} color="#00a4dcff" alpha={caretOn() ? 1 : 0} />
-                <view x={1014 - m().sendW} width={m().sendW} height={54} borderRadius={10} color={canSend() ? '#00a4dcff' : '#00a4dc73'}>
+                <view
+                  x={1014 - m().sendW}
+                  width={m().sendW}
+                  height={54}
+                  borderRadius={10}
+                  color={canSend() ? '#00a4dcff' : '#00a4dc73'}
+                  onPointerOver={() => point('send')}
+                >
                   <view width={m().sendW} height={54} borderRadius={10} color="#00000000" border={THIN} alpha={ringAt() === 'send' ? 1 : 0} />
                   <text x={31} y={19} fontFamily={boldFont} fontSize={20} lineHeight={1} color={canSend() ? '#ffffffff' : '#ffffff73'}>
                     {sendLabel}
@@ -325,7 +335,16 @@ export default function SeerrIssueThread(props) {
           </view>
           <view>
             <Show when={m().canAct}>
-              <view x={43} y={m().actionsY} width={m().toggleW} height={58} borderRadius={10} color={m().toggleFill} alpha={busy() ? 0.45 : 1}>
+              <view
+                x={43}
+                y={m().actionsY}
+                width={m().toggleW}
+                height={58}
+                borderRadius={10}
+                color={m().toggleFill}
+                alpha={busy() ? 0.45 : 1}
+                onPointerOver={() => point('toggle')}
+              >
                 <view width={m().toggleW} height={58} borderRadius={10} color="#00000000" border={THIN} alpha={ringAt() === 'toggle' ? 1 : 0} />
                 <text x={m().toggleW / 2} y={20.25} mountX={0.5} fontFamily={boldFont} fontSize={21} lineHeight={1} color={m().toggleInk}>
                   {m().toggleLabel}
@@ -335,7 +354,16 @@ export default function SeerrIssueThread(props) {
           </view>
           <view>
             <Show when={m().canDelete}>
-              <view x={m().deleteX} y={m().actionsY} width={m().deleteW} height={58} borderRadius={10} color="#ef444424" alpha={busy() ? 0.45 : 1}>
+              <view
+                x={m().deleteX}
+                y={m().actionsY}
+                width={m().deleteW}
+                height={58}
+                borderRadius={10}
+                color="#ef444424"
+                alpha={busy() ? 0.45 : 1}
+                onPointerOver={() => point('delete')}
+              >
                 <view width={m().deleteW} height={58} borderRadius={10} color="#00000000" border={THIN} alpha={ringAt() === 'delete' ? 1 : 0} />
                 <text x={31} y={20.25} fontFamily={boldFont} fontSize={21} lineHeight={1} color="#ef4444ff">
                   {m().deleteLabel}

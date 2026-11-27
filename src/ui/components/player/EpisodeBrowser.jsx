@@ -262,6 +262,14 @@ export default function EpisodeBrowser(props) {
     show()
     loadSeason(season.Id)
   }
+  // The Magic Remote's cursor (app/pointer.js). A row in full view takes focus on hover; one the list
+  // would scroll to only takes it on a click, so the list doesn't move under the cursor.
+  const pointRow = (i) => {
+    const r = rows()[i]
+    if (!r || r.y < scroll() || r.y + r.h > scroll() + listH()) return
+    if (zone() !== 'list') setZone('list')
+    if (cur() !== i) setCur(i)
+  }
 
   return (
     <view
@@ -270,6 +278,7 @@ export default function EpisodeBrowser(props) {
         if (props.ref) props.ref(n)
       }}
       width={1920}
+      pointerModal
       height={1080}
       onFocusChanged={setActive}
       onUp={() => {
@@ -349,7 +358,18 @@ export default function EpisodeBrowser(props) {
                 const picked = () => isSeason(tab().i)
                 const lit = () => tabLit(tab().i)
                 return (
-                  <view x={tab().x} y={4} width={tab().w} height={55}>
+                  <view
+                    x={tab().x}
+                    y={4}
+                    width={tab().w}
+                    height={55}
+                    // Picking a season loads it, so the cursor rings a tab and a click picks it.
+                    pointerRing={27.5}
+                    onPointerClick={() => {
+                      setZone('tabs')
+                      pickTab(tab().i)
+                    }}
+                  >
                     <view width={tab().w} height={55} borderRadius={27.5} color="#00000000" shadow={TAB_GLOW} transition={{ alpha: TAB_FADE }} alpha={lit() ? 1 : 0} />
                     <view
                       width={tab().w}
@@ -394,7 +414,17 @@ export default function EpisodeBrowser(props) {
                 {(r) => {
                   const focused = () => rowLit(r.idx)
                   return (
-                    <view y={r.y} width={1200.09} height={r.h}>
+                    <view
+                      y={r.y}
+                      width={1200.09}
+                      height={r.h}
+                      onPointerOver={() => pointRow(r.idx)}
+                      onPointerClick={() => {
+                        setZone('list')
+                        focusRow(r.idx)
+                        return true
+                      }}
+                    >
                       <view width={1200.09} height={r.h} borderRadius={16} color={focused() ? '#00a4dc4d' : r.current ? '#00a4dc2e' : '#ffffff0f'} />
                       <view width={1200.09} height={r.h} borderRadius={16} color="#00000000" border={CURRENT_EDGE} alpha={!focused() && r.current ? 1 : 0} />
                       <view

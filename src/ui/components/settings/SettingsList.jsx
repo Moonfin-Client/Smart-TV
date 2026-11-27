@@ -50,19 +50,22 @@ export default function SettingsList(props) {
   const titleX = () => (props.root ? BAR.titleRootX : BAR.titleX)
 
   const stopBySid = (s) => stops().find((x) => x.sid === s) || null
-  const follow = () => {
+  // `still` (the Magic Remote's cursor) scrolls only as far as shows all of the stop, so the list
+  // doesn't move from under the cursor.
+  const follow = (still) => {
     const stop = stopBySid(sid())
     if (!stop) return
-    const wanted = stop.y - FOLLOW * (view() - stop.h)
+    const at = scroll()
+    const wanted = still ? Math.min(stop.y, Math.max(at, stop.y + stop.h - view())) : stop.y - FOLLOW * (view() - stop.h)
     setScroll(Math.max(0, Math.min(Math.max(0, (props.height || 0) - view()), wanted)))
   }
   // Puts focus on [s], scrolls to it and tells the holder.
-  const focusSid = (s, quiet) => {
+  const focusSid = (s, quiet, still) => {
     const stop = stopBySid(s)
     if (!stop) return false
     setSid(s)
     at = stops().indexOf(stop)
-    follow()
+    follow(still)
     if ((!quiet || active()) && props.onListFocus) props.onListFocus(s, stop)
     return true
   }
@@ -174,7 +177,18 @@ export default function SettingsList(props) {
       <view width={COLUMN_W} height={viewH()} borderRadius={corners()} color={p().view} />
       <view y={top()} width={COLUMN_W} height={view()} clipping>
         {/* Sized to the content, so the renderer keeps drawing it however far it scrolls. */}
-        <view transition={fx('y', props.scrollMs || 0, EASE_OUT)} y={-scroll()} width={COLUMN_W} height={trackH()}>
+        <view
+          transition={fx('y', props.scrollMs || 0, EASE_OUT)}
+          y={-scroll()}
+          width={COLUMN_W}
+          height={trackH()}
+          // The Magic Remote's cursor focuses the setting under it, and OK then uses it (app/pointer.js).
+          pointerItems={() => stops()}
+          onPointerItem={(it) => {
+            if (props.onListPointer) props.onListPointer(it.sid)
+            else if (it.sid !== sid()) focusSid(it.sid, false, true)
+          }}
+        >
           <view width={COLUMN_W} height={trackH()}>
             <For each={sections.keys()}>
               {(k) => {

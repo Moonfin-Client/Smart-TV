@@ -34,6 +34,15 @@ export default function SidePanel(props) {
     const t = setTimeout(() => setInX(0), 0)
     onCleanup(() => clearTimeout(t))
   })
+  // The Magic Remote's cursor (app/pointer.js): an option in full view takes focus on hover, one the
+  // panel would scroll to on a click.
+  const pointAt = (i, click) => {
+    const top = TOP + i * STEP - scrollY()
+    if (!click && (top < 0 || top + OPTION_H > 1080 || cur() === i)) return false
+    setCur(i)
+    reveal()
+    return click
+  }
   const reveal = () => setScrollY(focusScroll(TOP + cur() * STEP, OPTION_H, scrollY(), 1080, Math.max(0, contentH() - 1080)))
   const move = (step) => {
     const next = cur() + step
@@ -88,7 +97,7 @@ export default function SidePanel(props) {
               const row = list.item(k)
               const lit = () => has() && isCur(row().i)
               return (
-                <view x={32} y={row().y} width={316} height={OPTION_H}>
+                <view x={32} y={row().y} width={316} height={OPTION_H} onPointerOver={() => pointAt(row().i, false)} onPointerClick={() => pointAt(row().i, true)}>
                   <view width={316} height={OPTION_H} borderRadius={8} color="#ffffff1a" border={{ width: 1, color: hex(lit() ? props.look.focus : CLEAR) }} />
                   <view
                     x={17}

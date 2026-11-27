@@ -12,6 +12,18 @@ const NONE = '#00000000'
 
 export { clampText } from '../details/measure.js'
 
+// The Magic Remote's cursor on a screen (app/pointer.js): runs fn, which moves the screen's own
+// focus, and takes focus from the strip when the screen hasn't it (onPointerIn). The screen counts as
+// landed, so taking focus doesn't land it elsewhere.
+export const pointerIn = (st, my, props) => (fn) => {
+  my.landed = true
+  fn()
+  if (!st.active && props.onPointerIn) props.onPointerIn()
+}
+// Whether [top, bottom] shows whole in a view scrolled to `scroll` and `viewH` tall: hover only moves
+// focus to what's in full view, so the view doesn't scroll under the cursor.
+export const wholeInView = (scroll, viewH, top, bottom) => top >= scroll - 0.5 && bottom <= scroll + viewH + 0.5
+
 // A pill's width: its 3px border and 24px sides round a 24px glyph, a 10px gap and its label.
 const pillWidth = (label, icon) => Math.ceil(3 + 24 + (icon ? 34 : 0) + textWidth(label, 19, 'bold') + 24 + 3)
 
@@ -49,7 +61,7 @@ function Pill(props) {
     return p().primary ? look().onAccent : '#ffffffff'
   }
   return (
-    <view x={props.x || 0} y={props.y || 0} width={p().w} height={55}>
+    <view x={props.x || 0} y={props.y || 0} width={p().w} height={55} onPointerOver={props.onPointerOver}>
       <view width={p().w} height={55} borderRadius={27.5} color={fill()} />
       <view width={p().w} height={55} borderRadius={27.5} color={NONE} border={{ width: 3, color: hex(look().focus) }} alpha={props.focused ? 1 : 0} />
       <view>
@@ -67,7 +79,8 @@ function Pill(props) {
 export const headerHeight = (controls, extra) => 18 + Math.max(extra ? 63 : 55.2, layoutControls(controls || []).h)
 
 // `focus` indexes the extra tabs and then layoutControls().stops, or is -1. `extra` is a tab bar
-// beside the title ({tabs, active}), and `left` is the title's x.
+// beside the title ({tabs, active}), and `left` is the title's x. onPointerStop(focus) hears the
+// Magic Remote's cursor on a stop, in the same numbering (app/pointer.js).
 export function ScreenHeader(props) {
   const look = () => props.look
   const left = () => props.left || 60
@@ -80,6 +93,8 @@ export function ScreenHeader(props) {
   const extraFocus = () => (props.focus >= 0 && props.focus < extraCount() ? props.focus : -1)
   const titleW = () => Math.ceil(textWidth(props.title, 48, 'bold'))
   const stop = () => lay().stops[props.focus - extraCount()] || null
+  const point = (i) => props.onPointerStop && props.onPointerStop(i)
+  const pointCtrl = (c, tab) => point(extraCount() + lay().stops.findIndex((s) => s.ctrl === c.i && s.tab === tab))
   const focusOf = (c) => {
     const s = stop()
     return s && s.ctrl === c.i ? (c.kind === 'tabs' ? s.tab : 0) : -1
@@ -98,7 +113,7 @@ export function ScreenHeader(props) {
       </view>
       <view>
         <Show when={props.extra && props.extra.tabs.length}>
-          <MusicTabBar x={left() + titleW() + 36} y={18 + h() - lineH()} tabs={props.extra.tabs} active={props.extra.active} focus={extraFocus()} look={look()} />
+          <MusicTabBar x={left() + titleW() + 36} y={18 + h() - lineH()} tabs={props.extra.tabs} active={props.extra.active} focus={extraFocus()} look={look()} onPointerTab={point} />
         </Show>
       </view>
       <view>
@@ -106,9 +121,9 @@ export function ScreenHeader(props) {
           {(c) => (
             <view x={c.x} y={18 + h() - lay().h}>
               {c.kind === 'tabs' ? (
-                <MusicTabBar tabs={c.tabs} active={c.active} focus={focusOf(c)} look={look()} />
+                <MusicTabBar tabs={c.tabs} active={c.active} focus={focusOf(c)} look={look()} onPointerTab={(t) => pointCtrl(c, t)} />
               ) : (
-                <Pill y={lay().h > 55 ? (lay().h - 55) / 2 : 0} pill={c} focused={focusOf(c) === 0} look={look()} />
+                <Pill y={lay().h > 55 ? (lay().h - 55) / 2 : 0} pill={c} focused={focusOf(c) === 0} look={look()} onPointerOver={() => pointCtrl(c, -1)} />
               )}
             </view>
           )}

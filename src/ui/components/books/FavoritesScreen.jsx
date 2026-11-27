@@ -11,7 +11,7 @@ import BookCard from './BookCard.jsx'
 import { Pill, ScreenTitle } from './BookControls.jsx'
 import { bookCard } from './bookCards.js'
 import { columnsFor, countLabel, gridMove, gridRows, lineY, rowIndexOf } from './bookGrid.js'
-import { faceOf, pillWidth } from './bookParts.js'
+import { bookPointer, faceOf, pillWidth, showsWhole } from './bookParts.js'
 import { ellipsize, textWidth } from './bookText.js'
 import { FAVORITE_PANELS, bookMenuItem, splitFavorites } from './bookScreens.js'
 import { titlesFetcher } from './bookTitles.js'
@@ -61,7 +61,7 @@ const tileFor = (panel, item, i, size) => {
 function TileView(props) {
   const t = () => props.tile
   return (
-    <view x={props.x} y={props.y}>
+    <view x={props.x} y={props.y} onPointerOver={props.onPointerOver} onPointerClick={props.onPointerClick}>
       <Switch>
         <Match when={t().kind === 'book'}>
           <BookCard card={t()} focused={props.focused} look={props.look} zoom={props.zoom} />
@@ -123,12 +123,33 @@ function FavoritePanel(props) {
       <text fontFamily={uiFont()} fontSize={20} x={pn().countX} y={24 + props.headingY + 7} color={props.look.os65}>
         {pn().count}
       </text>
-      <Pill x={pn().allX} y={24} label={props.seeAll} h={46} size={18} focused={props.allFocused} look={props.look} />
+      <Pill
+        x={pn().allX}
+        y={24}
+        label={props.seeAll}
+        h={46}
+        size={18}
+        focused={props.allFocused}
+        look={props.look}
+        onPointerOver={() => props.onPointerAt(-1, false)}
+        onPointerClick={() => props.onPointerAt(-1, true)}
+      />
       <view x={24} y={70}>
         <For each={placed.keys()}>
           {(k) => {
             const pt = placed.item(k)
-            return <TileView x={pt().x} y={pt().y} tile={pt().tile} look={props.look} zoom={props.zoom} focused={props.col === pt().t} />
+            return (
+              <TileView
+                x={pt().x}
+                y={pt().y}
+                tile={pt().tile}
+                look={props.look}
+                zoom={props.zoom}
+                focused={props.col === pt().t}
+                onPointerOver={() => props.onPointerAt(pt().t, false, pt().y, pt().tile.h + 78)}
+                onPointerClick={() => props.onPointerAt(pt().t, true, pt().y, pt().tile.h + 78)}
+              />
+            )
           }}
         </For>
       </view>
@@ -387,6 +408,39 @@ export default function FavoritesScreen(props) {
     } else boardKey(direction)
     return true
   }
+  // The Magic Remote's cursor (app/pointer.js): Back, a panel's See All and a tile in full view take
+  // focus on hover; one the page would scroll to takes it on a click.
+  const point = bookPointer(props, has)
+  const viewH = () => props.viewH - HEADER_H
+  const pointPanel = (i, t, click, ty, th) => {
+    const pn = panels()[i]
+    if (!pn || expanded()) return false
+    const all = t < 0
+    const top = all ? pn.y + 24 : pn.y + 70 + ty
+    return point(
+      () => {
+        batch(() => {
+          setZone(all ? 'all' : 'items')
+          setPanel(i)
+          if (!all) setCol(t)
+        })
+        reveal()
+      },
+      { whole: showsWhole(top, all ? 46 : th, scrollY(), viewH()), lit: has() && panel() === i && (all ? zone() === 'all' : zone() === 'items' && col() === t), click },
+    )
+  }
+  const pointGrid = (i, click) => {
+    const p = grid() && grid().placed[i]
+    if (!p || !expanded()) return false
+    return point(
+      () => {
+        setZone('grid')
+        setGcur(i)
+        reveal()
+      },
+      { whole: showsWhole(p.y, p.h, scrollY(), viewH()), lit: has() && zone() === 'grid' && gcur() === i, click },
+    )
+  }
   const focusedTile = () => {
     if (zone() === 'grid') return (grid().placed[gcur()] || {}).tile
     if (zone() !== 'items') return null
@@ -436,7 +490,15 @@ export default function FavoritesScreen(props) {
         <ScreenTitle title={$L('Favorites')} count={count()} look={look()} />
       </view>
       <view alpha={expanded() ? 1 : 0}>
-        <Pill x={60} y={18} label={backLabel} icon="core_arrow_left" focused={zone() === 'back' && has()} look={look()} />
+        <Pill
+          x={60}
+          y={18}
+          label={backLabel}
+          icon="core_arrow_left"
+          focused={zone() === 'back' && has()}
+          look={look()}
+          onPointerOver={() => expanded() && point(() => setZone('back'), { lit: has() && zone() === 'back' })}
+        />
         <text fontFamily={boldFont} fontSize={48} x={gridHead().labelX} y={17} color={look().onSurface}>
           {gridHead().label}
         </text>
@@ -459,6 +521,7 @@ export default function FavoritesScreen(props) {
                     headingY={headingY}
                     allFocused={zone() === 'all' && has() && panel() === pn().i}
                     col={zone() === 'items' && has() && panel() === pn().i ? col() : -1}
+                    onPointerAt={(t, click, ty, th) => pointPanel(pn().i, t, click, ty, th)}
                   />
                 )
               }}
@@ -468,7 +531,18 @@ export default function FavoritesScreen(props) {
             <For each={gridList.keys()}>
               {(k) => {
                 const gt = gridList.item(k)
-                return <TileView x={gt().x} y={gt().y} tile={gt().tile} look={look()} zoom={props.zoom} focused={isGridTile(gt().i)} />
+                return (
+                  <TileView
+                    x={gt().x}
+                    y={gt().y}
+                    tile={gt().tile}
+                    look={look()}
+                    zoom={props.zoom}
+                    focused={isGridTile(gt().i)}
+                    onPointerOver={() => pointGrid(gt().i, false)}
+                    onPointerClick={() => pointGrid(gt().i, true)}
+                  />
+                )
               }}
             </For>
           </view>

@@ -139,6 +139,7 @@ export default function CastModal(props) {
         if (props.ref) props.ref(n)
       }}
       width={1920}
+      pointerModal
       height={1080}
       transition={tx({ alpha: { duration: on() ? 200 : 0, easing: 'ease' } })}
       alpha={on() ? 1 : 0}
@@ -186,7 +187,24 @@ export default function CastModal(props) {
               {(c) => {
                 const focused = () => isCur(c.i)
                 return (
-                  <view x={c.x} y={8} width={160} height={rowH() - 20} pivotX={0.5} pivotY={0} transition={{ scale: FADE }} scale={focused() ? 1.06 : 1}>
+                  <view
+                    x={c.x}
+                    y={8}
+                    width={160}
+                    height={rowH() - 20}
+                    pivotX={0.5}
+                    pivotY={0}
+                    transition={{ scale: FADE }}
+                    scale={focused() ? 1.06 : 1}
+                    // The row scrolls to its focused card, so the Magic Remote's cursor rings a card
+                    // and a click picks it (app/pointer.js).
+                    pointerRing
+                    onPointerClick={() => {
+                      if (status()) return false
+                      reveal(c.i)
+                      return true
+                    }}
+                  >
                     <view x={7} width={146} height={146} borderRadius={73} color="#ffffff1a" />
                     <view alpha={c.image ? 1 : 0} x={10} y={3} width={140} height={140} borderRadius={70} src={c.image} textureOptions={COVER} />
                     <text alpha={c.image ? 0 : 1} fontFamily={c.nameFont} fontSize={48} x={80} y={46.9} mountX={0.5} color="#ffffff66">

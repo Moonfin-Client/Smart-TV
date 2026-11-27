@@ -6,6 +6,7 @@ import { hex } from '../../color.js'
 import * as settings from '../../../state/settings.js'
 import { resolveSubtitleStyleSettings, subtitleStyleKey } from '../../../utils/subtitleConstants.js'
 import { retrySubtitleFont } from '../../../services/subtitleFonts.js'
+import { localPoint } from '../../../app/pointer.js'
 import { VIEW_H, scrollTo, settingRows, stepValue } from '../../../pages/Player/subtitleSettings.js'
 import { keyed } from '../library/pageKit.js'
 import { tx } from '../../fx.js'
@@ -104,6 +105,28 @@ export default function SubtitleSettings(props) {
     refresh()
     if (props.applySubtitleStyle) props.applySubtitleStyle()
   }
+  // The Magic Remote's cursor (app/pointer.js): a row in full view takes focus on hover, one the list
+  // would scroll to only on a click, so the list doesn't move under the cursor.
+  const pointAt = (id) => {
+    const r = list.find((x) => x.id === id)
+    if (!r || cur() === id || r.focusY < scroll() || r.focusY + r.focusH > scroll() + VIEW_H) return
+    setCur(id)
+  }
+  // A click on a slider's track sets it to that point.
+  const clickAt = (id, n, p) => {
+    const r = list.find((x) => x.id === id)
+    if (!r) return false
+    setCur(id)
+    setScroll(scrollTo(scroll(), r, contentH()))
+    if (r.kind === 'slider') {
+      const at = localPoint(n, p)
+      if (at.y < 60) return false
+      const f = Math.max(0, Math.min(1, (at.x - TRACK_X) / TRACK_W))
+      write(r, stepValue({ ...r, raw: r.min + f * (r.max - r.min) }, 0))
+      return false
+    }
+    return r.kind === 'button'
+  }
   const slide = (dir) => {
     const r = list.find((x) => x.id === cur())
     if (r && r.kind === 'slider') write(r, stepValue(r, dir))
@@ -117,6 +140,7 @@ export default function SubtitleSettings(props) {
         if (props.ref) props.ref(n)
       }}
       width={1920}
+      pointerModal
       height={1080}
       transition={tx({ alpha: { duration: on() ? 200 : 0, easing: 'ease' } })}
       alpha={on() ? 1 : 0}
@@ -166,7 +190,16 @@ export default function SubtitleSettings(props) {
                   const b = buttons.item(k)
                   const focused = () => lit(k)
                   return (
-                    <view x={10} y={b().y} width={680} height={70} transition={{ scale: FADE }} scale={focused() ? 1.02 : 1}>
+                    <view
+                      x={10}
+                      y={b().y}
+                      width={680}
+                      height={70}
+                      transition={{ scale: FADE }}
+                      scale={focused() ? 1.02 : 1}
+                      onPointerOver={() => pointAt(k)}
+                      onPointerClick={() => clickAt(k)}
+                    >
                       <view width={680} height={70} borderRadius={10} transition={{ color: FADE }} color={focused() ? '#00a4dc4d' : '#ffffff14'} />
                       <view width={680} height={70} borderRadius={10} color="#00000000" border={PANEL_BORDER} />
                       <view width={680} height={70} borderRadius={10} color="#00000000" border={FOCUS_BORDER} transition={{ alpha: FADE }} alpha={focused() ? 1 : 0} />
@@ -187,7 +220,7 @@ export default function SubtitleSettings(props) {
                   const sl = sliders.item(k)
                   const focused = () => lit(k)
                   return (
-                    <view x={10} y={sl().y} width={680} height={122}>
+                    <view x={10} y={sl().y} width={680} height={122} onPointerOver={() => pointAt(k)} onPointerClick={(n, p) => clickAt(k, n, p)}>
                       <view width={680} height={122} borderRadius={10} transition={{ color: FADE }} color={focused() ? '#00a4dc26' : '#ffffff14'} />
                       <view width={680} height={122} borderRadius={10} color="#00000000" border={PANEL_BORDER} />
                       <view width={680} height={122} borderRadius={10} color="#00000000" border={FOCUS_BORDER} transition={{ alpha: FADE }} alpha={focused() ? 1 : 0} />
@@ -210,7 +243,15 @@ export default function SubtitleSettings(props) {
           </view>
         </view>
 
-        <view x={51} y={800.2} width={700} height={41} borderRadius={4} color={closeOn() ? '#ffffff1a' : '#00000000'}>
+        <view
+          x={51}
+          y={800.2}
+          width={700}
+          height={41}
+          borderRadius={4}
+          color={closeOn() ? '#ffffff1a' : '#00000000'}
+          onPointerOver={() => cur() !== 'close' && setCur('close')}
+        >
           <text fontFamily={closeFont} fontSize={18} lineHeight={1} x={350} y={closeTextY} mountX={0.5} color={closeOn() ? '#ffffffff' : '#ffffff99'}>
             {closeLabel}
           </text>

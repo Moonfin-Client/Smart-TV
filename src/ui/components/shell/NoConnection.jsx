@@ -36,6 +36,8 @@ export default function NoConnection(props) {
         if (props.ref) props.ref(n)
       }}
       width={1920}
+      // A click with the Magic Remote's cursor is its one action, as OK is (app/pointer.js).
+      onPointerClick={() => true}
       height={1080}
       onFocusChanged={setFocused}
       onEnter={() => {

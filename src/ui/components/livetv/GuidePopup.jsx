@@ -82,6 +82,26 @@ export default function GuidePopup(props) {
       reveal()
     }),
   )
+  // The Magic Remote's cursor (app/pointer.js). An option in full view takes focus on hover, one the
+  // list would scroll to only on a click; the action buttons take it on hover.
+  const pointOption = (i) => {
+    const model = m()
+    const o = model && model.options[i]
+    if (!o || cur() === i || o.y < scroll() || o.y + o.h > scroll() + model.listH) return
+    setCur(i)
+  }
+  const pointButton = (i) => {
+    if (options().length || cur() === i) return
+    setCur(i)
+  }
+  // The buttons' box, so their hit area leaves the option list alone.
+  const btnBox = createMemo(() => {
+    const list = m() ? m().buttons : []
+    if (!list.length) return { x: 0, y: 0, w: 0, h: 0 }
+    const x = Math.min(...list.map((b) => b.x))
+    const y = Math.min(...list.map((b) => b.y))
+    return { x, y, w: Math.max(...list.map((b) => b.x + b.w)) - x, h: Math.max(...list.map((b) => b.y + b.h)) - y }
+  })
   const say = (id) => {
     if (props.onPopup) props.onPopup(id)
     return true
@@ -180,6 +200,16 @@ export default function GuidePopup(props) {
                 )}
               </For>
             </view>
+            <view
+              width={m() ? m().w : 0}
+              height={m() ? Math.max(m().listH, m().listFull || 0) : 0}
+              pointerItems={() => options().map((o) => ({ x: o.x, y: o.y, w: o.w, h: o.h }))}
+              onPointerItem={(_, i) => pointOption(i)}
+              onPointerItemClick={(_, i) => {
+                move(i)
+                return true
+              }}
+            />
           </view>
         </view>
         <view>
@@ -194,6 +224,14 @@ export default function GuidePopup(props) {
             )}
           </For>
         </view>
+        <view
+          x={btnBox().x}
+          y={btnBox().y}
+          width={btnBox().w}
+          height={btnBox().h}
+          pointerItems={() => (m() ? m().buttons : []).map((b) => ({ x: b.x - btnBox().x, y: b.y - btnBox().y, w: b.w, h: b.h }))}
+          onPointerItem={(_, i) => pointButton(i)}
+        />
       </view>
     </view>
   )

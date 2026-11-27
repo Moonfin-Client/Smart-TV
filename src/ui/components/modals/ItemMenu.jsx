@@ -95,6 +95,7 @@ export default function ItemMenu(props) {
         if (props.ref) props.ref(n)
       }}
       width={1920}
+      pointerModal
       height={1080}
       onUp={() => {
         if (cur() > 0 && !confirm()) setCur(cur() - 1)
@@ -126,7 +127,16 @@ export default function ItemMenu(props) {
       onKeyPress={() => true}
     >
       <view width={1920} height={1080} color="#0000008c" />
-      <view x={laid().x} y={laid().y} width={W} height={laid().h}>
+      <view
+        x={laid().x}
+        y={laid().y}
+        width={W}
+        height={laid().h}
+        // The Magic Remote's cursor focuses the row or button under it, and OK then picks it
+        // (app/pointer.js).
+        pointerItems={() => (confirm() ? laid().buttons.map((b) => ({ x: b.x, y: b.y, w: b.w, h: 61 })) : laid().rows.map((r) => ({ x: 8, y: r.y, w: 506, h: ROW_H })))}
+        onPointerItem={(it, i) => cur() !== i && setCur(i)}
+      >
         <view width={W} height={laid().h} borderRadius={12} color="#00000000" shadow={{ color: shadowColor('#00000066'), x: 0, y: 12, blur: 35, spread: 0 }} />
         <view width={W} height={laid().h} borderRadius={12} color={t().surfaceA(0.97)} border={{ width: 1, color: hex(t().os(0.12)) }} />
         <view

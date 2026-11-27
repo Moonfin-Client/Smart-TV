@@ -41,6 +41,7 @@ export default function LibraryTile(props) {
         pivot={0.5}
         scale={ring() ? 1.05 : 1}
         transition={tx({ scale: ease() })}
+        onPointerClick={props.onPointerClick}
       >
         <view>
           <Show when={o().glow}>
@@ -145,6 +146,9 @@ export default function LibraryTile(props) {
             </Show>
           </Show>
         </view>
+        {/* The pointer's hit area and hover ring over the art, the size of the focus ring; the
+        title under it still takes the click through the card (Grid passes the click). */}
+        <view width={o().cardW} height={o().posterH} pointerRing={!c().loading && c().image ? 8 : undefined} onPointerClick={props.onPointerClick} />
       </view>
     </view>
   )

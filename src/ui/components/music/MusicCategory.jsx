@@ -116,6 +116,14 @@ export default function MusicCategory(props) {
     else if (target) st.current = target
   }
   const stops = () => (nav === 'rail' ? railRows() : TABS)
+  // The Magic Remote's cursor focuses a tab, chip or rail row, and OK then opens it (app/pointer.js).
+  const pointNav = (i) => {
+    if (st.onStrip && st.scur === i) return
+    const was = st.onStrip
+    st.scur = i
+    st.onStrip = true
+    if (!was) root.setFocus()
+  }
   const screenProps = {
     get library() {
       return props.library
@@ -126,6 +134,10 @@ export default function MusicCategory(props) {
     ref: (n) => (child = n),
     onEdgeLeft,
     focusStrip,
+    onPointerIn: () => {
+      st.onStrip = false
+      if (child) child.setFocus()
+    },
     onOpenSongsGrid: () => props.onOpenSongsGrid(),
   }
 
@@ -192,7 +204,7 @@ export default function MusicCategory(props) {
             {libName()}
           </text>
           <view x={tabsX()} y={18} width={tabBarWidth(TABS, highlight())} height={63} clipping>
-            <MusicTabBar tabs={TABS} active={highlight()} focus={st.onStrip ? st.scur : -1} look={look()} />
+            <MusicTabBar tabs={TABS} active={highlight()} focus={st.onStrip ? st.scur : -1} look={look()} onPointerTab={pointNav} />
           </view>
         </Show>
       </view>
@@ -213,7 +225,7 @@ export default function MusicCategory(props) {
               {(ch) => {
                 const ink = () => (chipOn(ch().i) ? look().onAccent : navCur() === ch().i ? look().accent : look().os(0.8))
                 return (
-                  <view x={ch().x} y={18} width={ch().w} height={55}>
+                  <view x={ch().x} y={18} width={ch().w} height={55} onPointerOver={() => pointNav(ch().i)}>
                     <view
                       width={ch().w}
                       height={55}
@@ -258,6 +270,7 @@ export default function MusicCategory(props) {
                     <text fontFamily={uiFont('bold')} fontSize={15} x={44} y={lineY(5, 33, 15)} maxWidth={168} maxLines={1} color={ink()}>
                       {rr().label}
                     </text>
+                    <view width={224} height={44} onPointerOver={() => pointNav(rr().i)} />
                   </view>
                 )
               }}

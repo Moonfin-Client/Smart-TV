@@ -15,7 +15,7 @@ import BookShelf from './BookShelf.jsx'
 import { HeroButtons, ScreenTitle } from './BookControls.jsx'
 import SidePanel from './SidePanel.jsx'
 import { columnsFor, countLabel, gridMove, gridRows, rowIndexOf } from './bookGrid.js'
-import { heroButtons } from './bookParts.js'
+import { bookPointer, heroButtons, showsWhole } from './bookParts.js'
 import { ellipsize, lineCount, textWidth } from './bookText.js'
 import {
   AUDIOBOOK_GENRES_KEY,
@@ -570,6 +570,48 @@ export default function DiscoverScreen(props) {
     }
     if (z === 'details') closeDetails()
   }
+  // The Magic Remote's cursor (app/pointer.js): the search field and the chips take focus on hover,
+  // and the featured title's button, a shelf's book or a result while in full view; one the page or
+  // its shelf would scroll to takes it on a click.
+  const point = bookPointer(props, has)
+  const busy = () => picking() || typing() || !!details()
+  const shows = (top, h) => showsWhole(top, h, scrollY(), props.viewH - HEADER_H)
+  const pointTo = (z, set, click, whole = true, lit = false) => {
+    if (busy()) return false
+    return point(
+      () => {
+        batch(() => {
+          setZone(z)
+          if (set) set()
+        })
+        reveal()
+      },
+      { whole, lit: own() && lit, click },
+    )
+  }
+  const pointHero = (click) => {
+    const b = blocks()
+    return pointTo('hero', null, click, b.heroY >= 0 && shows(b.heroY + hero().infoY + hero().buttonsY, 52), zone() === 'hero')
+  }
+  const pointShelf = (s, i, o) => {
+    const sec = blocks().sections[s]
+    if (!sec || !sec.cards[i]) return false
+    return pointTo(
+      'shelf',
+      () => {
+        setShelf(s)
+        setCol(i)
+      },
+      o.click,
+      o.whole && shows(sec.y + 57, sec.shelfH),
+      zone() === 'shelf' && shelf() === s && col() === i,
+    )
+  }
+  const pointResult = (i, click) => {
+    const p = blocks().grid && blocks().grid.placed[i]
+    if (!p) return false
+    return pointTo('results', () => setRcur(i), click, shows(p.y, p.card.h + 78), zone() === 'results' && rcur() === i)
+  }
   const key = (fn) => () => {
     fn()
     return true
@@ -604,7 +646,7 @@ export default function DiscoverScreen(props) {
       }}
     >
       <ScreenTitle title={$L('Discover')} count={count()} look={look()} />
-      <view x={60} y={91.2} width={cw() - 120} height={66}>
+      <view x={60} y={91.2} width={cw() - 120} height={66} onPointerOver={() => pointTo('search', null, false, true, zone() === 'search')}>
         <view width={cw() - 120} height={66} borderRadius={33} color={look().os08} />
         <view width={cw() - 120} height={66} borderRadius={33} color={CLEAR} border={{ width: 3, color: hex(look().focus) }} alpha={searchFocused() ? 1 : 0} />
         <text fontFamily={fontFor(text() || placeholder())} fontSize={24} x={33} y={20} color={text() ? look().onSurface : look().os50}>
@@ -617,7 +659,7 @@ export default function DiscoverScreen(props) {
             const ch = chipList.item(k)
             const lit = () => chipFocus() >= 0 && isCcur(ch().i)
             return (
-              <view x={ch().x} width={ch().w} height={57}>
+              <view x={ch().x} width={ch().w} height={57} onPointerOver={() => pointTo('chips', () => setCcur(ch().i), false, true, zone() === 'chips' && ccur() === ch().i)}>
                 <view width={ch().w} height={57} borderRadius={22} color={CLEAR} shadow={chipGlow()} alpha={lit() ? 1 : 0} />
                 <view width={ch().w} height={57} borderRadius={22} color={lit() ? look().accent : ch().current ? look().accent16 : look().os09} />
                 <text fontFamily={boldFont} fontSize={15} x={30} y={21} color={lit() ? look().onAccent : ch().current ? look().accent : look().os80}>
@@ -674,7 +716,14 @@ export default function DiscoverScreen(props) {
               >
                 {hero().overview || ''}
               </text>
-              <HeroButtons y={hero().buttonsY} buttons={hero().buttons} focus={zone() === 'hero' && own() ? 0 : -1} look={look()} />
+              <HeroButtons
+                y={hero().buttonsY}
+                buttons={hero().buttons}
+                focus={zone() === 'hero' && own() ? 0 : -1}
+                look={look()}
+                onPointerButton={() => pointHero(false)}
+                onPointerButtonClick={() => pointHero(true)}
+              />
             </view>
           </view>
           <view>
@@ -698,6 +747,7 @@ export default function DiscoverScreen(props) {
                       viewW={cw() - 60}
                       look={look()}
                       zoom={props.zoom}
+                      onPointerCard={(i, o) => pointShelf(sec().s, i, o)}
                     />
                   </view>
                 )
@@ -708,7 +758,18 @@ export default function DiscoverScreen(props) {
             <For each={resultList.keys()}>
               {(k) => {
                 const rc = resultList.item(k)
-                return <BookCard x={rc().x} y={rc().y} card={rc().card} look={look()} zoom={props.zoom} focused={zone() === 'results' && own() && isRcur(rc().i)} />
+                return (
+                  <BookCard
+                    x={rc().x}
+                    y={rc().y}
+                    card={rc().card}
+                    look={look()}
+                    zoom={props.zoom}
+                    focused={zone() === 'results' && own() && isRcur(rc().i)}
+                    onPointerOver={() => pointResult(rc().i, false)}
+                    onPointerClick={() => pointResult(rc().i, true)}
+                  />
+                )
               }}
             </For>
           </view>

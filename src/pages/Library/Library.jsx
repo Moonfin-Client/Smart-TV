@@ -1435,6 +1435,23 @@ export default function Library(props) {
     <view
       width={1920}
       height={1080}
+      // The part the Magic Remote's cursor focuses becomes the focused zone (app/pointer.js).
+      onPointerFocus={(n) => {
+        if (st.panel || st.keyboard) return true
+        for (let p = n; p; p = p.parent) {
+          if (p === grid) my.zone = 'grid'
+          else if (p === chromeRef) my.zone = 'chrome'
+          else {
+            const at = st.groupRows.findIndex((r) => rowRefs[r.key] === p)
+            if (at < 0) continue
+            my.zone = 'rows'
+            my.rowFocus = at
+          }
+          focusZone()
+          return true
+        }
+        return false
+      }}
       forwardFocus={() => {
         focusZone()
         return true
