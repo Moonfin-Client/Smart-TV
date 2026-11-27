@@ -16,7 +16,7 @@ import { hex } from '../../ui/color.js'
 import { textWidth, whenReady, wrapLines } from '../../ui/components/details/measure.js'
 import { getServerType, getServerUrl, getApiKey } from '../../services/jellyfinApi.js'
 import * as userDataSync from '../../services/userDataSync.js'
-import { withoutBlockedItems } from '../../services/parentalControls.js'
+import { loadParentalControls, withoutBlockedItems } from '../../services/parentalControls.js'
 import { startServerShuffle } from '../../services/serverShuffle.js'
 import { buildDisplayRatings, fetchEpisodeRatings, fetchRatings, getContentType, getTmdbId, isMdblistEnabled, isRatingSourceEnabled } from '../../services/mdblistApi.js'
 import { searchesForTrailer } from '../../services/youtubeTrailer.js'
@@ -244,6 +244,7 @@ export default function Details(props) {
     const pre = early && early.id === props.id ? early.rec : null
     early = null
     // The card draws first, with nothing on it to focus or press until the record replaces it.
+    if (pre && !props.autoPlay) await loadParentalControls()
     const card = pre && !props.autoPlay ? cardToShow(props.card, props.id) : null
     if (card) {
       await whenReady()
