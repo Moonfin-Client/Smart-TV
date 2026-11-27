@@ -978,7 +978,7 @@ const siloPlaybackResult = async ({
 			// these count: an audio change is not a failure, and Silo moves off the file itself when the track
 			// asked for needs it.
 			DirectPlayFailed: !allowDirectPlay || options.directPlayFailed === true,
-			AudioPicked: options.audioPicked === true
+			AudioNotNative: options.audioNotNative === true
 		}, options.item);
 	} catch (err) {
 		heardEndedOnServer(err, generation);
@@ -1006,7 +1006,10 @@ const siloPlaybackResult = async ({
 	const audioStreams = extractAudioStreams(mediaSource);
 	const subtitleStreams = extractSubtitleStreams(mediaSource, itemId, creds, storedSettings.assDirectPlay === false, url, playMethod,
 		storedSettings.enablePgsRendering === false);
-	const selectedAudio = options.audioStreamIndex ?? mediaSource.DefaultAudioStreamIndex;
+	// On another file than the one asked for (another version), an index from the old one names another track, so the
+	// plan's own track is the one playing.
+	const movedFile = options.mediaSourceId != null && String(mediaSource.Id) !== String(options.mediaSourceId);
+	const selectedAudio = movedFile ? mediaSource.DefaultAudioStreamIndex : options.audioStreamIndex ?? mediaSource.DefaultAudioStreamIndex;
 
 	replaceSession({
 		itemId,
@@ -1262,7 +1265,8 @@ export const getNextEpisode = async (item, step = 1) => {
 	}
 };
 
-export const changeAudioStream = async (streamIndex, currentPositionTicks) => {
+// notNative: the TV can't play the track from the original file itself.
+export const changeAudioStream = async (streamIndex, currentPositionTicks, notNative = false) => {
 	if (!currentSession) return null;
 
 	// Direct play serves the file as it is, which always plays the default audio track whatever
@@ -1273,7 +1277,7 @@ export const changeAudioStream = async (streamIndex, currentPositionTicks) => {
 		audioStreamIndex: streamIndex,
 		startPositionTicks: currentPositionTicks ?? currentSession.startPositionTicks,
 		enableDirectPlay: false,
-		audioPicked: true
+		audioNotNative: notNative === true
 	});
 
 	return newInfo;
@@ -1604,6 +1608,10 @@ export const updateCurrentSession = (updates) => {
 	if (!currentSession) return;
 	if (updates.audioStreamIndex !== undefined) {
 		currentSession.audioStreamIndex = updates.audioStreamIndex;
+		// Silo plans from the track the player plays, which can be one it switched to itself.
+		if (isSiloCreds(currentSession.serverCredentials)) {
+			getApiForItem(currentSessionItem()).noteAudioPlaying?.(currentSession.playSessionId, updates.audioStreamIndex);
+		}
 	}
 	if (updates.subtitleStreamIndex !== undefined) {
 		currentSession.subtitleStreamIndex = updates.subtitleStreamIndex;

@@ -602,6 +602,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		const ticks = session.source?.RunTimeTicks;
 		if (onPlaying) onPlaying(session.itemId, info.MediaSources[0].Id, ticks > 0 ? ticks / TICKS_PER_SECOND : null, session.source);
 		session.audioStreamIndex = info.MediaSources[0].DefaultAudioStreamIndex;
+		session.playingAudioStreamIndex = session.audioStreamIndex;
 		session.subtitleStreamIndex = info.MediaSources[0].DefaultSubtitleStreamIndex;
 		return info;
 	};
@@ -710,14 +711,13 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		const plan = session.plan;
 		const changes = (asked, playing) => asked != null && asked !== playing;
 		const direct = plan.delivery === 'original_http';
-		const picked = body.AudioPicked === true && body.AudioStreamIndex != null;
-		// The original file plays any of its tracks the player switched to itself, and the player sets that track
-		// again after a reload, so there only a pick from the menu changes the audio Silo plans.
-		const audioDiffers = changes(body.AudioStreamIndex, session.audioStreamIndex);
-		const audioChange = audioDiffers && (!direct || picked);
-		// The original file failed here, or the player couldn't switch back to the track the plan already has and
-		// picked it from the menu, so Silo tries something else.
-		const failure = direct && (body.DirectPlayFailed === true || (picked && !audioDiffers));
+		// The track the player plays is the plan's, or on the original file one the player switched to itself and
+		// sets again after a reload. Asking for another one changes the audio.
+		const audioChange = changes(body.AudioStreamIndex, session.playingAudioStreamIndex);
+		const offPlan = changes(body.AudioStreamIndex, session.audioStreamIndex);
+		// The original file failed here, or the TV can't play the plan's own track from it, so Silo tries something
+		// else.
+		const failure = direct && (body.DirectPlayFailed === true || (body.AudioNotNative === true && body.AudioStreamIndex != null && !offPlan));
 		const trackChange = !failure && (audioChange || changes(body.SubtitleStreamIndex, session.subtitleStreamIndex));
 		const qualityChange = !failure && !trackChange && kbps(body.MaxStreamingBitrate) !== session.bandwidthCapKbps;
 		let operation = 'seek_reanchor';
@@ -734,8 +734,9 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		}
 		const fileId = String(plan.effective_media_file_id);
 		const tracks = selectedTracks(plan);
-		// A new plan carries the track the player plays, which on the original file can be one it switched to itself.
-		if (audioDiffers && (trackChange || failure)) {
+		// A new route carries the track asked for, which on the original file can be one the player switched to
+		// itself. A reanchor keeps the route, and the player sets that track again.
+		if (offPlan && operation !== 'seek_reanchor') {
 			const audio = session.source && body.AudioStreamIndex != null ? siloTrackForStreamIndex(session.source, body.AudioStreamIndex) : null;
 			if (audio && audio.kind === 'audio') tracks.audio = {id: `file:${fileId}:audio:${audio.ordinal}`, index: audio.ordinal};
 		}
@@ -793,7 +794,11 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		session.plan = next;
 		session.planAttemptId = siloNewUuid();
 		await freshenStreamAuth();
-		return playingTracks(session, asPlaybackInfo(session, body.SubtitleStreamIndex));
+		const info = playingTracks(session, asPlaybackInfo(session, body.SubtitleStreamIndex));
+		// A reanchor that stays on the same original file plays the track the player asked with, which it sets again.
+		const sameFile = next.delivery === 'original_http' && String(next.effective_media_file_id) === fileId;
+		if (operation === 'seek_reanchor' && sameFile && body.AudioStreamIndex != null) session.playingAudioStreamIndex = body.AudioStreamIndex;
+		return info;
 	};
 
 	const liveSessionOf = (itemId) => Object.keys(sessions).map((id) => sessions[id]).find((s) => s.itemId === itemId && !s.ended && !s.stopping);
@@ -885,6 +890,11 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 			}
 		},
 
+		// The player switched the original file to another of its tracks itself.
+		noteAudioPlaying: (playSessionId, streamIndex) => {
+			const session = sessions[playSessionId];
+			if (session) session.playingAudioStreamIndex = streamIndex;
+		},
 		reportPlaybackStopped: (info) => {
 			const session = sessions[info?.PlaySessionId];
 			if (!session) return Promise.resolve(null);

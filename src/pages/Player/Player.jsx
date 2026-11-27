@@ -488,6 +488,13 @@ export default function Player(props) {
       }
       let info = await playback.getPlaybackInfo(itemId, opts)
       if (mine !== my.startGen || gone) return
+      // Silo can start another version than the one asked for (a lower quality picked in the player), whose stream
+      // indexes are its own, so an audio index from the other file gives way to the track Silo planned on this one.
+      if (picks.audioStreamIndex != null && picks.mediaSourceId != null && info.mediaSource && info.mediaSource.SiloDelivery &&
+          String(info.mediaSourceId) !== String(picks.mediaSourceId)) {
+        picks = { ...picks, audioStreamIndex: info.selectedAudioStreamIndex }
+        opts.audioStreamIndex = picks.audioStreamIndex
+      }
       // The remembered audio, then the language preferences, then the server's and the file's default.
       const audioStreams = info.audioStreams || []
       const fileDefault = audioStreams.find((a) => a.isDefault)
@@ -767,7 +774,9 @@ export default function Player(props) {
     if (silo && was && info.mediaSourceId && info.mediaSourceId !== was && audio != null) {
       my.audioIndex = audio
       playback.updateCurrentSession({ audioStreamIndex: audio })
-      if (tracks && tracks.audio) tracks = { ...tracks, audio: null }
+      if (tracks && tracks.audio) tracks = { ...tracks, audio: { ...tracks.audio, streamIndex: audio, audioStreams: info.audioStreams || [] } }
+      if (info.audioStreams) s.audioCount = info.audioStreams.length
+      if (info.subtitleStreams) s.subCount = info.subtitleStreams.length
     }
     my.info = { ...my.info, ...info }
     my.isHdr = isHdrOutput(info.mediaSource, info.playMethod === playback.PlayMethod.Transcode)
@@ -1956,10 +1965,12 @@ export default function Player(props) {
     my.forceHlsJs = false
     my.hlsRetries = 0
     const st = settings.all()
+    let notNative = false
     // Only direct play has every track, since a remux carries the one the server built it around.
     if (my.info && my.info.playMethod === playback.PlayMethod.DirectPlay && !transcodesAudioCodec(st, target && target.codec)) {
       // A track AVPlay can't decode freezes the picture once switched to, so Tizen asks first.
       const playable = !engine.usesAvplay() || (await playback.canPlayAudioStreamNatively(asServerAudioStream(target)))
+      notNative = !playable
       try {
         if (playable && engine.switchAudio(index, streams)) {
           playback.updateCurrentSession({ audioStreamIndex: index })
@@ -1969,13 +1980,13 @@ export default function Player(props) {
         // The server sends it instead.
       }
     }
-    await reloadWithAudio(index)
+    await reloadWithAudio(index, notNative)
   }
-  async function reloadWithAudio(index) {
+  async function reloadWithAudio(index, notNative) {
     const at = my.pos
     s.buffering = true
     try {
-      const info = await playback.changeAudioStream(index, Math.floor(at * TICKS))
+      const info = await playback.changeAudioStream(index, Math.floor(at * TICKS), notNative)
       if (!info || gone) return
       // A direct play url the element already has wouldn't load again.
       const direct = info.playMethod === playback.PlayMethod.DirectPlay
