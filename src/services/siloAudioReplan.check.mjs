@@ -1,5 +1,5 @@
 // What a replan of a direct-play Silo title tells Silo: an audio change is a track change with the new track, and only
-// a failed original file is a failure, which keeps an audio track switched to in the player.
+// a failed original file is a failure, which keeps an audio track switched to in the player as the viewer's choice.
 //   node --conditions=browser src/services/siloAudioReplan.check.mjs
 import assert from 'node:assert/strict'
 import { registerHooks } from 'node:module'
@@ -30,7 +30,7 @@ const plan = (delivery, audio, n) => ({
   plan_attempt_key: `v3:${n}`,
   session_id: 'session',
   delivery,
-  stream: { url: `/api/v2/stream/session?st=${n}`, protocol: delivery === 'hls' ? 'hls' : 'http_progressive', container: 'mkv', headers: {} },
+  stream: { url: `/api/v2/stream/session?st=${n}`, protocol: delivery === 'server_remux_hls' ? 'hls' : 'http_progressive', container: 'mkv', headers: {} },
   timeline: { source_start_seconds: 0, stream_origin_seconds: 0, player_start_seconds: 0, timeline_offset_seconds: 0, can_seek_anywhere: true },
   selected_tracks: { audio },
   requested_media_file_id: 235,
@@ -45,7 +45,7 @@ const replanFor = async (body) => {
     if (path.endsWith('/playback/start')) return { outcome: 'playable', session_id: 'session', playback_plan: plan('original_http', { id: 'file:235:audio:0', index: 0 }, 1) }
     if (path.endsWith('/replan')) {
       replans.push(opts.body)
-      return { outcome: 'playable', session_id: 'session', playback_plan: plan('hls', opts.body.selected_tracks.audio, 2) }
+      return { outcome: 'playable', session_id: 'session', playback_plan: plan('server_remux_hls', opts.body.selected_tracks.audio, 2) }
     }
     throw new Error(`unexpected call ${path}`)
   }
@@ -60,8 +60,8 @@ const replanFor = async (body) => {
   return replans[0]
 }
 
-// changeAudioStream: the other track, which playback.js asks for with direct play off.
-const change = await replanFor({ AudioStreamIndex: spanish, EnableDirectPlay: false })
+// changeAudioStream: the other track, picked from the menu (playback.js sends DirectPlayFailed only for a real failure).
+const change = await replanFor({ AudioStreamIndex: spanish, AudioPicked: true, DirectPlayFailed: false })
 assert.equal(change.operation, 'track_change')
 assert.deepEqual(change.selected_tracks.audio, { id: 'file:235:audio:1', index: 1 })
 assert.equal(change.failure, undefined)
@@ -70,13 +70,21 @@ assert.deepEqual(change.attempted_plan_keys, [], "a track change doesn't rule ou
 // fallbackStream after the player switched to the other track itself: the original file failed.
 const failure = await replanFor({ AudioStreamIndex: spanish, DirectPlayFailed: true })
 assert.equal(failure.operation, 'failure_recovery')
-assert.deepEqual(failure.failure, { classification: 'playback_error' })
+assert.deepEqual(failure.failure, { classification: 'audio_track_changed' }, 'Silo keeps the switched track as the choice')
 assert.deepEqual(failure.attempted_plan_keys, ['v3:1'])
 assert.deepEqual(failure.selected_tracks.audio, { id: 'file:235:audio:1', index: 1 }, 'keeps the track the player switched to')
 
 // A failure with the track already playing names the plan's own track.
 const plain = await replanFor({ AudioStreamIndex: english, DirectPlayFailed: true })
 assert.equal(plain.operation, 'failure_recovery')
+assert.deepEqual(plain.failure, { classification: 'playback_error' })
 assert.deepEqual(plain.selected_tracks.audio, { id: 'file:235:audio:0', index: 0 })
+
+// The menu picks the track Silo has the plan on (the player had switched away from it itself and can't switch back):
+// the original file can't play it here, so Silo is asked for another route with that track.
+const again = await replanFor({ AudioStreamIndex: english, AudioPicked: true, DirectPlayFailed: false })
+assert.equal(again.operation, 'failure_recovery')
+assert.deepEqual(again.failure, { classification: 'playback_error' })
+assert.deepEqual(again.selected_tracks.audio, { id: 'file:235:audio:0', index: 0 })
 
 console.log('ok siloAudioReplan')

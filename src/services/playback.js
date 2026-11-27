@@ -974,9 +974,11 @@ const siloPlaybackResult = async ({
 			SubtitleStreamIndex: subtitleStreamIndex,
 			MaxStreamingBitrate: maxBitrate,
 			MediaSourceId: options.mediaSourceId,
-			// The original file failed here, and Silo is told so. A track change turns direct play off too, but it
-			// is not a failure: Silo moves off the file itself when the track asked for needs it.
-			DirectPlayFailed: options.directRefused === true || options.directPlayFailed === true
+			// The original file failed here, or direct play is off for the whole item, and Silo is told so. An audio
+			// change turns direct play off too, but it is not a failure: Silo moves off the file itself when the
+			// track asked for needs it.
+			DirectPlayFailed: !allowDirectPlay || options.directPlayFailed === true,
+			AudioPicked: options.audioPicked === true
 		}, options.item);
 	} catch (err) {
 		heardEndedOnServer(err, generation);
@@ -1270,7 +1272,8 @@ export const changeAudioStream = async (streamIndex, currentPositionTicks) => {
 		item: currentSessionItem(),
 		audioStreamIndex: streamIndex,
 		startPositionTicks: currentPositionTicks ?? currentSession.startPositionTicks,
-		enableDirectPlay: false
+		enableDirectPlay: false,
+		audioPicked: true
 	});
 
 	return newInfo;
