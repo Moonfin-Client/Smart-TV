@@ -23,6 +23,8 @@ const PANEL_Y = 81
 const WINDOW = 500
 const HEADING_CLEARANCE = 12
 const CARD_CLEARANCE = 20
+// The scroll box reaches this far past the cells on either side, so a focused card's zoom isn't cut.
+const FOCUS_ROOM = 20
 const KINDS = ['card', 'person', 'studio', 'chapter', 'review', 'track', 'chips']
 const NO_LAID = { rects: [], imgs: [], texts: [], cells: [], h: 0, fileInfo: null, spinner: null, first: -1 }
 const GONE = {
@@ -328,8 +330,8 @@ export default function SectionModal(props) {
       </view>
       <view x={174} y={82 + head().headerH - 1} width={1574} height={1} color="#ffffff14" />
 
-      <view x={198} y={viewTop()} width={1526} height={viewH()} clipping>
-        <view transition={SCROLL} y={-scroll()} width={1526} height={Math.max(viewH(), laid().h)}>
+      <view x={198 - FOCUS_ROOM} y={viewTop()} width={1526 + 2 * FOCUS_ROOM} height={viewH()} clipping>
+        <view x={FOCUS_ROOM} transition={SCROLL} y={-scroll()} width={1526} height={Math.max(viewH(), laid().h)}>
           <view>
             <For each={rects.keys()}>
               {(k) => (
