@@ -38,18 +38,32 @@ export const textWidth = (str, size, weight = 'regular') => {
   return w
 }
 
-// How many lines a paragraph wraps to at a width, breaking between words the way CSS does.
+const HYPHEN_BREAK = /([^\s-]-)(?=[A-Za-z\u00c0-\u024f\u0370-\u03ff\u0400-\u04ff])/g
+
+// How many lines a paragraph wraps to at a width, breaking where the renderer does: at a space,
+// after a hyphen that comes right before a letter, and inside a word too long for a line of its own.
 export const lineCount = (str, size, weight, maxW) => {
   const words = String(str || '').split(/\s+/).filter(Boolean)
   if (!words.length) return 0
+  const fits = (s) => textWidth(s, size, weight) <= maxW
   let lines = 1
   let line = ''
   words.forEach((word) => {
-    const next = line ? `${line} ${word}` : word
-    if (line && textWidth(next, size, weight) > maxW) {
-      lines++
-      line = word
-    } else line = next
+    word.replace(HYPHEN_BREAK, '$1\u200b').split('\u200b').forEach((part, i) => {
+      const next = line ? line + (i ? '' : ' ') + part : part
+      if (fits(next)) {
+        line = next
+        return
+      }
+      if (line) lines++
+      line = part
+      while (line.length > 1 && !fits(line)) {
+        let cut = 1
+        while (cut < line.length - 1 && fits(line.slice(0, cut + 1))) cut++
+        lines++
+        line = line.slice(cut)
+      }
+    })
   })
   return lines
 }

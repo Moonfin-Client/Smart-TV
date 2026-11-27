@@ -24,6 +24,9 @@ assert.equal(info.right[0].x + info.right[0].w, INFO.INNER_W - INFO.PAD_X, 'valu
 assert.equal(info.right[0].bold, true)
 const two = infoLayout([{ id: 's', title: 'S', rows: [{ label: 'L', value: 'a\nb' }] }])
 near(two.h, 58.59 + 10 + 2 * 25.7 + 27, 'a value with a line break takes two lines')
+const name = 'The.Simpsons.S30E02.Heartbreak.Hotel.1080p.DSNP.WEB-DL.DD+5.1.H.264-playWEB.mkv'
+const file = infoLayout([{ id: 'f', title: 'File', rows: [{ label: 'Name', value: name }, { label: 'Container', value: 'MKV' }] }])
+assert.ok(file.right[1].y - file.right[0].y >= 10 + 2 * 25.7 - 0.01, 'a file name with no spaces gets the lines it wraps to')
 
 assert.deepEqual(infoThumb(0, 500, 400), { h: 0, y: 0 }, 'no thumb when it all fits')
 const th = infoThumb(195, 856.4, 1051.4)
