@@ -86,6 +86,10 @@ for (const r of reanchors) {
   assert.deepEqual(r.selected_tracks.audio, ENGLISH)
 }
 
+// A reload with the plan's own track (the original file plays its default, which the plan has): only the timeline moves.
+const same = await replanFor({ AudioStreamIndex: english })
+assert.equal(same.operation, 'seek_reanchor')
+
 // Back to the plan's own track from the menu after that switch: a track change, which can stay on the original file.
 const back = await replanFor({ AudioStreamIndex: english }, switchedToSpanish)
 assert.equal(back.operation, 'track_change')

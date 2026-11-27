@@ -1610,7 +1610,11 @@ export const updateCurrentSession = (updates) => {
 		currentSession.audioStreamIndex = updates.audioStreamIndex;
 		// Silo plans from the track the player plays, which can be one it switched to itself.
 		if (isSiloCreds(currentSession.serverCredentials)) {
-			getApiForItem(currentSessionItem()).noteAudioPlaying?.(currentSession.playSessionId, updates.audioStreamIndex);
+			try {
+				getApiForItem(currentSessionItem()).noteAudioPlaying?.(currentSession.playSessionId, updates.audioStreamIndex);
+			} catch (e) {
+				console.warn('[playback] Silo could not note the playing audio:', e.message);
+			}
 		}
 	}
 	if (updates.subtitleStreamIndex !== undefined) {

@@ -492,8 +492,9 @@ export default function Player(props) {
       // indexes are its own, so an audio index from the other file gives way to the track Silo planned on this one.
       if (picks.audioStreamIndex != null && picks.mediaSourceId != null && info.mediaSource && info.mediaSource.SiloDelivery &&
           String(info.mediaSourceId) !== String(picks.mediaSourceId)) {
-        picks = { ...picks, audioStreamIndex: info.selectedAudioStreamIndex }
+        picks = { ...picks, audioStreamIndex: info.selectedAudioStreamIndex, mediaSourceId: info.mediaSourceId }
         opts.audioStreamIndex = picks.audioStreamIndex
+        opts.mediaSourceId = info.mediaSourceId
       }
       // The remembered audio, then the language preferences, then the server's and the file's default.
       const audioStreams = info.audioStreams || []
