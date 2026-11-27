@@ -2405,7 +2405,7 @@ export default function Player(props) {
     const info = await playback.getPlaybackInfo(s.itemId, {
       startPositionTicks: Math.floor(at * TICKS),
       maxBitrate: my.quality || st.maxBitrate || 0,
-      ...(directRefused ? { directRefused: true } : { enableDirectPlay: false, enableDirectStream: false }),
+      ...(directRefused ? { directRefused: true } : { enableDirectPlay: false, enableDirectStream: false, directPlayFailed: true }),
       enableTranscoding: true,
       ...(h264 ? { deviceProfile: await getH264FallbackProfile() } : null),
       mediaSourceId: my.info && my.info.mediaSourceId,

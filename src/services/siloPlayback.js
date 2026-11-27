@@ -708,10 +708,11 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 	// to start from.
 	const replan = async (session, body) => {
 		const plan = session.plan;
-		// The original file was asked for again with direct play off: it failed here, so Silo tries something else.
-		const failure = body.EnableDirectPlay === false && plan.delivery === 'original_http';
+		// The original file failed here, so Silo tries something else.
+		const failure = body.DirectPlayFailed === true && plan.delivery === 'original_http';
 		const changes = (asked, playing) => asked != null && asked !== playing;
-		const trackChange = !failure && (changes(body.AudioStreamIndex, session.audioStreamIndex) || changes(body.SubtitleStreamIndex, session.subtitleStreamIndex));
+		const audioChange = changes(body.AudioStreamIndex, session.audioStreamIndex);
+		const trackChange = !failure && (audioChange || changes(body.SubtitleStreamIndex, session.subtitleStreamIndex));
 		const qualityChange = !failure && !trackChange && kbps(body.MaxStreamingBitrate) !== session.bandwidthCapKbps;
 		let operation = 'seek_reanchor';
 		if (failure) operation = 'failure_recovery';
@@ -727,9 +728,12 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		}
 		const fileId = String(plan.effective_media_file_id);
 		const tracks = selectedTracks(plan);
-		if (trackChange) {
+		// A failure keeps an audio track switched to in the player, which the plan doesn't know about.
+		if (trackChange || (failure && audioChange)) {
 			const audio = session.source && body.AudioStreamIndex != null ? siloTrackForStreamIndex(session.source, body.AudioStreamIndex) : null;
 			if (audio && audio.kind === 'audio') tracks.audio = {id: `file:${fileId}:audio:${audio.ordinal}`, index: audio.ordinal};
+		}
+		if (trackChange) {
 			if (body.SubtitleStreamIndex === -1) {
 				delete tracks.subtitle;
 			} else if (body.SubtitleStreamIndex != null) {
