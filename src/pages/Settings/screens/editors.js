@@ -4,7 +4,7 @@
 // The rearranging editors work on a copy kept on their view and write it back when they close.
 import $L from '../../../services/i18n.js'
 import * as settings from '../../../state/settings.js'
-import { api, createApiForServer, getApiKey, getServerType, getServerUrl } from '../../../services/jellyfinApi.js'
+import { api, createApiForServer, getServerType, getServerUrl, getUserId } from '../../../services/jellyfinApi.js'
 import { canKeepAsComplete } from '../../../services/incompleteRecordings.js'
 import { defaultSettings } from '../../../context/defaultSettings.js'
 import { DEFAULT_HOME_ROWS } from '../../../utils/homeLayout.js'
@@ -1321,14 +1321,14 @@ const loadLibraryOrder = async (page, view) => {
 
 // The server replaces the whole configuration on every write, so each save starts from the
 // configuration as it is now.
-const writeLibraryOrder = async (ordered, unified) => {
+const writeLibraryOrder = async (ordered, unified, account) => {
   const orders = orderedViewsByServer(ordered)
   if (!unified) {
-    // Leaving the screen sends the last save, so the account can change while it reads. Then the
-    // order and configuration read belong to the old account and mustn't land on the new one.
-    const token = getApiKey()
+    // Leaving the screen sends the last save, so the account can change while it waits or reads. Then
+    // the order belongs to the old account and mustn't land on the new one. Silo swaps its token on
+    // every refresh and shares it between profiles, so the server and user are compared instead.
     const user = await api.getUserConfiguration()
-    if (getApiKey() !== token) throw new Error('The account changed before the library order was saved')
+    if (getServerUrl() !== account.server || getUserId() !== account.user) throw new Error('The account changed before the library order was saved')
     await api.updateUserConfiguration({ ...user.Configuration, OrderedViews: orders[''] || [] })
     return
   }
@@ -1349,9 +1349,10 @@ const saveLibraryOrder = (page, view) => {
   const ordered = view.libraries
   if (!ordered) return
   const id = (view.saveId = (view.saveId || 0) + 1)
+  const account = { server: getServerUrl(), user: getUserId() }
   view.queue = (view.queue || Promise.resolve()).then(async () => {
     try {
-      await writeLibraryOrder(ordered, view.unified)
+      await writeLibraryOrder(ordered, view.unified, account)
       view.saved = ordered
       librariesChanged({ libraries: true })
     } catch (e) {
