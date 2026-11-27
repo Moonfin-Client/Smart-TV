@@ -2,6 +2,7 @@ import { Show } from 'solid-js'
 import { hex } from '../../color.js'
 import { tx } from '../../fx.js'
 import { Disc } from './LibraryTile.jsx'
+import StillLabels from '../details/StillLabels.jsx'
 
 const RING = { width: 3, color: hex('#ffffff') }
 const COVER = { resizeMode: { type: 'cover' } }
@@ -54,6 +55,7 @@ export default function FavoriteTile(props) {
           <Disc x={o().cardW - 36} y={8} fill={o().watchedBg} icon="icons/lib_check.webp" ink={o().onBadge} />
         </Show>
       </view>
+      <StillLabels w={bw()} h={bh()} item={c().raw} scale={0.85} top={c().server ? 40 : 8} topRight={c().played ? 40 : 8} />
       <view>
         <Show when={c().server}>
           <view x={8} y={8} width={c().serverW} height={29} borderRadius={4} color="#000000bf">

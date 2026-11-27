@@ -6,9 +6,10 @@ import { getServerUrl } from '../../../services/jellyfinApi.js'
 import { textReady } from '../../text.js'
 import LabelSet from '../home/LabelSet.jsx'
 
-// The admin's poster labels over a details page's episode still: the labels for `item` in a box `w`
-// by `h`, each corner's stack starting at `top`, `topRight`, `bottom` and `bottomLeft`, at `scale`
-// with `inset` from the sides. It watches its own item and redraws only when its labels do.
+// The admin's poster labels over an item's art, such as a details page's episode still or a library
+// tile: the labels for `item` in a box `w` by `h`, each corner's stack starting at `top`, `topRight`,
+// `bottom` and `bottomLeft`, at `scale` with `inset` from the sides. It watches its own item and
+// redraws only when its labels do.
 export default function StillLabels(props) {
   const [marks, setMarks] = createSignal(0)
   const bump = () => setMarks(marks() + 1)

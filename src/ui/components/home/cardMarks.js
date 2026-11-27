@@ -1,7 +1,9 @@
-// What a card learns after it's built: the admin's poster labels (services/posterBadgesApi.js) and
-// whether a Live TV recording is incomplete (services/incompleteRecordings.js), with the art a
-// label draws. Each card watches its own item and redraws only when its answer changes.
+// What a card learns after it's built: the admin's poster labels (services/posterBadgesApi.js),
+// whether a Live TV recording is incomplete (services/incompleteRecordings.js) and its anime marker
+// (services/animeMarkersApi.js), with the art a label draws. Each card watches its own item and
+// redraws only when its answer changes.
 import { posterBadgesFor, posterBadgesPerCorner, posterLabelsBase, watchPosterBadges } from '../../../services/posterBadgesApi.js'
+import { audioForItem, fetchItemMarkers, fetchSeriesMarkers, markerForEpisode } from '../../../services/animeMarkersApi.js'
 import { incompleteRecordingFor, onIncompleteRecordings } from '../../../services/incompleteRecordings.js'
 import { coreIconPath } from '../../../utils/coreIconPaths.js'
 import { cssShift, fontFor, textWidth } from '../../text.js'
@@ -9,6 +11,13 @@ import { labelNodes, posterLabelBoxes } from './posterLabels.js'
 
 const NONE = []
 const ART_PX = 48
+// A card waits this long before asking for its anime marker, so its artwork draws first.
+const ANIME_DELAY_MS = 700
+
+const animeLookup = (a) =>
+  a.seriesId
+    ? fetchSeriesMarkers(a.seriesId, { serverUrl: a.serverUrl }).then((m) => ({ marker: markerForEpisode(m, a.id), audio: null }))
+    : fetchItemMarkers([a.id], { serverUrl: a.serverUrl }).then(() => ({ marker: null, audio: audioForItem(a.id) }))
 
 // The renderer can't load an SVG on every TV, so a label's Material icon is drawn once into a
 // canvas and handed over as a white PNG the node tints.
@@ -79,17 +88,34 @@ export const watchMarks = (card, changed) => {
   const raw = card && card.raw
   const labelsId = card && card.labelsId
   const itemId = raw && raw.Id
-  let seen = { badges: labelsId ? posterBadgesFor(labelsId) : NONE, incomplete: !!incompleteRecordingFor(itemId) }
+  const anime = card && card.anime
+  let seen = { badges: labelsId ? posterBadgesFor(labelsId) : NONE, incomplete: !!incompleteRecordingFor(itemId), anime: null }
   const check = () => {
-    const now = { badges: labelsId ? posterBadgesFor(labelsId) : NONE, incomplete: !!incompleteRecordingFor(itemId) }
+    const now = { badges: labelsId ? posterBadgesFor(labelsId) : NONE, incomplete: !!incompleteRecordingFor(itemId), anime: seen.anime }
     if (now.badges === seen.badges && now.incomplete === seen.incomplete) return
     seen = now
     changed()
   }
   const stops = [labelsId ? watchPosterBadges(labelsId, check) : null, itemId ? onIncompleteRecordings(check) : null]
+  let stopped = false
+  const timer = anime
+    ? setTimeout(() => {
+        animeLookup(anime)
+          .then((a) => {
+            if (stopped || !(a.marker || a.audio)) return
+            seen = { ...seen, anime: a }
+            changed()
+          })
+          .catch(() => {})
+      }, ANIME_DELAY_MS)
+    : null
   return {
     read: () => seen,
-    stop: () => stops.forEach((stop) => stop && stop()),
+    stop: () => {
+      stopped = true
+      clearTimeout(timer)
+      stops.forEach((stop) => stop && stop())
+    },
   }
 }
 

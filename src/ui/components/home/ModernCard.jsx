@@ -1,5 +1,6 @@
 import { For, Index, Show, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js'
 import IncompleteBadge from './IncompleteBadge.jsx'
+import AnimeCardPill from './AnimeCardPill.jsx'
 import LabelSet from './LabelSet.jsx'
 import SeerrBanner from './SeerrBanner.jsx'
 import { BADGE_SHADOW, DOT_SHADOW, MISSING_SHADOW, SEERR_COLORS, SEERR_ICONS, serverBadgeW, useMarks } from './ClassicCard.jsx'
@@ -282,6 +283,9 @@ export default function ModernCard(props) {
       </view>
       <view>
         <For each={labels()}>{(ls) => <LabelSet x={ls.right ? props.w - c().w : 0} transition={tx(slide())} w={c().w} h={c().h} nodes={ls.nodes} />}</For>
+      </view>
+      <view>
+        <AnimeCardPill anime={seen().anime} w={c().w} h={c().h} bottom={c().labelsBottom} />
       </view>
     </view>
   )

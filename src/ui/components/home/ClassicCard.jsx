@@ -1,6 +1,7 @@
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, untrack } from 'solid-js'
 import LoopMarquee from './LoopMarquee.jsx'
 import IncompleteBadge from './IncompleteBadge.jsx'
+import AnimeCardPill from './AnimeCardPill.jsx'
 import LabelSet from './LabelSet.jsx'
 import SeerrBanner from './SeerrBanner.jsx'
 import { labelSets, watchMarks } from './cardMarks.js'
@@ -24,9 +25,9 @@ const COVER = { resizeMode: { type: 'cover' } }
 const CONTAIN = { resizeMode: { type: 'contain' } }
 const countFont = uiFont('bold')
 
-// What cardMarks hears after a card is built: an incomplete recording and the poster labels. A
-// fresh copy of the same title, as a row reload hands over, keeps what it already heard. Gives the
-// marks and a bump for a label's flag that loads later.
+// What cardMarks hears after a card is built: an incomplete recording, the poster labels and the
+// anime marker. A fresh copy of the same title, as a row reload hands over, keeps what it already
+// heard. Gives the marks and a bump for a label's flag that loads later.
 export const useMarks = (card) => {
   const [marks, setMarks] = createSignal(0)
   const bump = () => setMarks((n) => n + 1)
@@ -35,7 +36,8 @@ export const useMarks = (card) => {
     on(
       card,
       (now, was) => {
-        if (was && now.labelsId === was.labelsId && (now.raw && now.raw.Id) === (was.raw && was.raw.Id)) return
+        const sameAnime = (now.anime && now.anime.id) === (was && was.anime && was.anime.id)
+        if (was && sameAnime && now.labelsId === was.labelsId && (now.raw && now.raw.Id) === (was.raw && was.raw.Id)) return
         watcher.stop()
         watcher = watchMarks(now, bump)
         bump()
@@ -313,6 +315,9 @@ export default function ClassicCard(props) {
       </view>
       <view>
         <For each={labels()}>{(ls) => <LabelSet w={c().w} h={c().h} nodes={ls.nodes} />}</For>
+      </view>
+      <view>
+        <AnimeCardPill anime={seen().anime} w={c().w} h={c().h} bottom={c().labelsBottom} />
       </view>
     </view>
   )

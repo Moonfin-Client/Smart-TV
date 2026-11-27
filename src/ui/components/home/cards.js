@@ -6,6 +6,7 @@ import { showsWatchedCheck } from '../../../utils/playedState.js'
 import { serverCountOf } from '../../../utils/mergedCopies.js'
 import { isUnownedSeerrTitle, seerrThumbUrl, seerrWideArtUrl } from '../../../utils/tmdbThumb.js'
 import { getServerUrl } from '../../../services/jellyfinApi.js'
+import { areAnimeMarkersEnabled } from '../../../services/animeMarkersApi.js'
 import { MEDIA_STATUS } from '../../../utils/seerrStatus.js'
 import { mediaStatusLabel } from '../../../utils/seerrBadges.js'
 import { normalizeServerUrl } from '../../../utils/serverUrl.js'
@@ -132,6 +133,14 @@ export const labelsIdOf = (it, s, serverUrl, on = true) => {
   return it.Id
 }
 
+// The anime pill a card asks for once it has drawn: an episode's marker or a movie's audio.
+export const animeOf = (it, s, serverUrl) => {
+  if (!areAnimeMarkersEnabled(s) || !it.Id || ((it._seerr || it._external) && !it._resolvedFromExternal)) return null
+  if (it.Type === 'Episode' && it.SeriesId) return { id: it.Id, seriesId: it.SeriesId, serverUrl }
+  if (it.Type === 'Movie') return { id: it.Id, seriesId: '', serverUrl }
+  return null
+}
+
 const overviewOf = (it) => {
   if (['Movie', 'Series', 'Episode'].indexOf(it.Type) < 0) return ''
   const raw = typeof it.Overview === 'string' ? it.Overview.trim() : ''
@@ -191,6 +200,7 @@ export const modernCard = (it, i, { s, rowKey, carousel, hideProgress, hideCount
     ...ind,
     ...corner(it, s, showServerBadge, ind, { modern: true }),
     labelsId: labelsIdOf(it, s, serverUrl, posterLabels),
+    anime: animeOf(it, s, serverUrl),
   }, it)
 }
 
@@ -281,6 +291,7 @@ export const classicCard = (it, i, { s, cardType, imageType, hideProgress, hideC
     ...ind,
     ...corner(it, s, showServerBadge, ind, { season: seerrSeason }),
     labelsId: labelsIdOf(it, s, serverUrl, posterLabels),
+    anime: animeOf(it, s, serverUrl),
   }, it)
 }
 

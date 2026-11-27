@@ -3,6 +3,7 @@ import { hex } from '../../color.js'
 import { shadowColor } from '../../theme.js'
 import { textWidth } from './measure.js'
 import { tx } from '../../fx.js'
+import StillLabels from '../details/StillLabels.jsx'
 
 // One card of a library grid. Grid owns focus and passes `focused`. Only the artwork rings, so a card
 // without art grows but draws no ring. The page lays the cell out once in `opts`: cellW and cellH,
@@ -92,6 +93,7 @@ export default function LibraryTile(props) {
             <Disc x={o().cardW - 36} y={8} fill={o().watchedBg} icon="icons/lib_check.webp" ink={o().onBadge} />
           </Show>
         </view>
+        <StillLabels w={o().cardW} h={o().posterH} item={c().raw} scale={0.85} top={c().fav ? 40 : 8} topRight={c().played ? 40 : 8} />
         <view>
           {/* How many servers hold a merged card's title. */}
           <Show when={c().servers > 1}>
