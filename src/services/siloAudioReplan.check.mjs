@@ -1,5 +1,5 @@
 // What a replan of a direct-play Silo title tells Silo: an audio change is a track change with the new track, and only
-// a failed original file is a failure, which keeps an audio track switched to in the player as the viewer's choice.
+// a failed original file is a failure, which keeps an audio track switched to in the player.
 //   node --conditions=browser src/services/siloAudioReplan.check.mjs
 import assert from 'node:assert/strict'
 import { registerHooks } from 'node:module'
@@ -70,7 +70,8 @@ assert.deepEqual(change.attempted_plan_keys, [], "a track change doesn't rule ou
 // fallbackStream after the player switched to the other track itself: the original file failed.
 const failure = await replanFor({ AudioStreamIndex: spanish, DirectPlayFailed: true })
 assert.equal(failure.operation, 'failure_recovery')
-assert.deepEqual(failure.failure, { classification: 'audio_track_changed' }, 'Silo keeps the switched track as the choice')
+// Still a playback error: a track-change class would tell Silo the route didn't fail, and it could plan it again.
+assert.deepEqual(failure.failure, { classification: 'playback_error' })
 assert.deepEqual(failure.attempted_plan_keys, ['v3:1'])
 assert.deepEqual(failure.selected_tracks.audio, { id: 'file:235:audio:1', index: 1 }, 'keeps the track the player switched to')
 

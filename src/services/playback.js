@@ -974,9 +974,9 @@ const siloPlaybackResult = async ({
 			SubtitleStreamIndex: subtitleStreamIndex,
 			MaxStreamingBitrate: maxBitrate,
 			MediaSourceId: options.mediaSourceId,
-			// The original file failed here, or direct play is off for the whole item, and Silo is told so. An audio
-			// change turns direct play off too, but it is not a failure: Silo moves off the file itself when the
-			// track asked for needs it.
+			// The original file failed here, or direct play is off for the whole item, and Silo is told so. Only
+			// these count: an audio change is not a failure, and Silo moves off the file itself when the track
+			// asked for needs it.
 			DirectPlayFailed: !allowDirectPlay || options.directPlayFailed === true,
 			AudioPicked: options.audioPicked === true
 		}, options.item);

@@ -767,7 +767,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 			client_capabilities: first.client_capabilities,
 			client_playback_context: first.client_playback_context,
 			installation_id: session.installationId,
-			...(failure ? {failure: {classification: audioDiffers ? 'audio_track_changed' : 'playback_error'}} : null),
+			...(failure ? {failure: {classification: 'playback_error'}} : null),
 			...(session.bandwidthCapKbps ? {bandwidth_cap_kbps: session.bandwidthCapKbps} : null)
 		};
 		let decision;
