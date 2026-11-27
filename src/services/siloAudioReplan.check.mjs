@@ -37,12 +37,12 @@ const plan = (delivery, audio, n) => ({
   effective_media_file_id: 235,
 })
 
-// Starts the title on a direct-play plan, then sends one more ask for it and returns the replan Silo was sent.
-const replanFor = async (body) => {
+// Starts the title on a plan (direct play unless told), then sends one more ask for it and returns the replan Silo was sent.
+const replanFor = async (body, delivery = 'original_http') => {
   const replans = []
   const call = async (path, opts = {}) => {
     if (path.endsWith('/playback/capabilities')) return { state: 'available', allowed: true, protocol_versions: [3], installation_id: 'install', features: ['playback_plan_v3'] }
-    if (path.endsWith('/playback/start')) return { outcome: 'playable', session_id: 'session', playback_plan: plan('original_http', { id: 'file:235:audio:0', index: 0 }, 1) }
+    if (path.endsWith('/playback/start')) return { outcome: 'playable', session_id: 'session', playback_plan: plan(delivery, { id: 'file:235:audio:0', index: 0 }, 1) }
     if (path.endsWith('/replan')) {
       replans.push(opts.body)
       return { outcome: 'playable', session_id: 'session', playback_plan: plan('server_remux_hls', opts.body.selected_tracks.audio, 2) }
@@ -86,5 +86,16 @@ const again = await replanFor({ AudioStreamIndex: english, AudioPicked: true, Di
 assert.equal(again.operation, 'failure_recovery')
 assert.deepEqual(again.failure, { classification: 'playback_error' })
 assert.deepEqual(again.selected_tracks.audio, { id: 'file:235:audio:0', index: 0 })
+
+// A seek or reload after the player switched to the other track itself: the original file still plays it, and the
+// player sets it again, so Silo only moves the timeline.
+const reanchor = await replanFor({ AudioStreamIndex: spanish, DirectPlayFailed: false })
+assert.equal(reanchor.operation, 'seek_reanchor')
+assert.deepEqual(reanchor.selected_tracks.audio, { id: 'file:235:audio:0', index: 0 })
+
+// On a remux only the server's track plays, so another track asked for is a track change, picked or not.
+const remux = await replanFor({ AudioStreamIndex: spanish, DirectPlayFailed: false }, 'server_remux_hls')
+assert.equal(remux.operation, 'track_change')
+assert.deepEqual(remux.selected_tracks.audio, { id: 'file:235:audio:1', index: 1 })
 
 console.log('ok siloAudioReplan')

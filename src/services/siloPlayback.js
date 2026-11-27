@@ -709,11 +709,15 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 	const replan = async (session, body) => {
 		const plan = session.plan;
 		const changes = (asked, playing) => asked != null && asked !== playing;
-		const audioChange = changes(body.AudioStreamIndex, session.audioStreamIndex);
-		// The original file failed here, or the player couldn't play the track the plan already has and picked it
-		// again, so Silo tries something else.
-		const pickedAgain = body.AudioPicked === true && body.AudioStreamIndex != null && !audioChange;
-		const failure = plan.delivery === 'original_http' && (body.DirectPlayFailed === true || pickedAgain);
+		const direct = plan.delivery === 'original_http';
+		const picked = body.AudioPicked === true && body.AudioStreamIndex != null;
+		// The original file plays any of its tracks the player switched to itself, and the player sets that track
+		// again after a reload, so there only a pick from the menu changes the audio Silo plans.
+		const audioDiffers = changes(body.AudioStreamIndex, session.audioStreamIndex);
+		const audioChange = audioDiffers && (!direct || picked);
+		// The original file failed here, or the player couldn't switch back to the track the plan already has and
+		// picked it from the menu, so Silo tries something else.
+		const failure = direct && (body.DirectPlayFailed === true || (picked && !audioDiffers));
 		const trackChange = !failure && (audioChange || changes(body.SubtitleStreamIndex, session.subtitleStreamIndex));
 		const qualityChange = !failure && !trackChange && kbps(body.MaxStreamingBitrate) !== session.bandwidthCapKbps;
 		let operation = 'seek_reanchor';
@@ -730,8 +734,8 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		}
 		const fileId = String(plan.effective_media_file_id);
 		const tracks = selectedTracks(plan);
-		// A failure keeps an audio track switched to in the player, which the plan doesn't know about.
-		if (audioChange) {
+		// A new plan carries the track the player plays, which on the original file can be one it switched to itself.
+		if (audioDiffers && (trackChange || failure)) {
 			const audio = session.source && body.AudioStreamIndex != null ? siloTrackForStreamIndex(session.source, body.AudioStreamIndex) : null;
 			if (audio && audio.kind === 'audio') tracks.audio = {id: `file:${fileId}:audio:${audio.ordinal}`, index: audio.ordinal};
 		}
@@ -763,7 +767,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 			client_capabilities: first.client_capabilities,
 			client_playback_context: first.client_playback_context,
 			installation_id: session.installationId,
-			...(failure ? {failure: {classification: audioChange ? 'audio_track_changed' : 'playback_error'}} : null),
+			...(failure ? {failure: {classification: audioDiffers ? 'audio_track_changed' : 'playback_error'}} : null),
 			...(session.bandwidthCapKbps ? {bandwidth_cap_kbps: session.bandwidthCapKbps} : null)
 		};
 		let decision;

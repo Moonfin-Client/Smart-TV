@@ -759,6 +759,16 @@ export default function Player(props) {
   }
   // Every reload of the same item gets a new PlaySessionId, so a new start report.
   async function restart(info, at, tracks) {
+    // Silo can move to another version of the title, whose stream indexes are its own, so the player takes the
+    // audio the server planned on that file instead of an index from the last one.
+    const was = my.info && my.info.mediaSourceId
+    const audio = info.defaultAudioStreamIndex
+    const silo = !!(info.mediaSource && info.mediaSource.SiloDelivery)
+    if (silo && was && info.mediaSourceId && info.mediaSourceId !== was && audio != null) {
+      my.audioIndex = audio
+      playback.updateCurrentSession({ audioStreamIndex: audio })
+      if (tracks && tracks.audio) tracks = { ...tracks, audio: null }
+    }
     my.info = { ...my.info, ...info }
     my.isHdr = isHdrOutput(info.mediaSource, info.playMethod === playback.PlayMethod.Transcode)
     s.hdr = my.isHdr
