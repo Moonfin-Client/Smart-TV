@@ -974,8 +974,14 @@ const siloPlaybackResult = async ({
 			SubtitleStreamIndex: subtitleStreamIndex,
 			MaxStreamingBitrate: maxBitrate,
 			MediaSourceId: options.mediaSourceId,
-			// Asked again with direct play off, the original file failed here, and Silo is told so.
-			EnableDirectPlay: allowDirectPlay && options.enableDirectPlay !== false
+			// The original file failed here, or direct play is off for the whole item, and Silo is told so. Only
+			// these count: an audio change is not a failure, and Silo moves off the file itself when the track
+			// asked for needs it.
+			DirectPlayFailed: !allowDirectPlay || options.directPlayFailed === true,
+			// The stream itself failed, whatever its delivery: a remux or transcode that errors is replaced too. A
+			// refusal of the direct routes (Tizen's fallback) follows a playback error as well.
+			PlaybackFailed: options.directPlayFailed === true || options.directRefused === true,
+			AudioNotNative: options.audioNotNative === true
 		}, options.item);
 	} catch (err) {
 		heardEndedOnServer(err, generation);
@@ -1003,7 +1009,10 @@ const siloPlaybackResult = async ({
 	const audioStreams = extractAudioStreams(mediaSource);
 	const subtitleStreams = extractSubtitleStreams(mediaSource, itemId, creds, storedSettings.assDirectPlay === false, url, playMethod,
 		storedSettings.enablePgsRendering === false);
-	const selectedAudio = options.audioStreamIndex ?? mediaSource.DefaultAudioStreamIndex;
+	// On another file than the one asked for (another version), an index from the old one names another track, so the
+	// plan's own tracks are the ones playing.
+	const movedFile = options.mediaSourceId != null && String(mediaSource.Id) !== String(options.mediaSourceId);
+	const selectedAudio = movedFile ? mediaSource.DefaultAudioStreamIndex : options.audioStreamIndex ?? mediaSource.DefaultAudioStreamIndex;
 
 	replaceSession({
 		itemId,
@@ -1016,7 +1025,7 @@ const siloPlaybackResult = async ({
 		startPositionTicks: options.startPositionTicks || 0,
 		capabilities,
 		audioStreamIndex: selectedAudio,
-		subtitleStreamIndex: requestedSubtitleStreamIndex,
+		subtitleStreamIndex: movedFile ? mediaSource.DefaultSubtitleStreamIndex ?? -1 : requestedSubtitleStreamIndex,
 		maxBitrate: options.maxBitrate,
 		allowDirectPlay,
 		allowDirectStream,
@@ -1259,7 +1268,8 @@ export const getNextEpisode = async (item, step = 1) => {
 	}
 };
 
-export const changeAudioStream = async (streamIndex, currentPositionTicks) => {
+// notNative: the TV can't play the track from the original file itself.
+export const changeAudioStream = async (streamIndex, currentPositionTicks, notNative = false) => {
 	if (!currentSession) return null;
 
 	// Direct play serves the file as it is, which always plays the default audio track whatever
@@ -1269,7 +1279,8 @@ export const changeAudioStream = async (streamIndex, currentPositionTicks) => {
 		item: currentSessionItem(),
 		audioStreamIndex: streamIndex,
 		startPositionTicks: currentPositionTicks ?? currentSession.startPositionTicks,
-		enableDirectPlay: false
+		enableDirectPlay: false,
+		audioNotNative: notNative === true
 	});
 
 	return newInfo;
@@ -1600,6 +1611,14 @@ export const updateCurrentSession = (updates) => {
 	if (!currentSession) return;
 	if (updates.audioStreamIndex !== undefined) {
 		currentSession.audioStreamIndex = updates.audioStreamIndex;
+		// Silo plans from the track the player plays, which can be one it switched to itself.
+		if (isSiloCreds(currentSession.serverCredentials)) {
+			try {
+				getApiForItem(currentSessionItem()).noteAudioPlaying?.(currentSession.playSessionId, updates.audioStreamIndex);
+			} catch (e) {
+				console.warn('[playback] Silo could not note the playing audio:', e.message);
+			}
+		}
 	}
 	if (updates.subtitleStreamIndex !== undefined) {
 		currentSession.subtitleStreamIndex = updates.subtitleStreamIndex;

@@ -177,7 +177,8 @@ const channelLimits = (codecProfiles, containers, byCodecSupported, caps = []) =
 const HLS_VIDEO_CODECS = ['h264', 'hevc'];
 
 // The source container, when known, narrows the original file's container-scoped caps to the file being played.
-export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = TRAITS, serverFeatures = [], sourceContainer = null) => {
+// With direct play off (Force Transcode, Prefer Transcoding) the original file isn't offered.
+export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = TRAITS, serverFeatures = [], sourceContainer = null, offerOriginal = true) => {
 	const directPlay = profiles(deviceProfile.DirectPlayProfiles);
 	const codecProfiles = profiles(deviceProfile.CodecProfiles);
 	const transcoding = profiles(deviceProfile.TranscodingProfiles);
@@ -244,7 +245,8 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 		},
 		deliveries: {
 			original_http: delivery({
-				supported: true,
+				supported: offerOriginal,
+				failureReason: 'direct_play_disabled',
 				containers,
 				...(csv(sourceContainer).length ? {scope: csv(sourceContainer)} : null),
 				video: videoCodecs,
@@ -301,6 +303,15 @@ const siloPlaybackContext = ({platform, appVersion, capabilities}) => ({
 	output: outputOf(platform, capabilities),
 	deliveries: capabilities.deliveries
 });
+
+const withoutOriginal = (context) => {
+	const original = context?.deliveries?.original_http;
+	if (!original) return context;
+	return {
+		...context,
+		deliveries: {...context.deliveries, original_http: {...original, supported_on_device: false, failure_reason: 'direct_play_failed'}}
+	};
+};
 
 // The subtitle stream indexes in Silo's combined order: the external ones first, then the file's, each by position.
 const siloSubtitleOrder = (source) => {
@@ -602,6 +613,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		const ticks = session.source?.RunTimeTicks;
 		if (onPlaying) onPlaying(session.itemId, info.MediaSources[0].Id, ticks > 0 ? ticks / TICKS_PER_SECOND : null, session.source);
 		session.audioStreamIndex = info.MediaSources[0].DefaultAudioStreamIndex;
+		session.playingAudioStreamIndex = session.audioStreamIndex;
 		session.subtitleStreamIndex = info.MediaSources[0].DefaultSubtitleStreamIndex;
 		return info;
 	};
@@ -629,7 +641,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 			? siloTrackForStreamIndex(file.source, body.AudioStreamIndex) : null;
 		const subtitle = siloSubtitleCombinedIndex(file.source, body.SubtitleStreamIndex);
 		const startBody = ({installationId, features}) => {
-			const caps = siloCapabilitiesFromDeviceProfile(body.DeviceProfile || {}, siloTraitsFor(platform), features, file.source?.Container);
+			const caps = siloCapabilitiesFromDeviceProfile(body.DeviceProfile || {}, siloTraitsFor(platform), features, file.source?.Container, body.DirectPlayFailed !== true);
 			const context = siloPlaybackContext({platform, appVersion: getDeviceInfo().appVersion, capabilities: caps});
 			return {
 				protocol_version: 3,
@@ -708,10 +720,19 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 	// to start from.
 	const replan = async (session, body) => {
 		const plan = session.plan;
-		// The original file was asked for again with direct play off: it failed here, so Silo tries something else.
-		const failure = body.EnableDirectPlay === false && plan.delivery === 'original_http';
 		const changes = (asked, playing) => asked != null && asked !== playing;
-		const trackChange = !failure && (changes(body.AudioStreamIndex, session.audioStreamIndex) || changes(body.SubtitleStreamIndex, session.subtitleStreamIndex));
+		const direct = plan.delivery === 'original_http';
+		// The track the player plays is the plan's, or on the original file one the player switched to itself and
+		// sets again after a reload. Asking for another one changes the audio.
+		const audioChange = changes(body.AudioStreamIndex, session.playingAudioStreamIndex);
+		const offPlan = changes(body.AudioStreamIndex, session.audioStreamIndex);
+		// The stream failed here, whatever its delivery, or the TV can't play the plan's own track from the original
+		// file, so Silo tries something else.
+		const failure = body.PlaybackFailed === true
+			|| (direct && (body.DirectPlayFailed === true || (body.AudioNotNative === true && body.AudioStreamIndex != null && !offPlan)));
+		// Once the original file has failed, later replans don't offer it again.
+		if (failure && direct && (body.PlaybackFailed === true || body.DirectPlayFailed === true)) session.originalFailed = true;
+		const trackChange = !failure && (audioChange || changes(body.SubtitleStreamIndex, session.subtitleStreamIndex));
 		const qualityChange = !failure && !trackChange && kbps(body.MaxStreamingBitrate) !== session.bandwidthCapKbps;
 		let operation = 'seek_reanchor';
 		if (failure) operation = 'failure_recovery';
@@ -727,11 +748,16 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		}
 		const fileId = String(plan.effective_media_file_id);
 		const tracks = selectedTracks(plan);
-		if (trackChange) {
+		// A new route carries the track asked for, which on the original file can be one the player switched to
+		// itself. A reanchor keeps the route, and the player sets that track again.
+		if (offPlan && operation !== 'seek_reanchor') {
 			const audio = session.source && body.AudioStreamIndex != null ? siloTrackForStreamIndex(session.source, body.AudioStreamIndex) : null;
 			if (audio && audio.kind === 'audio') tracks.audio = {id: `file:${fileId}:audio:${audio.ordinal}`, index: audio.ordinal};
+		}
+		// A failure keeps the subtitle the viewer has; only a track change can turn it off.
+		if (trackChange || failure) {
 			if (body.SubtitleStreamIndex === -1) {
-				delete tracks.subtitle;
+				if (trackChange) delete tracks.subtitle;
 			} else if (body.SubtitleStreamIndex != null) {
 				const byCombined = siloSubtitleIndexByCombined(plan, session.source);
 				const combined = Object.keys(byCombined).find((k) => byCombined[k] === body.SubtitleStreamIndex);
@@ -755,7 +781,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 			metered: first.metered || false,
 			selected_tracks: tracks,
 			client_capabilities: first.client_capabilities,
-			client_playback_context: first.client_playback_context,
+			client_playback_context: session.originalFailed ? withoutOriginal(first.client_playback_context) : first.client_playback_context,
 			installation_id: session.installationId,
 			...(failure ? {failure: {classification: 'playback_error'}} : null),
 			...(session.bandwidthCapKbps ? {bandwidth_cap_kbps: session.bandwidthCapKbps} : null)
@@ -783,7 +809,11 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		session.plan = next;
 		session.planAttemptId = siloNewUuid();
 		await freshenStreamAuth();
-		return playingTracks(session, asPlaybackInfo(session, body.SubtitleStreamIndex));
+		const info = playingTracks(session, asPlaybackInfo(session, body.SubtitleStreamIndex));
+		// A reanchor that stays on the same original file plays the track the player asked with, which it sets again.
+		const sameFile = next.delivery === 'original_http' && String(next.effective_media_file_id) === fileId;
+		if (operation === 'seek_reanchor' && sameFile && body.AudioStreamIndex != null) session.playingAudioStreamIndex = body.AudioStreamIndex;
+		return info;
 	};
 
 	const liveSessionOf = (itemId) => Object.keys(sessions).map((id) => sessions[id]).find((s) => s.itemId === itemId && !s.ended && !s.stopping);
@@ -875,6 +905,11 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 			}
 		},
 
+		// The player switched the original file to another of its tracks itself.
+		noteAudioPlaying: (playSessionId, streamIndex) => {
+			const session = sessions[playSessionId];
+			if (session) session.playingAudioStreamIndex = streamIndex;
+		},
 		reportPlaybackStopped: (info) => {
 			const session = sessions[info?.PlaySessionId];
 			if (!session) return Promise.resolve(null);

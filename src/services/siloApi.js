@@ -301,6 +301,7 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		getPlaybackInfo: playback.getPlaybackInfo,
 		previewPlaybackInfo: playback.previewPlaybackInfo,
 		reportPlaybackStart: playback.reportPlaybackStart,
+		noteAudioPlaying: playback.noteAudioPlaying,
 		reportPlaybackProgress: playback.reportPlaybackProgress,
 		reportPlaybackStopped: async (info) => {
 			const answer = await playback.reportPlaybackStopped(info);
