@@ -978,8 +978,9 @@ const siloPlaybackResult = async ({
 			// these count: an audio change is not a failure, and Silo moves off the file itself when the track
 			// asked for needs it.
 			DirectPlayFailed: !allowDirectPlay || options.directPlayFailed === true,
-			// The stream itself failed, whatever its delivery: a remux or transcode that errors is replaced too.
-			PlaybackFailed: options.directPlayFailed === true,
+			// The stream itself failed, whatever its delivery: a remux or transcode that errors is replaced too. A
+			// refusal of the direct routes (Tizen's fallback) follows a playback error as well.
+			PlaybackFailed: options.directPlayFailed === true || directRefused,
 			AudioNotNative: options.audioNotNative === true
 		}, options.item);
 	} catch (err) {

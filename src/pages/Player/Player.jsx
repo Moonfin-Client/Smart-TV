@@ -497,7 +497,8 @@ export default function Player(props) {
           ...picks,
           mediaSourceId: info.mediaSourceId,
           ...(picks.audioStreamIndex != null ? { audioStreamIndex: info.selectedAudioStreamIndex } : null),
-          ...(picks.subtitleStreamIndex != null ? { subtitleStreamIndex: info.defaultSubtitleStreamIndex ?? -1 } : null),
+          // Subtitles off stays off.
+          ...(picks.subtitleStreamIndex >= 0 ? { subtitleStreamIndex: info.defaultSubtitleStreamIndex ?? -1 } : null),
         }
         opts.audioStreamIndex = picks.audioStreamIndex
         opts.subtitleStreamIndex = picks.subtitleStreamIndex
@@ -781,21 +782,30 @@ export default function Player(props) {
     const silo = !!(info.mediaSource && info.mediaSource.SiloDelivery)
     const moved = silo && was && info.mediaSourceId && info.mediaSourceId !== was
     let movedSub = null
-    if (moved && (my.subIndex >= 0 || my.burnIn != null || info.defaultSubtitleStreamIndex >= 0)) {
+    // Subtitles off stays off; a subtitle that was on follows the one Silo planned on the new file.
+    if (moved && (my.subIndex >= 0 || my.burnIn != null)) {
       movedSub = info.defaultSubtitleStreamIndex >= 0 ? info.defaultSubtitleStreamIndex : -1
       const stream = (info.subtitleStreams || []).find((x) => x.index === movedSub)
       // Silo burns the planned subtitle into the new stream itself; any other one is drawn here again below.
       my.burnIn = stream && stream.isBurnIn ? movedSub : null
       my.subIndex = movedSub
       my.nativeSub = false
-      playback.updateCurrentSession({ subtitleStreamIndex: movedSub })
+    } else if (silo && my.burnIn == null && my.subIndex >= 0) {
+      // A reopen asks Silo for the subtitle drawn here, and a transcode can burn it in: then only the picture shows it.
+      const stream = (info.subtitleStreams || []).find((x) => x.index === my.subIndex)
+      if (stream && stream.isBurnIn) {
+        clearSubtitleDrawing()
+        my.burnIn = my.subIndex
+      }
+    }
+    if (moved) {
+      if (info.audioStreams) s.audioCount = info.audioStreams.length
+      if (info.subtitleStreams) s.subCount = info.subtitleStreams.length
     }
     if (moved && audio != null) {
       my.audioIndex = audio
       playback.updateCurrentSession({ audioStreamIndex: audio })
       if (tracks && tracks.audio) tracks = { ...tracks, audio: { ...tracks.audio, streamIndex: audio, audioStreams: info.audioStreams || [] } }
-      if (info.audioStreams) s.audioCount = info.audioStreams.length
-      if (info.subtitleStreams) s.subCount = info.subtitleStreams.length
     }
     my.info = { ...my.info, ...info }
     my.isHdr = isHdrOutput(info.mediaSource, info.playMethod === playback.PlayMethod.Transcode)
@@ -803,8 +813,8 @@ export default function Player(props) {
     s.buffering = true
     await openInfo(info, at, tracks || keptTracks(info))
     if (gone) return
-    if (movedSub != null) await selectSubtitle(movedSub, true)
-    if (gone) return
+    // The new file's subtitle loads alongside, so the start report doesn't wait for it.
+    if (movedSub != null) selectSubtitle(movedSub, true).catch((e) => console.error('[player] subtitle after version change', e))
     reportStartAt(Math.floor(at * TICKS))
   }
   // The subtitle a reopen asks for: a burned-in one, and on Silo also one drawn here, since Silo's stream only
