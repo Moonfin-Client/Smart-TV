@@ -489,11 +489,18 @@ export default function Player(props) {
       let info = await playback.getPlaybackInfo(itemId, opts)
       if (mine !== my.startGen || gone) return
       // Silo can start another version than the one asked for (a lower quality picked in the player), whose stream
-      // indexes are its own, so an audio index from the other file gives way to the track Silo planned on this one.
-      if (picks.audioStreamIndex != null && picks.mediaSourceId != null && info.mediaSource && info.mediaSource.SiloDelivery &&
-          String(info.mediaSourceId) !== String(picks.mediaSourceId)) {
-        picks = { ...picks, audioStreamIndex: info.selectedAudioStreamIndex, mediaSourceId: info.mediaSourceId }
+      // indexes are its own, so an audio or subtitle index from the other file gives way to the track Silo planned
+      // on this one.
+      if ((picks.audioStreamIndex != null || picks.subtitleStreamIndex != null) && picks.mediaSourceId != null &&
+          info.mediaSource && info.mediaSource.SiloDelivery && String(info.mediaSourceId) !== String(picks.mediaSourceId)) {
+        picks = {
+          ...picks,
+          mediaSourceId: info.mediaSourceId,
+          ...(picks.audioStreamIndex != null ? { audioStreamIndex: info.selectedAudioStreamIndex } : null),
+          ...(picks.subtitleStreamIndex != null ? { subtitleStreamIndex: info.defaultSubtitleStreamIndex ?? -1 } : null),
+        }
         opts.audioStreamIndex = picks.audioStreamIndex
+        opts.subtitleStreamIndex = picks.subtitleStreamIndex
         opts.mediaSourceId = info.mediaSourceId
       }
       // The remembered audio, then the language preferences, then the server's and the file's default.
@@ -768,11 +775,22 @@ export default function Player(props) {
   // Every reload of the same item gets a new PlaySessionId, so a new start report.
   async function restart(info, at, tracks) {
     // Silo can move to another version of the title, whose stream indexes are its own, so the player takes the
-    // audio the server planned on that file instead of an index from the last one.
+    // audio and subtitle the server planned on that file instead of indexes from the last one.
     const was = my.info && my.info.mediaSourceId
     const audio = info.defaultAudioStreamIndex
     const silo = !!(info.mediaSource && info.mediaSource.SiloDelivery)
-    if (silo && was && info.mediaSourceId && info.mediaSourceId !== was && audio != null) {
+    const moved = silo && was && info.mediaSourceId && info.mediaSourceId !== was
+    let movedSub = null
+    if (moved && (my.subIndex >= 0 || my.burnIn != null || info.defaultSubtitleStreamIndex >= 0)) {
+      movedSub = info.defaultSubtitleStreamIndex >= 0 ? info.defaultSubtitleStreamIndex : -1
+      const stream = (info.subtitleStreams || []).find((x) => x.index === movedSub)
+      // Silo burns the planned subtitle into the new stream itself; any other one is drawn here again below.
+      my.burnIn = stream && stream.isBurnIn ? movedSub : null
+      my.subIndex = movedSub
+      my.nativeSub = false
+      playback.updateCurrentSession({ subtitleStreamIndex: movedSub })
+    }
+    if (moved && audio != null) {
       my.audioIndex = audio
       playback.updateCurrentSession({ audioStreamIndex: audio })
       if (tracks && tracks.audio) tracks = { ...tracks, audio: { ...tracks.audio, streamIndex: audio, audioStreams: info.audioStreams || [] } }
@@ -785,7 +803,16 @@ export default function Player(props) {
     s.buffering = true
     await openInfo(info, at, tracks || keptTracks(info))
     if (gone) return
+    if (movedSub != null) await selectSubtitle(movedSub, true)
+    if (gone) return
     reportStartAt(Math.floor(at * TICKS))
+  }
+  // The subtitle a reopen asks for: a burned-in one, and on Silo also one drawn here, since Silo's stream only
+  // lists the subtitle it was asked for.
+  function keptSubtitle() {
+    if (my.burnIn != null) return my.burnIn
+    const silo = !!(my.info && my.info.mediaSource && my.info.mediaSource.SiloDelivery)
+    return silo && my.subIndex >= 0 ? my.subIndex : undefined
   }
   // The same item opened again where it is, as it was. Resolves false when it couldn't, and null when something
   // else took over meanwhile.
@@ -798,7 +825,7 @@ export default function Player(props) {
         maxBitrate: my.quality || settings.get('maxBitrate') || 0,
         mediaSourceId: my.info && my.info.mediaSourceId,
         audioStreamIndex: my.audioIndex != null ? my.audioIndex : undefined,
-        subtitleStreamIndex: my.burnIn != null ? my.burnIn : undefined,
+        subtitleStreamIndex: keptSubtitle(),
         item: my.item,
         stereoUpmixEnabled: settings.get('stereoUpmixEnabled'),
       })
@@ -2432,7 +2459,7 @@ export default function Player(props) {
       ...(h264 ? { deviceProfile: await getH264FallbackProfile() } : null),
       mediaSourceId: my.info && my.info.mediaSourceId,
       audioStreamIndex: my.audioIndex != null ? my.audioIndex : undefined,
-      subtitleStreamIndex: my.burnIn != null ? my.burnIn : undefined,
+      subtitleStreamIndex: keptSubtitle(),
       item: my.item,
       isLiveTV: s.isLive,
       stereoUpmixEnabled: st.stereoUpmixEnabled,

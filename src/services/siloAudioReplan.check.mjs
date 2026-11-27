@@ -1,6 +1,7 @@
 // What a replan of a Silo title tells Silo about audio. The track the player plays is the plan's, or on the original
 // file one the player switched to itself: asking for another is a track change, asking with that one again only
-// moves the timeline, and only a failed original file (or the TV refusing the plan's own track) is a failure.
+// moves the timeline, and only a failed stream (or the TV refusing the plan's own track) is a failure. Also what a
+// start and a failure tell Silo about direct play and the subtitle.
 //   node --conditions=browser src/services/siloAudioReplan.check.mjs
 import assert from 'node:assert/strict'
 import { registerHooks } from 'node:module'
@@ -20,10 +21,13 @@ const version = {
   file_id: '235', container: 'mkv', codec_video: 'h264', codec_audio: 'aac', duration: 120,
   video_tracks: [{ codec: 'h264', width: 1280, height: 720 }],
   audio_tracks: [audioTrack('en', true), audioTrack('es', false)],
+  subtitle_tracks: [{ language: 'en', codec: 'subrip', default: false }],
 }
 const item = { Id: ITEM, MediaSources: siloItemMediaSources({ type: 'movie', versions: [version] }, ITEM) }
 const source = item.MediaSources[0]
 const [english, spanish] = source.MediaStreams.filter((s) => s.Type === 'Audio').map((s) => s.Index)
+const subtitle = source.MediaStreams.find((s) => s.Type === 'Subtitle').Index
+let lastStart
 
 const plan = (delivery, audio, n) => ({
   protocol_version: 3,
@@ -40,11 +44,12 @@ const plan = (delivery, audio, n) => ({
 
 // Starts the title on a plan (direct play unless told), lets `before` act on the playing session, then sends each ask
 // in turn and returns the replans Silo was sent. A reanchor keeps the route; anything else answers with a remux.
-const replansFor = async (bodies, { delivery = 'original_http', before } = {}) => {
+const replansFor = async (bodies, { delivery = 'original_http', before, start = {} } = {}) => {
   const replans = []
   let current = delivery
   const call = async (path, opts = {}) => {
     if (path.endsWith('/playback/capabilities')) return { state: 'available', allowed: true, protocol_versions: [3], installation_id: 'install', features: ['playback_plan_v3'] }
+    if (path.endsWith('/playback/start')) lastStart = opts.body
     if (path.endsWith('/playback/start')) return { outcome: 'playable', session_id: 'session', playback_plan: plan(delivery, { id: 'file:235:audio:0', index: 0 }, 1) }
     if (path.endsWith('/replan')) {
       replans.push(opts.body)
@@ -57,7 +62,7 @@ const replansFor = async (bodies, { delivery = 'original_http', before } = {}) =
     call, getBaseUrl: () => 'http://silo', getUserId: () => 'profile', getAccessToken: () => 'token',
     getDeviceInfo: () => ({ appVersion: '1.0.0' }), platform: 'webos', getItem: async () => item, onPlaying: () => {},
   })
-  const started = await silo.getPlaybackInfo(ITEM, { MediaSourceId: '235' }, item)
+  const started = await silo.getPlaybackInfo(ITEM, { MediaSourceId: '235', ...start }, item)
   assert.equal(started.MediaSources[0].DefaultAudioStreamIndex, english, 'starts on the default audio')
   if (before) before(silo, started.PlaySessionId)
   for (const body of bodies) await silo.getPlaybackInfo(ITEM, { MediaSourceId: '235', StartTimeTicks: 300000000, DirectPlayFailed: false, ...body }, item)
@@ -123,5 +128,37 @@ assert.deepEqual(plain.selected_tracks.audio, ENGLISH)
 const remux = await replanFor({ AudioStreamIndex: spanish }, { delivery: 'server_remux_hls' })
 assert.equal(remux.operation, 'track_change')
 assert.deepEqual(remux.selected_tracks.audio, SPANISH)
+
+const original = (body) => body.client_playback_context.deliveries.original_http
+
+// Force Transcode or Prefer Transcoding: the start doesn't offer the original file. Otherwise it does.
+await replanFor({}, { start: { DirectPlayFailed: true } })
+assert.equal(original(lastStart).supported_on_device, false)
+assert.equal(original(lastStart).failure_reason, 'direct_play_disabled')
+await replanFor({})
+assert.equal(original(lastStart).supported_on_device, true)
+
+// A remux that fails is a failure too, and its plan isn't tried again.
+const remuxFailed = await replanFor({ DirectPlayFailed: true, PlaybackFailed: true }, { delivery: 'server_remux_hls' })
+assert.equal(remuxFailed.operation, 'failure_recovery')
+assert.deepEqual(remuxFailed.failure, { classification: 'playback_error' })
+assert.deepEqual(remuxFailed.attempted_plan_keys, ['v3:1'])
+// With direct play off for the item, a seek on a remux only moves the timeline.
+const transcodeSeek = await replanFor({ DirectPlayFailed: true }, { delivery: 'server_remux_hls' })
+assert.equal(transcodeSeek.operation, 'seek_reanchor')
+
+// Once the original file failed, later replans don't offer it again.
+const [beforeFailure, directFailed, afterFailure] = await replansFor([{}, { DirectPlayFailed: true, PlaybackFailed: true }, { AudioStreamIndex: spanish }])
+assert.equal(original(beforeFailure).supported_on_device, true)
+assert.equal(original(directFailed).supported_on_device, false)
+assert.equal(afterFailure.operation, 'track_change')
+assert.equal(original(afterFailure).supported_on_device, false)
+
+// A failure keeps the subtitle the viewer has, but can't turn one off.
+const withSubtitle = await replanFor({ DirectPlayFailed: true, PlaybackFailed: true, SubtitleStreamIndex: subtitle })
+assert.equal(withSubtitle.operation, 'failure_recovery')
+assert.deepEqual(withSubtitle.selected_tracks.subtitle, { id: 'file:235:subtitle:0', index: 0 })
+const offInFailure = await replanFor({ DirectPlayFailed: true, PlaybackFailed: true, SubtitleStreamIndex: -1 })
+assert.equal(offInFailure.selected_tracks.subtitle, undefined)
 
 console.log('ok siloAudioReplan')

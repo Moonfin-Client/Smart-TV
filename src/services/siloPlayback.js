@@ -177,7 +177,8 @@ const channelLimits = (codecProfiles, containers, byCodecSupported, caps = []) =
 const HLS_VIDEO_CODECS = ['h264', 'hevc'];
 
 // The source container, when known, narrows the original file's container-scoped caps to the file being played.
-export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = TRAITS, serverFeatures = [], sourceContainer = null) => {
+// With direct play off (Force Transcode, Prefer Transcoding) the original file isn't offered.
+export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = TRAITS, serverFeatures = [], sourceContainer = null, offerOriginal = true) => {
 	const directPlay = profiles(deviceProfile.DirectPlayProfiles);
 	const codecProfiles = profiles(deviceProfile.CodecProfiles);
 	const transcoding = profiles(deviceProfile.TranscodingProfiles);
@@ -244,7 +245,8 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 		},
 		deliveries: {
 			original_http: delivery({
-				supported: true,
+				supported: offerOriginal,
+				failureReason: 'direct_play_disabled',
 				containers,
 				...(csv(sourceContainer).length ? {scope: csv(sourceContainer)} : null),
 				video: videoCodecs,
@@ -301,6 +303,15 @@ const siloPlaybackContext = ({platform, appVersion, capabilities}) => ({
 	output: outputOf(platform, capabilities),
 	deliveries: capabilities.deliveries
 });
+
+const withoutOriginal = (context) => {
+	const original = context?.deliveries?.original_http;
+	if (!original) return context;
+	return {
+		...context,
+		deliveries: {...context.deliveries, original_http: {...original, supported_on_device: false, failure_reason: 'direct_play_failed'}}
+	};
+};
 
 // The subtitle stream indexes in Silo's combined order: the external ones first, then the file's, each by position.
 const siloSubtitleOrder = (source) => {
@@ -630,7 +641,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 			? siloTrackForStreamIndex(file.source, body.AudioStreamIndex) : null;
 		const subtitle = siloSubtitleCombinedIndex(file.source, body.SubtitleStreamIndex);
 		const startBody = ({installationId, features}) => {
-			const caps = siloCapabilitiesFromDeviceProfile(body.DeviceProfile || {}, siloTraitsFor(platform), features, file.source?.Container);
+			const caps = siloCapabilitiesFromDeviceProfile(body.DeviceProfile || {}, siloTraitsFor(platform), features, file.source?.Container, body.DirectPlayFailed !== true);
 			const context = siloPlaybackContext({platform, appVersion: getDeviceInfo().appVersion, capabilities: caps});
 			return {
 				protocol_version: 3,
@@ -715,9 +726,12 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		// sets again after a reload. Asking for another one changes the audio.
 		const audioChange = changes(body.AudioStreamIndex, session.playingAudioStreamIndex);
 		const offPlan = changes(body.AudioStreamIndex, session.audioStreamIndex);
-		// The original file failed here, or the TV can't play the plan's own track from it, so Silo tries something
-		// else.
-		const failure = direct && (body.DirectPlayFailed === true || (body.AudioNotNative === true && body.AudioStreamIndex != null && !offPlan));
+		// The stream failed here, whatever its delivery, or the TV can't play the plan's own track from the original
+		// file, so Silo tries something else.
+		const failure = body.PlaybackFailed === true
+			|| (direct && (body.DirectPlayFailed === true || (body.AudioNotNative === true && body.AudioStreamIndex != null && !offPlan)));
+		// Once the original file has failed, later replans don't offer it again.
+		if (failure && direct && (body.PlaybackFailed === true || body.DirectPlayFailed === true)) session.originalFailed = true;
 		const trackChange = !failure && (audioChange || changes(body.SubtitleStreamIndex, session.subtitleStreamIndex));
 		const qualityChange = !failure && !trackChange && kbps(body.MaxStreamingBitrate) !== session.bandwidthCapKbps;
 		let operation = 'seek_reanchor';
@@ -740,9 +754,10 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 			const audio = session.source && body.AudioStreamIndex != null ? siloTrackForStreamIndex(session.source, body.AudioStreamIndex) : null;
 			if (audio && audio.kind === 'audio') tracks.audio = {id: `file:${fileId}:audio:${audio.ordinal}`, index: audio.ordinal};
 		}
-		if (trackChange) {
+		// A failure keeps the subtitle the viewer has; only a track change can turn it off.
+		if (trackChange || failure) {
 			if (body.SubtitleStreamIndex === -1) {
-				delete tracks.subtitle;
+				if (trackChange) delete tracks.subtitle;
 			} else if (body.SubtitleStreamIndex != null) {
 				const byCombined = siloSubtitleIndexByCombined(plan, session.source);
 				const combined = Object.keys(byCombined).find((k) => byCombined[k] === body.SubtitleStreamIndex);
@@ -766,7 +781,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 			metered: first.metered || false,
 			selected_tracks: tracks,
 			client_capabilities: first.client_capabilities,
-			client_playback_context: first.client_playback_context,
+			client_playback_context: session.originalFailed ? withoutOriginal(first.client_playback_context) : first.client_playback_context,
 			installation_id: session.installationId,
 			...(failure ? {failure: {classification: 'playback_error'}} : null),
 			...(session.bandwidthCapKbps ? {bandwidth_cap_kbps: session.bandwidthCapKbps} : null)

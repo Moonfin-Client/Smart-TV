@@ -978,6 +978,8 @@ const siloPlaybackResult = async ({
 			// these count: an audio change is not a failure, and Silo moves off the file itself when the track
 			// asked for needs it.
 			DirectPlayFailed: !allowDirectPlay || options.directPlayFailed === true,
+			// The stream itself failed, whatever its delivery: a remux or transcode that errors is replaced too.
+			PlaybackFailed: options.directPlayFailed === true,
 			AudioNotNative: options.audioNotNative === true
 		}, options.item);
 	} catch (err) {
@@ -1007,7 +1009,7 @@ const siloPlaybackResult = async ({
 	const subtitleStreams = extractSubtitleStreams(mediaSource, itemId, creds, storedSettings.assDirectPlay === false, url, playMethod,
 		storedSettings.enablePgsRendering === false);
 	// On another file than the one asked for (another version), an index from the old one names another track, so the
-	// plan's own track is the one playing.
+	// plan's own tracks are the ones playing.
 	const movedFile = options.mediaSourceId != null && String(mediaSource.Id) !== String(options.mediaSourceId);
 	const selectedAudio = movedFile ? mediaSource.DefaultAudioStreamIndex : options.audioStreamIndex ?? mediaSource.DefaultAudioStreamIndex;
 
@@ -1022,7 +1024,7 @@ const siloPlaybackResult = async ({
 		startPositionTicks: options.startPositionTicks || 0,
 		capabilities,
 		audioStreamIndex: selectedAudio,
-		subtitleStreamIndex: requestedSubtitleStreamIndex,
+		subtitleStreamIndex: movedFile ? mediaSource.DefaultSubtitleStreamIndex ?? -1 : requestedSubtitleStreamIndex,
 		maxBitrate: options.maxBitrate,
 		allowDirectPlay,
 		allowDirectStream,
