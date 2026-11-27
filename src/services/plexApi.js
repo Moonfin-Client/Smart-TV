@@ -12,6 +12,8 @@ import {
 import {PREFIXED_ID, plexImageUrl, plexQuery, trimSlash, withPlexToken} from '../utils/plexUrls';
 import {findPlexMoonbase} from './plexMoonbase';
 import {shuffled} from '../utils/shuffled';
+import {inViewOrder} from './siloMapper';
+import {getFromStorage, saveToStorage} from './storage';
 
 export const plexIdentity = ({appName, appVersion, deviceName, deviceId}) => ({
 	'X-Plex-Product': appName,
@@ -300,12 +302,23 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 		return plexItemsResult(items.slice(start, end), items.length, start);
 	};
 
-	// Plex takes the items to add as one URI naming them on this server.
-	const itemsUri = async (itemIds) => {
+	const machineId = async () => {
 		const state = here();
 		if (!state.machineId) state.machineId = (await container('/identity')).machineIdentifier;
-		return `server://${state.machineId}/${LIBRARY}/library/metadata/${itemIds.join(',')}`;
+		return state.machineId;
 	};
+
+	// Plex takes the items to add as one URI naming them on this server.
+	const itemsUri = async (itemIds) => `server://${await machineId()}/${LIBRARY}/library/metadata/${itemIds.join(',')}`;
+
+	// Plex keeps no app settings for the user, so the library order and the hidden libraries stay on
+	// this device, the way Plex's own apps keep their library pins.
+	const configKey = async () => {
+		// Read before the wait, so a save stays with the account that made it.
+		const userId = getUserId();
+		return `plexUserConfiguration_${await machineId()}_${userId}`;
+	};
+	const readConfiguration = async () => (await getFromStorage(await configKey())) || {};
 
 	// Plex keeps one watched state and rating for a movie split over several files, so a file's id stands for the movie.
 	const keyOf = (itemId) => plexPartOf(itemId)?.key ?? itemId;
@@ -538,18 +551,20 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 
 	const readUser = async () => {
 		const state = here();
-		const [root, owner, name] = await Promise.all([
+		const userId = getUserId();
+		const [root, owner, name, configuration] = await Promise.all([
 			container('/'),
 			send('/myplex/account').then(() => true, (err) => {
 				if (err.status !== 403) throw err;
 				return false;
 			}),
-			getUserName ? getUserName().catch(() => null) : null
+			getUserName ? getUserName().catch(() => null) : null,
+			readConfiguration()
 		]);
 		state.owner = owner;
 		state.mayDeleteMedia = owner && root.allowMediaDeletion === true;
 		return {
-			Id: getUserId(),
+			Id: userId,
 			Name: name || '',
 			ServerId: root.machineIdentifier,
 			PrimaryImageTag: 'plex',
@@ -563,15 +578,23 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 				EnabledFolders: [],
 				BlockedMediaFolders: []
 			},
-			Configuration: {}
+			Configuration: configuration
 		};
 	};
 
-	// Several screens ask for the user at once while the app starts, so they share one read.
+	// Several screens ask for the user at once while the app starts, so they share one read, but only
+	// while the same account is signed in. A switch to another account starts its own.
 	let userRead = null;
-	const getUser = () => userRead || (userRead = readUser().finally(() => {
-		userRead = null;
-	}));
+	const getUser = () => {
+		const account = `${trimSlash(getBaseUrl())}|${getToken()}|${getUserId()}`;
+		if (userRead?.account !== account) {
+			const read = readUser().finally(() => {
+				if (userRead?.read === read) userRead = null;
+			});
+			userRead = {account, read};
+		}
+		return userRead.read;
+	};
 
 	const decide = async (transcoder, query, itemId) => {
 		const decision = await container(`${transcoder}/decision`, query, {timeoutMs: PLAYBACK_TIMEOUT_MS});
@@ -1019,13 +1042,18 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 		getPublicUsers: async () => [],
 
 		getLibraries: async () => {
-			const sections = (await librarySections()).filter((s) => !s.hidden).map(plexSectionToView);
+			const [all, config] = await Promise.all([librarySections(), readConfiguration()]);
+			const hidden = config.MyMediaExcludes || [];
+			const sections = all.filter((s) => !s.hidden).map(plexSectionToView).filter((v) => !hidden.includes(v.Id));
 			// Every Plex account has the free channels, and the guide opens from a livetv view.
 			sections.push({Id: 'livetv', Name: $L('Live TV'), Type: 'CollectionFolder', CollectionType: 'livetv', IsFolder: true, ImageTags: {}});
-			return plexItemsResult(sections);
+			return plexItemsResult(inViewOrder(sections, config.OrderedViews));
 		},
 
-		getAllLibraries: async () => plexItemsResult((await librarySections()).map(plexSectionToView)),
+		getAllLibraries: async () => {
+			const [all, config] = await Promise.all([librarySections(), readConfiguration()]);
+			return plexItemsResult(inViewOrder(all.map(plexSectionToView), config.OrderedViews));
+		},
 
 		getItems,
 
@@ -1056,8 +1084,11 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 
 		getUserConfiguration: getUser,
 		getCurrentUser: getUser,
-		// Plex keeps no client settings for the user.
-		updateUserConfiguration: async () => null,
+		updateUserConfiguration: async (config) => {
+			// The TV storage answers false instead of throwing when it is full.
+			if (await saveToStorage(await configKey(), config) === false) throw new Error('Could not keep the Plex user configuration');
+			return null;
+		},
 
 		getLatest: async (libraryId, limit = 20) => {
 			const sectionKey = plexKeyOf(libraryId, PLEX_SECTION_PREFIX);

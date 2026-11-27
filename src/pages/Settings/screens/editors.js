@@ -1173,6 +1173,10 @@ const saveLogged = (saving, config) =>
   })
 
 const unifiedLibraries = (page) => !!settings.get('unifiedLibraryMode') && !!page.ctx.hasMultipleServers
+// Ids like Plex's section-1 repeat across servers, so with several servers a hidden library is
+// kept as its server's url and its id.
+const hiddenKey = (serverUrl, id) => (serverUrl ? `${serverUrl}|${id}` : id)
+const libraryKey = (lib) => hiddenKey(lib._serverUrl, lib.Id)
 const libraryName = (lib, unified) => `${lib.Name}${unified && lib._serverName ? ` (${lib._serverName})` : ''}`
 
 // The rows narrow themselves against the library list, so it's read again before the refresh.
@@ -1196,8 +1200,7 @@ const loadLibraryVisibility = async (page, view) => {
       const [all, configs] = await Promise.all([connectionPool.getAllLibrariesFromAllServers(), connectionPool.getUserConfigFromAllServers()])
       view.libraries = all.filter((lib) => lib.CollectionType)
       view.configs = configs
-      const excluded = configs.reduce((acc, cfg) => acc.concat((cfg.configuration && cfg.configuration.MyMediaExcludes) || []), [])
-      view.hidden = excluded.filter((id, i) => excluded.indexOf(id) === i)
+      view.hidden = configs.reduce((acc, cfg) => acc.concat(((cfg.configuration && cfg.configuration.MyMediaExcludes) || []).map((id) => hiddenKey(cfg.serverUrl, id))), [])
     } else {
       const [views, user] = await Promise.all([api.getAllLibraries(), api.getUserConfiguration()])
       view.libraries = ((views && views.Items) || []).filter((lib) => lib.CollectionType)
@@ -1220,7 +1223,7 @@ const saveLibraryVisibility = async (page, view) => {
       view.libraries.forEach((lib) => {
         const key = lib._serverUrl
         if (!excludes[key]) excludes[key] = []
-        if (view.hidden.indexOf(lib.Id) >= 0) excludes[key].push(lib.Id)
+        if (view.hidden.indexOf(libraryKey(lib)) >= 0) excludes[key].push(lib.Id)
       })
       await Promise.all(
         (view.configs || []).map((cfg) => {
@@ -1261,13 +1264,14 @@ SCREENS.libraries = {
     }
     const unified = unifiedLibraries(page)
     view.libraries.forEach((lib) => {
-      const isHidden = view.hidden.indexOf(lib.Id) >= 0
+      const key = libraryKey(lib)
+      const isHidden = view.hidden.indexOf(key) >= 0
       out.push(
-        centerCard('lib-' + lib.Id, libraryName(lib, unified), isHidden ? $L('Hidden') : $L('Visible'), {
+        centerCard('lib-' + key, libraryName(lib, unified), isHidden ? $L('Hidden') : $L('Visible'), {
           trail: 'toggle',
           on: !isHidden,
           press: (pg) => {
-            view.hidden = view.hidden.indexOf(lib.Id) >= 0 ? view.hidden.filter((id) => id !== lib.Id) : [...view.hidden, lib.Id]
+            view.hidden = view.hidden.indexOf(key) >= 0 ? view.hidden.filter((k) => k !== key) : [...view.hidden, key]
             pg.refresh()
           },
         })
@@ -1300,15 +1304,15 @@ const loadLibraryOrder = async (page, view) => {
     if (view.unified) {
       const [all, configs] = await Promise.all([connectionPool.getAllLibrariesFromAllServers(), connectionPool.getUserConfigFromAllServers()])
       loaded = all
-      configurations = configs.map((config) => config.configuration)
+      configurations = configs
     } else {
       const [views, user] = await Promise.all([api.getAllLibraries(), api.getUserConfiguration()])
       loaded = (views && views.Items) || []
-      configurations = [user && user.Configuration]
+      configurations = [{ configuration: user && user.Configuration }]
     }
     view.libraries = loaded
     view.saved = loaded
-    view.hidden = configurations.reduce((ids, c) => ids.concat((c && c.MyMediaExcludes) || []), [])
+    view.hidden = configurations.reduce((keys, c) => keys.concat(((c.configuration && c.configuration.MyMediaExcludes) || []).map((id) => hiddenKey(c.serverUrl, id))), [])
   } catch (e) {
     view.loadFailed = true
   }
@@ -1361,7 +1365,7 @@ const saveLibraryOrder = (page, view) => {
   })
 }
 
-const rowIdOf = (library) => 'library-order-' + library.Id
+const rowIdOf = (library) => 'library-order-' + libraryKey(library)
 
 SCREENS.libraryOrder = {
   clean: true,
@@ -1405,7 +1409,7 @@ SCREENS.libraryOrder = {
         reorderEntry({
           sid: rowIdOf(library),
           title: libraryName(library, view.unified),
-          subtitle: view.hidden.indexOf(library.Id) >= 0 ? $L('Hidden') : '',
+          subtitle: view.hidden.indexOf(libraryKey(library)) >= 0 ? $L('Hidden') : '',
           icon: libraryOrderIcon(library),
           plain: true,
           isFirst: isFirstOfServer(libs, index),
