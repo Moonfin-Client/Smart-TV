@@ -4,7 +4,7 @@
 // The rearranging editors work on a copy kept on their view and write it back when they close.
 import $L from '../../../services/i18n.js'
 import * as settings from '../../../state/settings.js'
-import { api, createApiForServer, getServerType, getServerUrl } from '../../../services/jellyfinApi.js'
+import { api, createApiForServer, getApiKey, getServerType, getServerUrl } from '../../../services/jellyfinApi.js'
 import { canKeepAsComplete } from '../../../services/incompleteRecordings.js'
 import { defaultSettings } from '../../../context/defaultSettings.js'
 import { DEFAULT_HOME_ROWS } from '../../../utils/homeLayout.js'
@@ -1324,7 +1324,11 @@ const loadLibraryOrder = async (page, view) => {
 const writeLibraryOrder = async (ordered, unified) => {
   const orders = orderedViewsByServer(ordered)
   if (!unified) {
+    // Leaving the screen sends the last save, so the account can change while it reads. Then the
+    // order and configuration read belong to the old account and mustn't land on the new one.
+    const token = getApiKey()
     const user = await api.getUserConfiguration()
+    if (getApiKey() !== token) throw new Error('The account changed before the library order was saved')
     await api.updateUserConfiguration({ ...user.Configuration, OrderedViews: orders[''] || [] })
     return
   }
