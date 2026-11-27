@@ -105,32 +105,34 @@ export default function PlaybackStatsOverlay(props) {
   return (
     <view x={48} y={props.y} width={panelW} height={rows().length * ROW_H + PAD} alpha={stat() ? 1 : 0}>
       <view width={panelW} height={rows().length * ROW_H + PAD} borderRadius={12} color={rgba(theme().surface, 0.8)} />
-      <For each={rows()}>
-        {(row, i) => (
-          <view y={PAD / 2 + i() * ROW_H} width={panelW} height={ROW_H}>
-            <text x={PAD} y={5} fontFamily={fontFor(row.label)} fontSize={20} lineHeight={24} color="#ffffffb3">
-              {row.label}
-            </text>
-            <text x={valueX} y={5} fontFamily={fontFor(row.value())} fontSize={20} lineHeight={24} maxWidth={row.note ? VALUE_W : VALUE_W + GAP + GRAPH_W} maxLines={1} color="#ffffffff">
-              {row.value()}
-            </text>
-            <text
-              alpha={row.note && row.note() ? 1 : 0}
-              x={valueX}
-              y={5}
-              fontFamily={fontFor(row.note ? row.note() : '')}
-              fontSize={20}
-              lineHeight={24}
-              maxWidth={VALUE_W + GAP + GRAPH_W}
-              maxLines={1}
-              color="#ffffff8a"
-            >
-              {row.note ? row.note() : ''}
-            </text>
-            <view alpha={row.graph && !row.graph() ? 0 : 1}>{row.values ? <Graph x={graphX} values={row.values()} top={row.top()} line={row.line} color={row.color} /> : null}</view>
-          </view>
-        )}
-      </For>
+      <view width={panelW} height={rows().length * ROW_H + PAD}>
+        <For each={rows()}>
+          {(row, i) => (
+            <view y={PAD / 2 + i() * ROW_H} width={panelW} height={ROW_H}>
+              <text x={PAD} y={5} fontFamily={fontFor(row.label)} fontSize={20} lineHeight={24} color="#ffffffb3">
+                {row.label}
+              </text>
+              <text x={valueX} y={5} fontFamily={fontFor(row.value())} fontSize={20} lineHeight={24} maxWidth={row.note ? VALUE_W : VALUE_W + GAP + GRAPH_W} maxLines={1} color="#ffffffff">
+                {row.value()}
+              </text>
+              <text
+                alpha={row.note && row.note() ? 1 : 0}
+                x={valueX}
+                y={5}
+                fontFamily={fontFor(row.note ? row.note() : '')}
+                fontSize={20}
+                lineHeight={24}
+                maxWidth={VALUE_W + GAP + GRAPH_W}
+                maxLines={1}
+                color="#ffffff8a"
+              >
+                {row.note ? row.note() : ''}
+              </text>
+              <view alpha={row.graph && !row.graph() ? 0 : 1}>{row.values ? <Graph x={graphX} values={row.values()} top={row.top()} line={row.line} color={row.color} /> : null}</view>
+            </view>
+          )}
+        </For>
+      </view>
     </view>
   )
 }
