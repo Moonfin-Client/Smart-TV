@@ -37,7 +37,10 @@ export const itemMenuActions = (item, {
       if (playlist && type !== 'Audio') out.push({ id: 'viewDetails', icon: 'menu_info', label: $L('View Details') })
     }
     out.push({ id: 'watched', icon: played ? 'menu_visibilityOff' : 'menu_visibility', label: played ? $L('Mark as Unwatched') : $L('Mark as Watched') })
-    if ((ud.PlaybackPositionTicks || 0) > 0 && !played) out.push({ id: 'hideContinueWatching', icon: 'menu_visibilityOff', label: $L('Hide from Continue Watching') })
+    // A rewatch keeps Played with a position. Hiding one is only offered where the server can take it
+    // off resume and keep it watched: Jellyfin, and audio outside Silo, can only clear the play state.
+    const keepsPlayed = isSilo || (!isJellyfin && type !== 'Audio' && type !== 'AudioBook' && item.MediaType !== 'Audio')
+    if ((ud.PlaybackPositionTicks || 0) > 0 && (!played || keepsPlayed)) out.push({ id: 'hideContinueWatching', icon: 'menu_visibilityOff', label: $L('Hide from Continue Watching') })
     if (type === 'Episode' && hasSeries) out.push({ id: 'hideNextUp', icon: 'menu_visibilityOff', label: $L('Hide from Next Up') })
     out.push({ id: 'favorite', icon: ud.IsFavorite ? 'favorite' : 'menu_favoriteBorder', label: ud.IsFavorite ? $L('Remove from Favorites') : $L('Add to Favorites') })
     if (canManageCollections) {
