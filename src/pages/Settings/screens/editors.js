@@ -1294,6 +1294,8 @@ const loadLibraryOrder = async (page, view) => {
   view.loading = true
   view.loadFailed = false
   page.refresh()
+  // The order belongs to the account it's read for, so its saves go to that account or nowhere.
+  view.account = { server: getServerUrl(), user: getUserId() }
   try {
     let loaded
     let configurations
@@ -1349,10 +1351,9 @@ const saveLibraryOrder = (page, view) => {
   const ordered = view.libraries
   if (!ordered) return
   const id = (view.saveId = (view.saveId || 0) + 1)
-  const account = { server: getServerUrl(), user: getUserId() }
   view.queue = (view.queue || Promise.resolve()).then(async () => {
     try {
-      await writeLibraryOrder(ordered, view.unified, account)
+      await writeLibraryOrder(ordered, view.unified, view.account)
       view.saved = ordered
       librariesChanged({ libraries: true })
     } catch (e) {
