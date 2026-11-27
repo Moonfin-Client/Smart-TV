@@ -263,6 +263,11 @@ export default function Details(props) {
         setBlocked(!!rec)
         setLoading(false)
         setSkeleton([])
+        // A card drawn while the record loaded comes down behind the lock.
+        if (rec) {
+          setBackdrop('')
+          setScrim('')
+        }
       })
       return
     }
@@ -1569,7 +1574,7 @@ export default function Details(props) {
         </view>
       </view>
 
-      <view>
+      <view alpha={blocked() ? 0 : 1}>
         <Show when={!v2() && STYLES[style()]} keyed>
           {(Style) => (
             <Dynamic
