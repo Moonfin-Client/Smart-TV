@@ -1026,5 +1026,7 @@
     "Skip": "এড়িয়ে যান",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "অনুপলব্ধ",
-    "Recently Released Episodes": "সম্প্রতি প্রকাশিত পর্বগুলি"
+    "Recently Released Episodes": "সম্প্রতি প্রকাশিত পর্বগুলি",
+    "Date Added (Newest First)": "যোগ করার তারিখ (নতুন আগে)",
+    "Date Added (Oldest First)": "যোগ করার তারিখ (পুরোনো আগে)"
 }
