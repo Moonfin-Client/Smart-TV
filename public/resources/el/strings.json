@@ -1042,5 +1042,7 @@
     "Activity": "Δραστηριότητα",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "Δυσεύρετος",
-    "Recently Released Episodes": "Επεισόδια που κυκλοφόρησαν πρόσφατα"
+    "Recently Released Episodes": "Επεισόδια που κυκλοφόρησαν πρόσφατα",
+    "Date Added (Newest First)": "Ημερομηνία προσθήκης (νεότερα πρώτα)",
+    "Date Added (Oldest First)": "Ημερομηνία προσθήκης (παλαιότερα πρώτα)"
 }
