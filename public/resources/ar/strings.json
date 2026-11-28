@@ -1060,5 +1060,7 @@
     "Removed from favorite channels": "تمت إزالته من القنوات المفضلة",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "غير متاح",
-    "Recently Released Episodes": "الحلقات التي تم إصدارها مؤخرًا"
+    "Recently Released Episodes": "الحلقات التي تم إصدارها مؤخرًا",
+    "Date Added (Newest First)": "تاريخ الإضافة (الأحدث أولاً)",
+    "Date Added (Oldest First)": "تاريخ الإضافة (الأقدم أولاً)"
 }
