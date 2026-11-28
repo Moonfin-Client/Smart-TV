@@ -1025,5 +1025,7 @@
     "Text Stroke Color": "文字描邊顏色",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "不可用",
-    "Recently Released Episodes": "最近上架嘅集數"
+    "Recently Released Episodes": "最近上架嘅集數",
+    "Date Added (Newest First)": "加入日期（由新到舊）",
+    "Date Added (Oldest First)": "加入日期（由舊到新）"
 }
