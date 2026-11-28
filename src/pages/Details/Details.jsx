@@ -266,6 +266,7 @@ export default function Details(props) {
         setSkeleton([])
         // A card drawn while the record loaded comes down behind the lock.
         if (rec) {
+          m.card = null
           setBackdrop('')
           setScrim('')
         }
