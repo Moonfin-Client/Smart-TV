@@ -1023,5 +1023,7 @@
     "Admin": "Gweinyddol",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "Ddim ar gael",
-    "Recently Released Episodes": "Pennodau a Ryddhawyd yn Ddiweddar"
+    "Recently Released Episodes": "Pennodau a Ryddhawyd yn Ddiweddar",
+    "Date Added (Newest First)": "Dyddiad Ychwanegu (Diweddaraf yn Gyntaf)",
+    "Date Added (Oldest First)": "Dyddiad Ychwanegu (Hynaf yn Gyntaf)"
 }
