@@ -1025,5 +1025,7 @@
     "Text Stroke Color": "Боја на текстуален удар",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "Недостапно",
-    "Recently Released Episodes": "Неодамна издадени епизоди"
+    "Recently Released Episodes": "Неодамна издадени епизоди",
+    "Date Added (Newest First)": "Датум на додавање (најновите први)",
+    "Date Added (Oldest First)": "Датум на додавање (најстарите први)"
 }
