@@ -101,8 +101,8 @@ export default function LibraryButtonRow(props) {
       <text x={L().inset} y={props.box.titleY + 2.5} fontFamily={titleFont()} fontSize={28} lineHeight={33} color={L().onSurface}>
         {props.row.title || ''}
       </text>
-      <view x={L().clipX} y={props.box.scrollerY} width={L().viewW} height={220} clipping>
-        <view y={20} x={L().pad - scroll()} width={L().pad * 2 + buttons().length * (SIZE + GAP) + 1920} height={200} transition={{ x: { duration: 220, easing: 'cubic-bezier(0.33, 1, 0.68, 1)' } }}>
+      <view x={L().inset - L().lead} y={props.box.scrollerY} width={1920 - L().inset + L().lead} height={220} clipping>
+        <view y={20} x={L().lead - scroll()} width={L().pad * 2 + buttons().length * (SIZE + GAP) + 1920} height={200} transition={{ x: { duration: 220, easing: 'cubic-bezier(0.33, 1, 0.68, 1)' } }}>
           <For each={buttons()}>
             {(b) => {
               const on = () => isCur(b.idx) && focused()

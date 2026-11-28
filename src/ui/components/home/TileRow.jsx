@@ -127,8 +127,8 @@ export default function TileRow(props) {
       >
         {props.row.title || ''}
       </text>
-      <view x={L().clipX} y={props.box.scrollerY} width={L().viewW} height={props.box.laneH} clipping>
-        <view y={20} x={L().pad - scroll()} width={L().pad * 2 + laneW() + 1920} height={props.box.laneH} transition={{ x: { duration: 220, easing: 'cubic-bezier(0.33, 1, 0.68, 1)' } }}>
+      <view x={L().inset - L().lead} y={props.box.scrollerY} width={1920 - L().inset + L().lead} height={props.box.laneH} clipping>
+        <view y={20} x={L().lead - scroll()} width={L().pad * 2 + laneW() + 1920} height={props.box.laneH} transition={{ x: { duration: 220, easing: 'cubic-bezier(0.33, 1, 0.68, 1)' } }}>
           <Show
             when={props.row.isGameRow}
             fallback={<For each={shown()}>{(c) => <TileCard card={c} look={L()} focused={isCur(c.idx) && focused()} />}</For>}

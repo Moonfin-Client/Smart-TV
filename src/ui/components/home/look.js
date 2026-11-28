@@ -30,6 +30,9 @@ export const homeLook = (s) => {
     pad: 60,
     inset: (left ? 50 : 0) + 60,
     viewW: 1920 - (left ? 50 : 0),
+    // A row clips its cards this far left of the first one. That's room for a focused card's zoom,
+    // while a card scrolled past stays hidden behind the 24px gap.
+    lead: 20,
     zoom: s.cardFocusZoom === true,
     openMs,
     overlay: style === 'classic' && s.homeRowOverlay !== false,

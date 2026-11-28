@@ -118,6 +118,11 @@ export default function MediaRow(props) {
     const [from, to] = laneWindow(cards(), scroll() - L().pad, scroll() - L().pad + L().viewW + extra(), MARGIN)
     return cards().slice(from, to)
   })
+  // A focused banner's zoom reaches past the lead, so the clip opens that far while the row has focus.
+  const room = () => {
+    const c = card()
+    return classic() && focused() && L().zoom && c ? Math.max(L().lead, Math.ceil(c.w * 0.025)) : L().lead
+  }
   const ringBox = () => {
     const c = card()
     return { x: c ? c.x : 0, w: c ? (focused() && open() ? c.ew : c.w) : 0, h: c ? c.h : 0 }
@@ -342,106 +347,108 @@ export default function MediaRow(props) {
           {props.row.subtitle}
         </text>
       </Show>
-      <view x={L().clipX} y={props.box.scrollerY} width={L().viewW} height={props.box.laneH + grow()} clipping>
-        <view
-          y={laneY()}
-          x={L().pad - scroll()}
-          width={spanW()}
-          height={spanH()}
-          transition={tx({ x: { duration: L().openMs || 220, easing: glide() } })}
-        >
-          <view width={spanW()} height={spanH()}>
-            <Show when={!classic()}>
-              <For each={shown()}>
-                {(c) => {
-                  const mine = () => isCur(c.idx) && focused()
-                  return (
-                    <ModernCard
-                      card={c}
-                      x={c.x + (c.idx > cur() ? extra() : 0)}
-                      w={mine() && extra() > 0 ? c.ew : c.w}
-                      focused={mine()}
-                      open={mine() && open()}
-                      look={L()}
-                      carousel={carousel()}
-                      dw={detailsW()}
-                      rh={ratingsH()}
-                      vid={c.key === playing()}
-                      onArtIn={onArtIn}
-                    />
-                  )
-                }}
-              </For>
-            </Show>
-          </view>
-          <view width={spanW()} height={spanH()}>
-            <Show when={classic()}>
-              <For each={shown()}>
-                {(c) => (
-                  <ClassicCard
-                    ref={(n) => (cardNodes[c.idx] = n)}
-                    card={c}
-                    x={c.x}
-                    focused={isCur(c.idx) && focused()}
-                    look={L()}
-                    vid={c.key === playing()}
-                  />
-                )}
-              </For>
-            </Show>
-          </view>
-          <view width={spanW()} height={spanH()}>
-            <Show when={sa()}>
-              <view x={sa().x + extra()} width={sa().w} height={sa().h} borderRadius={20} color="#ffffff14" border={{ width: 3, color: saOn() ? 0xffffffff : 0xffffff00 }}>
-                <view
-                  x={(sa().w - 53.4) / 2}
-                  y={(sa().h - 53.4 - 13.4 - 26) / 2}
-                  width={53.4}
-                  height={53.4}
-                  src={sa().icon}
-                  color={saOn() ? '#ffffffff' : '#ffffff99'}
-                />
-                <text
-                  x={0}
-                  y={(sa().h - 53.4 - 13.4 - 26) / 2 + 68.8}
-                  fontFamily={titleFont()}
-                  fontSize={21.7}
-                  lineHeight={26}
-                  letterSpacing={1.74}
-                  maxWidth={sa().w}
-                  contain="width"
-                  textAlign="center"
-                  color={saOn() ? '#ffffffff' : '#ffffff99'}
-                >
-                  {seeAllText}
-                </text>
-              </view>
-            </Show>
-          </view>
+      <view x={L().inset - room()} y={props.box.scrollerY} width={1920 - L().inset + room()} height={props.box.laneH + grow()} clipping>
+        <view x={room()} width={spanW()} height={laneY() + spanH()}>
           <view
-            ref={ring}
-            x={ringBox().x}
-            width={ringBox().w}
-            height={ringBox().h}
-            borderRadius={L().modernRadius}
-            color="#00000000"
-            border={{ width: 4, color: hex(L().focus) }}
-            alpha={focused() && !classic() && !onSeeAll() ? 1 : 0}
-            transition={tx(L().openMs ? { x: { duration: L().openMs, easing: OPEN_EASE }, width: { duration: L().openMs, easing: OPEN_EASE } } : undefined)}
-          />
-          <Show when={!classic() && !carousel()}>
-            <RatingsRow
+            y={laneY()}
+            x={-scroll()}
+            width={spanW()}
+            height={spanH()}
+            transition={tx({ x: { duration: L().openMs || 220, easing: glide() } })}
+          >
+            <view width={spanW()} height={spanH()}>
+              <Show when={!classic()}>
+                <For each={shown()}>
+                  {(c) => {
+                    const mine = () => isCur(c.idx) && focused()
+                    return (
+                      <ModernCard
+                        card={c}
+                        x={c.x + (c.idx > cur() ? extra() : 0)}
+                        w={mine() && extra() > 0 ? c.ew : c.w}
+                        focused={mine()}
+                        open={mine() && open()}
+                        look={L()}
+                        carousel={carousel()}
+                        dw={detailsW()}
+                        rh={ratingsH()}
+                        vid={c.key === playing()}
+                        onArtIn={onArtIn}
+                      />
+                    )
+                  }}
+                </For>
+              </Show>
+            </view>
+            <view width={spanW()} height={spanH()}>
+              <Show when={classic()}>
+                <For each={shown()}>
+                  {(c) => (
+                    <ClassicCard
+                      ref={(n) => (cardNodes[c.idx] = n)}
+                      card={c}
+                      x={c.x}
+                      focused={isCur(c.idx) && focused()}
+                      look={L()}
+                      vid={c.key === playing()}
+                    />
+                  )}
+                </For>
+              </Show>
+            </view>
+            <view width={spanW()} height={spanH()}>
+              <Show when={sa()}>
+                <view x={sa().x + extra()} width={sa().w} height={sa().h} borderRadius={20} color="#ffffff14" border={{ width: 3, color: saOn() ? 0xffffffff : 0xffffff00 }}>
+                  <view
+                    x={(sa().w - 53.4) / 2}
+                    y={(sa().h - 53.4 - 13.4 - 26) / 2}
+                    width={53.4}
+                    height={53.4}
+                    src={sa().icon}
+                    color={saOn() ? '#ffffffff' : '#ffffff99'}
+                  />
+                  <text
+                    x={0}
+                    y={(sa().h - 53.4 - 13.4 - 26) / 2 + 68.8}
+                    fontFamily={titleFont()}
+                    fontSize={21.7}
+                    lineHeight={26}
+                    letterSpacing={1.74}
+                    maxWidth={sa().w}
+                    contain="width"
+                    textAlign="center"
+                    color={saOn() ? '#ffffffff' : '#ffffff99'}
+                  >
+                    {seeAllText}
+                  </text>
+                </view>
+              </Show>
+            </view>
+            <view
+              ref={ring}
               x={ringBox().x}
-              y={ratingsY()}
-              item={ratingsItem()}
-              compact
-              singleLineWidth={detailsW()}
-              maxW={detailsW()}
-              surface="homeRows"
-              pluginEnabled={mdb()}
-              onLayout={(b) => setRatingsH(b.empty || !untrack(ratingsItem) ? 0 : b.h)}
+              width={ringBox().w}
+              height={ringBox().h}
+              borderRadius={L().modernRadius}
+              color="#00000000"
+              border={{ width: 4, color: hex(L().focus) }}
+              alpha={focused() && !classic() && !onSeeAll() ? 1 : 0}
+              transition={tx(L().openMs ? { x: { duration: L().openMs, easing: OPEN_EASE }, width: { duration: L().openMs, easing: OPEN_EASE } } : undefined)}
             />
-          </Show>
+            <Show when={!classic() && !carousel()}>
+              <RatingsRow
+                x={ringBox().x}
+                y={ratingsY()}
+                item={ratingsItem()}
+                compact
+                singleLineWidth={detailsW()}
+                maxW={detailsW()}
+                surface="homeRows"
+                pluginEnabled={mdb()}
+                onLayout={(b) => setRatingsH(b.empty || !untrack(ratingsItem) ? 0 : b.h)}
+              />
+            </Show>
+          </view>
         </view>
       </view>
       <view>

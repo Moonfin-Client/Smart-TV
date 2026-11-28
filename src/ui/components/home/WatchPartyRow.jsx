@@ -73,7 +73,6 @@ const chipFont = uiFont('medium')
 
 export default function WatchPartyRow(props) {
   const [cur, setCur] = createSignal(0)
-  const [scroll, setScroll] = createSignal(0)
   const [focused, setFocused] = createSignal(false)
   const [sizes, setSizes] = createSignal(0)
   let key = ''
@@ -123,16 +122,15 @@ export default function WatchPartyRow(props) {
   // The chips and pills are sized from measured text, which waits on the faces.
   onMount(() => textReady().then(() => setSizes(sizes() + 1)))
 
-  // A card past either edge scrolls in with 50px to spare.
+  // The focused card at the leading edge, as far as the lane can scroll.
+  const scroll = createMemo(() => {
+    const x = cur() >= rooms().length ? startX() : cur() * (CARD_W + GAP)
+    return Math.min(x, Math.max(0, L().pad * 2 + startX() + START_W - L().viewW))
+  })
   const move = (to) => {
     if (to < 0 || to >= count()) return
     key = to < rooms().length ? cards()[to].k : 'start'
     setCur(to)
-    const start = to >= rooms().length
-    const left = L().clipX + L().pad + (start ? startX() : to * (CARD_W + GAP)) - scroll()
-    const right = left + (start ? START_W : CARD_W)
-    if (left < L().clipX) setScroll(scroll() - (L().clipX - left + 50))
-    else if (right > 1920) setScroll(scroll() + right - 1920 + 50)
   }
   const join = async (room) => {
     if (busy) return
@@ -186,8 +184,8 @@ export default function WatchPartyRow(props) {
       <text x={L().inset} y={props.box.titleY + cssShift(28)} fontFamily={titleFont} fontSize={28} lineHeight={33} color={L().onSurface}>
         {props.row.title || ''}
       </text>
-      <view x={L().clipX} y={props.box.scrollerY} width={L().viewW} height={262} clipping>
-        <view y={20} x={L().pad - scroll()} width={spanW()} height={230}>
+      <view x={L().inset - L().lead} y={props.box.scrollerY} width={1920 - L().inset + L().lead} height={262} clipping>
+        <view y={20} x={L().lead - scroll()} width={spanW()} height={230}>
           <view width={spanW()} height={230}>
             <For each={cards()}>
               {(c) => (
