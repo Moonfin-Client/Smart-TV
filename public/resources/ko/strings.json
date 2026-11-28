@@ -1909,5 +1909,7 @@
     "Top-Right": "오른쪽 위",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "사용할 수 없음",
-    "Recently Released Episodes": "최근 출시된 에피소드"
+    "Recently Released Episodes": "최근 출시된 에피소드",
+    "Date Added (Newest First)": "추가된 날짜(최신순)",
+    "Date Added (Oldest First)": "추가된 날짜(오래된순)"
 }
