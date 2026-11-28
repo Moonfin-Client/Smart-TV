@@ -1026,5 +1026,7 @@
     "Text Stroke Color": "สีเส้นขีดของข้อความ",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "ไม่พร้อมใช้งาน",
-    "Recently Released Episodes": "ตอนที่ออกล่าสุด"
+    "Recently Released Episodes": "ตอนที่ออกล่าสุด",
+    "Date Added (Newest First)": "วันที่เพิ่ม (ใหม่สุดก่อน)",
+    "Date Added (Oldest First)": "วันที่เพิ่ม (เก่าสุดก่อน)"
 }
