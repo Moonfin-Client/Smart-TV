@@ -68,7 +68,7 @@ export const layoutPanelDialog = (d, t = theme()) => {
       made.forEach((b) => {
         out.focusables.push({ id: b.id, x, y, w: b.w, h: 47, r: 14, fill: true, focusFill: FOCUS, disabled: !!b.disabled })
         out.boxes.push({ k: `fb-${b.id}`, id: b.id, x, y, w: b.w, h: 47, r: 14, color: b.primary && !b.disabled ? FOCUS : t.os(0.1), a: b.disabled ? 0.7 : 1 })
-        text(`fb-${b.id}t`, x + (b.w - textWidth(b.label, 18, 'bold')) / 2, y + 13 + cssShift(18), b.label, 18, 'bold', b.primary && !b.disabled ? t.onAccent : t.onSurface, { lh: 21, a: b.disabled ? 0.7 : 1 })
+        text(`fb-${b.id}t`, x + (b.w - textWidth(b.label, 18, 'bold')) / 2, y + 13 + cssShift(18), b.label, 18, 'bold', b.primary && !b.disabled ? t.onAccent : t.onSurface, { lh: 21, a: b.disabled ? 0.7 : 1, id: b.id, inkOn: t.onAccent })
         x += b.w + 12
       })
       y += 47 + (d.form === 'confirm' || d.form === 'create' ? 8 : 0)
@@ -153,7 +153,7 @@ export const layoutPanelDialog = (d, t = theme()) => {
         // Delete's focus takes the recording red on its edge too, the others a white edge.
         out.focusables.push({ id: b.id, x: b.x, y: b.y, w: b.w, h: 54, r: 16, fill: true, focusFill: b.focusFill, focusEdge: b.focusFill === FOCUS ? t.onSurface : b.focusFill })
         out.boxes.push({ k: b.k, x: b.x, y: b.y, w: b.w, h: 54, r: 16, color: t.os(0.1) })
-        text(`${b.k}t`, b.x + (b.w - textWidth(b.label, 20, 'bold')) / 2, b.y + 15.5 + normalShift(20), b.label, 20, 'bold', t.onSurface, { lh: 1 })
+        text(`${b.k}t`, b.x + (b.w - textWidth(b.label, 20, 'bold')) / 2, b.y + 15.5 + normalShift(20), b.label, 20, 'bold', t.onSurface, { lh: 1, id: b.id, inkOn: b.focusFill === FOCUS ? t.onAccent : '#ffffffff' })
       })
       y += 54
     }
@@ -184,6 +184,11 @@ export default function PanelDialog(props) {
   const boxes = createMemo(() => {
     const f = focus()
     return laid().boxes.map((b) => (f && b.id === f.id && (b.onColor || b.onBc) ? { ...b, color: b.onColor || b.color, bc: b.onBc || b.bc } : b))
+  })
+  // A focused button's label takes the ink of its focus fill.
+  const texts = createMemo(() => {
+    const f = focus()
+    return laid().texts.map((x) => (f && x.id === f.id && x.inkOn ? { ...x, color: x.inkOn } : x))
   })
   // The focused row scrolls into view inside the panel's 1px border.
   const reveal = () => {
@@ -304,7 +309,7 @@ export default function PanelDialog(props) {
           border={{ width: 2, color: hex(theme().focus) }}
         />
         <Icons list={laid().icons} />
-        <Texts list={laid().texts} />
+        <Texts list={texts()} />
         </view>
         </view>
       </view>
