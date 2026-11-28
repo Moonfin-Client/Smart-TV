@@ -1025,5 +1025,7 @@
     "Text Stroke Color": "உரை பக்கவாதம் நிறம்",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "கிடைக்கவில்லை",
-    "Recently Released Episodes": "சமீபத்தில் வெளியான அத்தியாயங்கள்"
+    "Recently Released Episodes": "சமீபத்தில் வெளியான அத்தியாயங்கள்",
+    "Date Added (Newest First)": "சேர்த்த தேதி (புதியது முதலில்)",
+    "Date Added (Oldest First)": "சேர்த்த தேதி (பழையது முதலில்)"
 }
