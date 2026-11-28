@@ -1477,5 +1477,21 @@ patch(
         pending = sw !== null && sh !== null ? create.call(createThis, blob, sx || 0, sy || 0, sw, sh) : create.call(createThis, blob);
     }`
 )
+// Setting a texture cleared the node's texture coords, and only the load handler a microtask later
+// set them again. A frame drawn in between used the full texture: a sprite frame swapped from a
+// frameTick listener (the Spinner) drew its whole sheet squeezed into the box for that frame. An
+// already loaded texture now gets its coords as it's set.
+patch(
+  core + 'CoreNode.js',
+  '/* moonfin: a loaded texture gets its coords at once */',
+  `        this.textureLoaded = value !== null && value.state === 'loaded';
+`,
+  `        this.textureLoaded = value !== null && value.state === 'loaded';
+        /* moonfin: a loaded texture gets its coords at once */
+        if (this.textureLoaded === true) {
+            this.refreshTextureCoords();
+        }
+`
+)
 
 if (failed) process.exit(1)

@@ -31,6 +31,7 @@ const REQUEST_FILTERS = ['all', 'pending', 'approved', 'processing', 'available'
 const ISSUE_FILTERS = ['open', 'resolved', 'all']
 const LIST_X = 114
 const POLL_MS = 30000
+const CHECK_GRACE = 300
 const WHITE_EDGE = { width: 1, color: hex('#ffffffff') }
 const RETRY_SHADOW = { color: shadowColor('#0000004d'), x: 0, y: 18, blur: 18, spread: 0 }
 
@@ -64,7 +65,10 @@ export default function Requests(props) {
   const [answers, setAnswers] = createSignal({})
   const [loading, setLoading] = createSignal(true)
   const [error, setError] = createSignal('')
-  const [authed, setAuthed] = createSignal(true)
+  // null until checkSeerr answers, so the configure message doesn't show early. The spinner waits
+  // CHECK_GRACE for that answer, so an unconfigured setup doesn't flash it, and then shows anyway.
+  const [authed, setAuthed] = createSignal(null)
+  const [checkSlow, setCheckSlow] = createSignal(false)
   const [counts, setCounts] = createSignal({ pending: 0, open: 0 })
   const [perms, setPerms] = createSignal(null)
   const [me, setMe] = createSignal(null)
@@ -76,11 +80,12 @@ export default function Requests(props) {
   const [scroll, setScroll] = createSignal(0)
   const [thread, setThread] = createSignal(null)
   const [fontsIn, setFontsIn] = createSignal(0)
-  const my = { gen: 0, more: false, loadingMore: false, queues: false, asked: {}, poll: null, alive: true }
+  const my = { gen: 0, more: false, loadingMore: false, queues: false, asked: {}, poll: null, checkTimer: null, alive: true }
   let root
   onCleanup(() => {
     my.alive = false
     my.gen++
+    clearTimeout(my.checkTimer)
     stopPoll()
   })
 
@@ -153,7 +158,8 @@ export default function Requests(props) {
       }
     })
   })
-  const listTop = () => 180 + tabsH() + 91
+  const listTopAt = (tabs) => 180 + tabs + 91
+  const listTop = () => listTopAt(tabsH())
   const listH = () => 1080 - listTop()
   const split = createMemo(() => splitRequester(requests()))
   const viewer = createMemo(() => ({ canManage: seerrApi.canManageRequests(perms()), me: me() }))
@@ -215,12 +221,15 @@ export default function Requests(props) {
   const contentH = () => Math.max(listH(), Math.ceil(items().length / (view() === 'requests' ? GRID.cols : 1)) * stepY() + 24)
   // Where the list's message, spinner or error sits: the middle of what's under the chips.
   const midY = () => listTop() + listH() / 2
+  // The spinner keeps the middle it has before any count badge makes the tabs taller: the counts
+  // land while it spins, and a moving midY made it jump onto a half pixel.
+  const spinMidY = (listTopAt(59) + 1080) / 2
   const message = () => {
-    if (!authed()) return $L('Please configure Seerr in Settings')
+    if (authed() === false) return $L('Please configure Seerr in Settings')
     if (loading() || error() || items().length) return ''
     return view() === 'requests' ? $L('No requests found') : $L('No issues found')
   }
-  const spinning = () => loading() && authed()
+  const spinning = () => loading() && (authed() === true || (authed() === null && checkSlow()))
   const showError = () => !!error() && !loading()
   const retryW = () => {
     void fontsIn()
@@ -394,7 +403,9 @@ export default function Requests(props) {
   }
 
   const start = async () => {
+    my.checkTimer = setTimeout(() => setCheckSlow(true), CHECK_GRACE)
     const seerr = await checkSeerr(!seerrState().available)
+    clearTimeout(my.checkTimer)
     if (!my.alive) return
     my.queues = !!(seerr.pluginInfo && seerr.pluginInfo.arrQueueAvailable === true)
     if (!seerr.authenticated) {
@@ -405,6 +416,7 @@ export default function Requests(props) {
       })
       return
     }
+    setAuthed(true)
     if (seerr.user && seerr.user.seerrUserId != null) setMe(seerr.user.seerrUserId)
     // The status call claims every permission when it leaves them out, so admin actions gate on
     // the real /auth/me answer.
@@ -687,8 +699,8 @@ export default function Requests(props) {
 
       <view>
         <Show when={spinning()}>
-          <Spinner x={924} y={midY() - 139} size={72} />
-          <text x={960} y={midY() - 42.5 + shifts.loading} mountX={0.5} fontFamily={loadingFont} fontSize={30} lineHeight={33} color="#e6e6e6ff">
+          <Spinner x={924} y={spinMidY - 139} size={72} />
+          <text x={960} y={spinMidY - 42.5 + shifts.loading} mountX={0.5} fontFamily={loadingFont} fontSize={30} lineHeight={33} color="#e6e6e6ff">
             {loadingLabel}
           </text>
         </Show>
