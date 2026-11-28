@@ -1639,6 +1639,7 @@
     "Hidden": "Hidden",
     "Hidden achievement": "Hidden achievement",
     "Hidden libraries are removed from all Jellyfin clients. This is a server-level setting.": "Hidden libraries are removed from all Jellyfin clients. This is a server-level setting.",
+    "Hidden libraries stay hidden on this device only, since Plex doesn't keep this setting.": "Hidden libraries stay hidden on this device only, since Plex doesn't keep this setting.",
     "Hide": "Hide",
     "Hide Libraries": "Hide Libraries",
     "Hide Unwatched Count": "Hide Unwatched Count",

@@ -1187,17 +1187,22 @@ const librariesChanged = (detail) => {
   browseRefresh(detail)
 }
 
-// Which libraries the viewer has hidden. This lives on the Jellyfin user configuration rather
-// than in app settings, and in unified mode it's written to every server.
+// Which libraries the viewer has hidden, kept in the user configuration rather than in app settings. In
+// unified mode a library is known by its server too, since Plex ids repeat across servers.
+const libraryKey = (serverUrl, id) => `${serverUrl}|${id}`
+
 const loadLibraryVisibility = async (page, view) => {
   view.loading = true
+  view.unified = unifiedLibraries(page)
   try {
-    if (unifiedLibraries(page)) {
+    if (view.unified) {
       const [all, configs] = await Promise.all([connectionPool.getAllLibrariesFromAllServers(), connectionPool.getUserConfigFromAllServers()])
       view.libraries = all.filter((lib) => lib.CollectionType)
       view.configs = configs
-      const excluded = configs.reduce((acc, cfg) => acc.concat((cfg.configuration && cfg.configuration.MyMediaExcludes) || []), [])
-      view.hidden = excluded.filter((id, i) => excluded.indexOf(id) === i)
+      view.hidden = configs.reduce(
+        (acc, cfg) => acc.concat(((cfg.configuration && cfg.configuration.MyMediaExcludes) || []).map((id) => libraryKey(cfg.serverUrl, id))),
+        [],
+      )
     } else {
       const [views, user] = await Promise.all([api.getAllLibraries(), api.getUserConfiguration()])
       view.libraries = ((views && views.Items) || []).filter((lib) => lib.CollectionType)
@@ -1215,12 +1220,12 @@ const saveLibraryVisibility = async (page, view) => {
   view.saving = true
   page.refresh()
   try {
-    if (unifiedLibraries(page)) {
+    if (view.unified) {
       const excludes = {}
       view.libraries.forEach((lib) => {
         const key = lib._serverUrl
         if (!excludes[key]) excludes[key] = []
-        if (view.hidden.indexOf(lib.Id) >= 0) excludes[key].push(lib.Id)
+        if (view.hidden.indexOf(libraryKey(key, lib.Id)) >= 0) excludes[key].push(lib.Id)
       })
       await Promise.all(
         (view.configs || []).map((cfg) => {
@@ -1254,20 +1259,26 @@ SCREENS.libraries = {
       view.hidden = []
       loadLibraryVisibility(page, view)
     }
-    const out = [{ type: 'text', k: 'desc', text: $L('Hidden libraries are removed from all Jellyfin clients. This is a server-level setting.') }]
+    const unified = !!view.unified
+    const configs = unified ? view.configs || [] : [{ serverType: getServerType() }]
+    const plex = configs.length > 0 && configs.every((cfg) => cfg.serverType === 'plex')
+    const desc = plex
+      ? $L("Hidden libraries stay hidden on this device only, since Plex doesn't keep this setting.")
+      : $L('Hidden libraries are removed from all Jellyfin clients. This is a server-level setting.')
+    const out = [{ type: 'text', k: 'desc', text: desc }]
     if (view.loading) {
       out.push({ type: 'text', style: 'loading', k: 'loading', text: $L('Loading libraries...') })
       return out
     }
-    const unified = unifiedLibraries(page)
     view.libraries.forEach((lib) => {
-      const isHidden = view.hidden.indexOf(lib.Id) >= 0
+      const key = unified ? libraryKey(lib._serverUrl, lib.Id) : lib.Id
+      const isHidden = view.hidden.indexOf(key) >= 0
       out.push(
-        centerCard('lib-' + lib.Id, libraryName(lib, unified), isHidden ? $L('Hidden') : $L('Visible'), {
+        centerCard('lib-' + key, libraryName(lib, unified), isHidden ? $L('Hidden') : $L('Visible'), {
           trail: 'toggle',
           on: !isHidden,
           press: (pg) => {
-            view.hidden = view.hidden.indexOf(lib.Id) >= 0 ? view.hidden.filter((id) => id !== lib.Id) : [...view.hidden, lib.Id]
+            view.hidden = view.hidden.indexOf(key) >= 0 ? view.hidden.filter((id) => id !== key) : [...view.hidden, key]
             pg.refresh()
           },
         })
