@@ -3,7 +3,7 @@ import { displayFont, fontFor, themeSpacing, uiFont } from '../../text.js'
 import { hex } from '../../color.js'
 import { focusMs } from './motion.js'
 import { layoutSide } from './sideLayout.js'
-import { activeThemeId, theme } from '../../theme.js'
+import { activeThemeId, rgba, theme } from '../../theme.js'
 import { keyed } from './pageKit.js'
 import * as settings from '../../../state/settings.js'
 
@@ -82,9 +82,9 @@ export default function SidePanel(props) {
         return true
       }}
     >
-      <view width={1920} height={1080} color={theme().scrim.slice(0, 7) + '73'} />
+      <view width={1920} height={1080} color={rgba(theme().scrim, 0.45)} />
       <view x={shown() ? 1475 : 1920} width={445} height={1080} transition={{ x: { duration: ms, easing: 'ease-out' } }}>
-        <view width={445} height={1080} color={theme().surface.slice(0, 7) + 'eb'} />
+        <view width={445} height={1080} color={rgba(theme().surface, 0.92)} />
         <view width={1} height={1080} color={theme().os(0.06)} />
         <view>
           <For each={labelRows.keys()}>

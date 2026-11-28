@@ -1,6 +1,6 @@
 import { Show } from 'solid-js'
 import { hex } from '../../color.js'
-import { theme } from '../../theme.js'
+import { rgba, theme } from '../../theme.js'
 
 // One row of a LibraryPanel dialog, drawn from its laid out model. Optional parts exist only when the
 // row needs them. `neon` draws Neon Pulse: option rows focused and picked in the accent, a picked
@@ -121,7 +121,7 @@ export default function PanelRow(props) {
         </text>
       </Show>
       <Show when={k() === 'search'}>
-        <view width={r().inner} height={66} borderRadius={33} color={t.surface.slice(0, 7) + 'b8'}>
+        <view width={r().inner} height={66} borderRadius={33} color={rgba(t.surface, 0.72)}>
           <view width={r().inner} height={66} borderRadius={33} color={CLEAR} border={FIELD_EDGE} alpha={on() ? 1 : 0} />
           <view x={20} y={19} width={28} height={28} src="icons/lib_search.webp" color={t.onSurface} />
           <text

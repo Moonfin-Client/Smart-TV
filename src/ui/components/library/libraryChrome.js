@@ -6,17 +6,17 @@ import { LETTERS } from '../../../utils/gridChrome.js'
 import { textWidth } from './measure.js'
 import { uiFont } from '../../text.js'
 import { hex } from '../../themeColor.js'
-import { theme } from '../../theme.js'
+import { rgba, theme } from '../../theme.js'
 
 const SIDE = 87
 const INFO_H = 152
 
-// The theme's accent and focus color, set from the theme each time the header is laid out.
-let C = { accent: '#00a4dcff', focus: '#ffffffff', text: '#ffffffff', ink: '#101010ff', field: '#1e1e28b8', dock: '#171717e0', os: (a) => '#ffffff' + Math.round(a * 255).toString(16).padStart(2, '0') }
+// The theme's colors, set from the theme each time the header is laid out.
+let C
 
 // A bound border object reaches the renderer as it is, so its color goes in as the renderer's number.
 export { hex as colorNum }
-const ringOf = (w, color = C.text) => ({ w, color: hex(color) })
+const ringOf = (w, color) => ({ w, color: hex(color) })
 
 // The round-cornered toolbar button, 44 square in the Classic toolbar and 66 in
 // the Modern bar and the dock.
@@ -266,7 +266,7 @@ const neon = (out) => {
 export const libraryChrome = (s, t = theme()) => {
   C = {
     accent: t.accent, focus: t.focus, text: t.onSurface, os: t.os, ink: t.background,
-    field: t.surface.slice(0, 7) + 'b8', dock: t.surface.slice(0, 7) + 'e0',
+    field: rgba(t.surface, 0.72), dock: rgba(t.surface, 0.88),
   }
   return s.neon ? neon(layout(s)) : layout(s)
 }
