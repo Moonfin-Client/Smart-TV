@@ -3,8 +3,9 @@ import { createMemo, createSignal } from 'solid-js'
 import CountdownRing from './CountdownRing.jsx'
 import { uiFont } from '../../text.js'
 import { hex } from '../../color.js'
+import { theme } from '../../theme.js'
 import * as settings from '../../../state/settings.js'
-import { ACCENT, textWidth } from './look.js'
+import { textWidth } from './look.js'
 import { formatRemaining, panelFill, panelShadow } from './overlayLook.js'
 
 const SEGMENT_LABELS = { intro: 'Intro', outro: 'Outro', preview: 'Preview', recap: 'Recap', commercial: 'Commercial' }
@@ -21,6 +22,7 @@ export default function SkipPrompt(props) {
   const [active, setActive] = createSignal(false)
   const font = uiFont('bold')
   const fill = panelFill()
+  const t = theme()
   const shadow = panelShadow()
   const look = createMemo(() => {
     const p = props.prompt || NO_PROMPT
@@ -73,9 +75,9 @@ export default function SkipPrompt(props) {
     >
       <view width={look().w} height={look().h} borderRadius={look().r} color="#00000000" shadow={shadow} />
       <view width={look().w} height={look().h} borderRadius={look().r} color={fill} />
-      <view width={look().w} height={look().h} borderRadius={look().r} color="#00000000" border={{ width: 1, color: hex(ACCENT) }} alpha={active() ? 1 : 0} />
-      <view x={30} y={(look().h - 29) / 2} width={29} height={29} src="icons/skip_next.webp" color={ACCENT} />
-      <text fontFamily={font} fontSize={22} x={look().labelX} y={look().h / 2 - 11} lineHeight={26} color="#ffffffff">
+      <view width={look().w} height={look().h} borderRadius={look().r} color="#00000000" border={{ width: 1, color: hex(t.focus) }} alpha={active() ? 1 : 0} />
+      <view x={30} y={(look().h - 29) / 2} width={29} height={29} src="icons/skip_next.webp" color={t.accent} />
+      <text fontFamily={font} fontSize={22} x={look().labelX} y={look().h / 2 - 11} lineHeight={26} color={t.onSurface}>
         {look().label}
       </text>
       <text
@@ -85,13 +87,13 @@ export default function SkipPrompt(props) {
         x={look().timerX}
         y={look().h / 2 - 9.5}
         lineHeight={23}
-        color="#ffffff80"
+        color={t.os(0.5)}
       >
         {look().timerText || ' '}
       </text>
       <view x={look().ringX} y={16} width={52} height={52} alpha={look().ring}>
-        <CountdownRing size={52} stroke={4} progress={look().progress} track="#ffffff29" value={ACCENT} />
-        <view x={15} y={15} width={22} height={22} src="icons/skip_next.webp" color={ACCENT} alpha={look().glyph} />
+        <CountdownRing size={52} stroke={4} progress={look().progress} track={t.os(0.16)} value={t.accent} />
+        <view x={15} y={15} width={22} height={22} src="icons/skip_next.webp" color={t.accent} alpha={look().glyph} />
       </view>
       <text
         alpha={look().number ? 1 : 0}
@@ -101,7 +103,7 @@ export default function SkipPrompt(props) {
         y={32.5}
         lineHeight={23}
         mountX={0.5}
-        color="#ffffffff"
+        color={t.onSurface}
       >
         {look().number || ' '}
       </text>
