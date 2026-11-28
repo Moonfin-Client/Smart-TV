@@ -68,6 +68,22 @@ const excludedVideoCodecs = (codecProfiles) => {
 	return out;
 };
 
+// The profiles a codec's rule lists as the only ones the TV decodes, as Silo's video_decode entries. Silo reads a
+// declared entry as narrowing the codec claim, so a TV that lists H.264 High but not High 10 isn't sent a 10-bit copy.
+const videoDecodeEntries = (codecProfiles, videoCodecs) => {
+	const out = [];
+	codecProfiles.forEach((p) => {
+		if (p.Type !== 'Video' || profiles(p.ApplyConditions).length) return;
+		const rule = profiles(p.Conditions).find((c) => c.Condition === 'EqualsAny' && c.Property === 'VideoProfile');
+		const names = rule ? String(rule.Value).split('|').map((v) => v.trim()).filter(Boolean) : [];
+		if (!names.length) return;
+		csv(p.Codec).forEach((codec) => {
+			if (videoCodecs.includes(codec) && !out.some((d) => d.codec === codec)) out.push({codec, profiles: names, hardware: true});
+		});
+	});
+	return out;
+};
+
 const rangeKey = (value) => value.trim().toUpperCase().replace(/_/g, '');
 
 // The ranges a codec's profile rules out, and the ones it lists as the only ones it plays (null when it lists none).
@@ -191,6 +207,7 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 	const hlsVideo = hlsProfiles.length ? videoCodecs.filter((c) => HLS_VIDEO_CODECS.includes(c) || hlsTargets.includes(c)) : [];
 	const hlsAudio = union(hlsProfiles.map((p) => csv(p.AudioCodec)));
 	const hdr = hdrDetails(codecProfiles, videoCodecs);
+	const videoDecode = videoDecodeEntries(codecProfiles, videoCodecs);
 	const anyHdr = hdr.hdr10 || hdr.hlg || hdr.hdr10_plus || hdr.dolby_vision_profiles.length > 0;
 	const resolution = maxResolution(codecProfiles);
 	const byCodecSupported = Array.isArray(serverFeatures) && serverFeatures.includes('codec_channel_ceilings_v1');
@@ -236,6 +253,7 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 			audio_evidence: 'declared',
 			codecs_video: videoCodecs,
 			codecs_video_hardware: videoCodecs,
+			...(videoDecode.length ? {video_decode: videoDecode} : null),
 			codecs_audio: audioCodecs,
 			containers,
 			...(resolution ? {max_resolution: resolution} : null),
