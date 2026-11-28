@@ -201,10 +201,12 @@ export default function CalendarMonth(props) {
     const inset = today ? 2 : 0
     const padTop = dp(6)
     const numLh = dp(15) * LH
-    const shown = entries.slice(0, 2)
-    const more = entries.length - shown.length
     const entryTop = padTop + numLh + dp(4)
     const entryLh = dp(12) * LH
+    // Every title when they all fit the cell, otherwise one fewer and the last line says how many are left.
+    const fit = Math.floor((h - inset * 2 - padTop - entryTop + dp(3)) / (entryLh + dp(3)))
+    const shown = entries.length > fit ? entries.slice(0, Math.max(0, fit - 1)) : entries
+    const more = entries.length - shown.length
     const tagLabel = $L('NEW')
     const tagSize = dp(11)
     const tagLh = tagSize * LH
