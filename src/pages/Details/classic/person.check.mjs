@@ -52,16 +52,16 @@ for (const tab of [0, 1, 2, 3, 9]) {
   assert.equal(switched._person.tab, full._person.tab)
 }
 
-// The portrait has no ring, on any theme, and Neon Pulse's pink glow is gone with it.
-for (const neon of [false, true]) {
-  const p = paintPerson({ ...comp(0), tokens: { ...tokens, neon } }, d)
-  assert.ok(!p.out.rects.some((r) => r.k === 'photoRing'), 'no portrait ring')
-  assert.ok(!p.out.rects.some((r) => r.shadow && /ff2e92/.test(r.shadow.color)), 'no pink glow')
-}
-// The open tab fills with the focus color and its label reads on it: dark on a bright focus color
-// (Glass's white, Moonfin's cyan), white on a dim one. A focused tab writes in the text color.
+// The portrait rings in the focus color, and Neon Pulse rings it in pink with a pink glow.
+const ringOf = (p) => p.out.rects.find((r) => r.k === 'photoRing')
+assert.equal(ringOf(paintPerson({ ...comp(0), tokens: { ...tokens, focus: '#ffcd75ff' } }, d)).bc, '#ffcd75ff')
+const neonHead = paintPerson({ ...comp(0), tokens: { ...tokens, neon: true } }, d)
+assert.equal(ringOf(neonHead).bc, '#ff2e9273')
+assert.ok(neonHead.out.rects.some((r) => r.shadow && /ff2e92/.test(r.shadow.color)), 'pink glow')
+// The open tab fills with the focus color. Its label stays white unless white all but vanishes there,
+// as on Glass's white or 8-Bit Hero's gold. A focused tab writes in the text color.
 const NEON = { neon: true, onSurface: '#00e5ffff', os: (a) => '#00e5ff' + Math.round(a * 255).toString(16).padStart(2, '0'), accent: '#ff2e92ff', accentA: () => '#ff2e924d' }
-for (const [focus, ink] of [['#ffffffff', '#000000de'], ['#00e5ffff', '#000000de'], ['#7b1fa2ff', '#ffffffff']]) {
+for (const [focus, ink] of [['#ffffffff', '#000000de'], ['#ffcd75ff', '#000000de'], ['#00a4dcff', '#ffffffff'], ['#ff2e92ff', '#ffffffff'], ['#7b1fa2ff', '#ffffffff']]) {
   const tabs = paintPerson({ ...comp(1), tokens: { ...NEON, focus } }, d).pillsB
   const open = tabs.find((x) => x.idx === 1)
   assert.equal(open.bg, focus, 'open tab fill')

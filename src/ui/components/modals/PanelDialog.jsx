@@ -1,7 +1,7 @@
 import { createComputed, createMemo, createSignal, on, untrack } from 'solid-js'
 import { cssShift, fontFor, normalShift } from '../../text.js'
 import { hex } from '../../color.js'
-import { shadowColor, theme } from '../../theme.js'
+import { rgba, shadowColor, theme } from '../../theme.js'
 import { textWidth, wrapLines } from '../details/measure.js'
 import { Icons, Rects, Texts, appear } from './draw.jsx'
 import { focusScroll } from '../nav/focusScroll.js'
@@ -14,7 +14,6 @@ import { focusScroll } from '../nav/focusScroll.js'
 // Props: `dialog` (the spec), `tokens`. Enter calls onDialogPick(id), Back onDialogClose(), and
 // Left and Right on the stars call onDialogAdjust(delta).
 // The renderer can't blur what's behind the panel, so it's 97% opaque rather than 85% over a blur.
-// The panel, text and focus take the theme's surface, text and accent colors.
 // 70vh of content, plus the padding and border.
 const LIST_MAX_H = 756 + 64 + 2
 
@@ -280,7 +279,7 @@ export default function PanelDialog(props) {
           color="#00000000"
           shadow={{ color: shadowColor('#00000066'), x: 0, y: 8, blur: 32, spread: 0 }}
         />
-        <view width={laid().w} height={laid().h} borderRadius={24} color={`${theme().surface.slice(0, 7)}f7`} border={{ width: 1, color: hex(theme().os(0.12)) }} />
+        <view width={laid().w} height={laid().h} borderRadius={24} color={rgba(theme().surface, 0.97)} border={{ width: 1, color: hex(theme().os(0.12)) }} />
         <view x={1} y={1} width={laid().w - 2} height={laid().h - 2} clipping>
         <view x={-1} y={-1 - scroll()} width={laid().w} height={laid().fullH}>
         <Rects list={boxes()} />

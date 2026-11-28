@@ -4,7 +4,7 @@ import Row from '../../ui/components/Row.jsx'
 import Spinner from '../../ui/components/Spinner.jsx'
 import { toCard } from '../../ui/models.js'
 import { fontFor, uiFont } from '../../ui/text.js'
-import { navOnLeft, theme } from '../../ui/theme.js'
+import { navOnLeft, sideNavRoom, theme } from '../../ui/theme.js'
 import { hex } from '../../ui/color.js'
 import { textWidth } from '../../ui/components/seerr/look.js'
 import { lineCount } from '../../ui/components/player/look.js'
@@ -15,6 +15,7 @@ import * as seerrApi from '../../services/seerrApi.js'
 import { personDateLines, prepareCredits } from '../../utils/personCredits.js'
 import { normalizeMediaItem } from '../../utils/seerrHomeRows.js'
 import { openSeerrItem } from './seerrModels.js'
+import { classicLeft } from '../Details/classic/layout.js'
 
 // A TMDB-only person, laid out like a library person: a random backdrop from their credits, the
 // round portrait, name, dates, birthplace and department, the biography (Enter opens it in full)
@@ -23,6 +24,8 @@ import { openSeerrItem } from './seerrModels.js'
 const OVERVIEW_LINE = 33
 const COVER = { resizeMode: { type: 'cover' } }
 const EMPTY_ROW = { title: '', items: [], key: 'none' }
+// The page moves right of a left sidebar by as much as the Classic person screen does.
+const sideRoom = () => classicLeft(sideNavRoom()) - classicLeft(null)
 
 export default function Person(props) {
   const store = getStore()
@@ -94,7 +97,7 @@ export default function Person(props) {
     })
     // The biography's line breaks and runs of spaces collapse into single spaces.
     const bio = String(d.biography || '').replace(/\s+/g, ' ').trim()
-    const bioLines = bio ? Math.max(1, lineCount(bio, 22, 'regular', 1462)) : 0
+    const bioLines = bio ? Math.max(1, lineCount(bio, 22, 'regular', 1462 - sideRoom())) : 0
     const shown = expanded() ? bioLines : Math.min(3, bioLines)
     const metaY = 205
     const bioY = lines.length ? metaY + 33 + 16 : metaY
@@ -235,7 +238,7 @@ export default function Person(props) {
       <view>
         <Show when={info()}>
           {(nf) => (
-            <view>
+            <view x={sideRoom()} width={1920} height={1080}>
               <view x={75} y={159} width={250} height={250} borderRadius={125} color={theme().os(0.2)} />
               <Show
                 when={nf().profile}
@@ -247,7 +250,7 @@ export default function Person(props) {
               >
                 <view x={75} y={159} width={250} height={250} borderRadius={125} src={nf().profile} textureOptions={COVER} />
               </Show>
-              <text x={384} y={158} fontFamily={nf().nameFont} fontSize={48} lineHeight={33} maxWidth={1488} maxLines={1} color={theme().onSurface}>
+              <text x={384} y={158} fontFamily={nf().nameFont} fontSize={48} lineHeight={33} maxWidth={1488 - sideRoom()} maxLines={1} color={theme().onSurface}>
                 {nf().name}
               </text>
               <view>
@@ -260,15 +263,15 @@ export default function Person(props) {
                 </For>
               </view>
               <Show when={nf().bio}>
-                <view x={384} y={nf().bioY} width={1488} height={nf().bioH}>
-                  <view width={1488} height={nf().bioH} borderRadius={8} color="#00000000" border={edge()} alpha={zone() === 'bio' ? 1 : 0} />
+                <view x={384} y={nf().bioY} width={1488 - sideRoom()} height={nf().bioH}>
+                  <view width={1488 - sideRoom()} height={nf().bioH} borderRadius={8} color="#00000000" border={edge()} alpha={zone() === 'bio' ? 1 : 0} />
                   <text
                     x={13}
                     y={11}
                     fontFamily={nf().bioFont}
                     fontSize={22}
                     lineHeight={33}
-                    maxWidth={1462}
+                    maxWidth={1462 - sideRoom()}
                     maxLines={expanded() ? 0 : nf().bioLines}
                     color={theme().os(0.8)}
                   >

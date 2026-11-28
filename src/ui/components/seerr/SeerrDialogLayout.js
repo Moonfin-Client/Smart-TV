@@ -6,7 +6,7 @@
 import $L from '../../../services/i18n.js'
 import { cssShift, textWidth as faceWidth, uiFont } from '../../text.js'
 import { roboto, robotoShift, robotoWidth } from '../shell/MessageMarkdown.js'
-import { alphaHex } from '../../themeColor.js'
+import { alphaHex, rgba } from '../../themeColor.js'
 
 // Only the dialog titles take the theme's face. The rest stays in Roboto on every theme. Node's
 // checks have no canvas to measure Roboto, so they use text.js's widths.
@@ -21,13 +21,10 @@ const PANEL_W = dp(440)
 const PANEL_MAX_H = SCREEN_H - 2 * dp(24)
 
 const white = (a) => `#ffffff${alphaHex(a)}`
-// The colors the bodies draw in when no theme is passed: Moonfin's default dark ones.
-const DEFAULT_COLORS = { accent: '#00a4dcff', accentA: (a) => `#00a4dc${alphaHex(a)}`, onAccent: '#ffffffff', focus: '#00a4dcff', onSurface: '#ffffffff', os: white, navFocusFill: '#ffffffff', navFocusInk: '#000000de', inputBackground: '#2a2a2aff', status: { available: '#22c55eff' } }
 const rgbOf = (lc) => String(lc || '#1a1a1aff').slice(0, 7)
 
-// A builder for one layer's draw lists. The bodies take the theme's colors from it (d.t), so the
-// text and controls follow the dialog panel instead of staying white and blue.
-const drawList = (t = DEFAULT_COLORS) => {
+// A builder for one layer's draw lists. The bodies take the theme's colors from it (d.t).
+const drawList = (t) => {
   const out = { rects: [], glows: [], icons: [], imgs: [], texts: [], spaced: [], spinners: [], focusables: [], accent: t.accent, t }
   let n = 0
   out.rect = (x, y, w, h, r, color, bw, bc) => out.rects.push({ k: `r${n++}`, x, y, w, h, r: r || 0, color, bw: bw || 0, bc: bc || '#00000000' })
@@ -234,8 +231,7 @@ const quotaRow = (d, { x, y, w, label, blocked }) => {
 const continuingNote = (d, { x, y, w, t }) => {
   const lh = dp(13) * 1.43
   const h = 2 * dp(10) + 2 + Math.max(dp(20), lh)
-  const ok = t.status.available.slice(0, 7)
-  d.rect(x, y, w, h, dp(8), ok + '26', 1, ok + '66')
+  d.rect(x, y, w, h, dp(8), rgba(t.status.available, 0.15), 1, rgba(t.status.available, 0.4))
   d.icon(x + 1 + dp(14), y + (h - dp(20)) / 2, dp(20), 'autorenew', t.status.available)
   d.text(x + 1 + dp(14) + dp(20) + dp(10), y + (h - lh) / 2, $L('Series Continuing · Future Seasons Can Be Requested'), dp(13), 'medium', t.onSurface, lh, { ls: ROW_LS })
   return h
@@ -302,7 +298,7 @@ const matchCard = (d, { id, row, x, y, w, match, selected, focusId }) => {
   }
   const textH = (match.year > 0 ? yearLh : 0) + titleLh + (overview.length ? dp(4) + overview.length * yearLh : 0)
   const h = 2 + 2 * dp(8) + Math.max(posterH, textH)
-  d.rect(x, y, w, h, dp(10), selected ? d.accent.slice(0, 7) + '2e' : d.t.os(0.06), 1, d.t.os(0.12))
+  d.rect(x, y, w, h, dp(10), selected ? d.t.accentA(0.18) : d.t.os(0.06), 1, d.t.os(0.12))
   if (focusId === id) d.rect(x + 1, y + 1, w - 2, h - 2, dp(10) - 1, '#00000000', dp(2), d.accent)
   d.rect(px, top, posterW, posterH, dp(6), d.t.os(0.1))
   if (match.remotePoster) d.image(px, top, posterW, posterH, dp(6), match.remotePoster)

@@ -6,7 +6,6 @@ import { coreFrame, dp } from './coreFrame.js'
 import { layoutBlocks, roboto, robotoShift, wrapText } from './MessageMarkdown.js'
 import { theme, rgba } from '../../theme.js'
 import { hex } from '../../color.js'
-import { alphaHex } from '../../themeColor.js'
 import { cssShift, fontFor, textReady, textWidth, themeSpacing, uiFont } from '../../text.js'
 import { MESSAGE_COLORS, hasAction, stripMarkdown } from '../../../services/serverMessages.js'
 import { parseMarkdown } from '../../../utils/markdown.js'
@@ -228,7 +227,7 @@ export default function ServerMessages(props) {
   // The card keeps the surface variant's own transparency, so Glass's stays see-through.
   const cardFill = () => {
     const sv = t().surfaceVariant
-    return sv.slice(0, 7) + alphaHex((parseInt(sv.slice(7, 9) || 'ff', 16) / 255) * 0.95)
+    return rgba(sv, (parseInt(sv.slice(7, 9), 16) / 255) * 0.95)
   }
 
   return (

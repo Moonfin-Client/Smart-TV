@@ -1,7 +1,8 @@
 import { For, Show, createMemo, createSelector, createSignal } from 'solid-js'
 import { fontFor, uiFont } from '../../text.js'
 import { hex } from '../../color.js'
-import { theme } from '../../theme.js'
+import { rgba, theme } from '../../theme.js'
+import { contrastRatio, MIN_BUTTON_CONTRAST } from '../../../theme/themeSpec.js'
 import { focusScrollFor } from '../../../pages/Seerr/browseGrid.js'
 import { keyed } from '../library/pageKit.js'
 
@@ -46,6 +47,8 @@ export default function BrowseDialog(props) {
   const countFont = uiFont('bold')
   const t = () => theme()
   const mark = () => t().status.downloading
+  // A picked mark's dot and tick stay white unless white reads too faintly on its fill, as on 8-Bit Hero's blue.
+  const markInk = () => (contrastRatio(mark().slice(0, 7), '#ffffff') >= MIN_BUTTON_CONTRAST ? '#ffffffff' : '#000000de')
   const placed = createMemo(() => {
     const th = t()
     let y = PAD
@@ -144,7 +147,7 @@ export default function BrowseDialog(props) {
       }}
     >
       <view width={1920} height={1080} color="#0000008a" />
-      <view x={642.78} y={top()} width={634.44} height={panelH()} borderRadius={33.39} color={`${t().surface.slice(0, 7)}e6`} border={{ width: 1, color: hex(t().accentA(0.33)) }}>
+      <view x={642.78} y={top()} width={634.44} height={panelH()} borderRadius={33.39} color={rgba(t().surface, 0.9)} border={{ width: 1, color: hex(t().accentA(0.33)) }}>
         <view x={1} y={1} width={632.44} height={view()} clipping>
           <view y={-scroll()} width={632.44} height={contentH()}>
             <For each={kept.keys()}>
@@ -166,8 +169,8 @@ export default function BrowseDialog(props) {
                         color={r().on ? mark() : '#00000000'}
                         border={{ width: 3, color: hex(r().on ? mark() : t().os(0.5)) }}
                       />
-                      <view x={48.42} y={(r().h - 13.36) / 2} width={13.36} height={13.36} borderRadius={6.68} color="#ffffffff" alpha={r().dot ? 1 : 0} />
-                      <view x={43.41} y={(r().h - 23.37) / 2} width={23.37} height={23.37} src="icons/check.webp" color="#ffffffff" alpha={r().check ? 1 : 0} />
+                      <view x={48.42} y={(r().h - 13.36) / 2} width={13.36} height={13.36} borderRadius={6.68} color={markInk()} alpha={r().dot ? 1 : 0} />
+                      <view x={43.41} y={(r().h - 23.37) / 2} width={23.37} height={23.37} src="icons/check.webp" color={markInk()} alpha={r().check ? 1 : 0} />
                     </Show>
                     <Show when={r().kind === 'clear'}>
                       <view x={40.07} y={(r().h - 30.05) / 2} width={30.05} height={30.05} src="icons/filterAltOff.webp" color={mark()} />

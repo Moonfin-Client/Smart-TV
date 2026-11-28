@@ -6,7 +6,7 @@ import { textWidth, wrapLines } from '../../../ui/components/details/measure.js'
 import { formatDuration, getImageUrl } from '../../../utils/helpers.js'
 import { personDateLines } from '../../../utils/personCredits.js'
 import { offersFavorite } from '../personFavorite.js'
-import { inkOn } from '../../../theme/themeSpec.js'
+import { contrastRatio } from '../../../theme/themeSpec.js'
 import { hidesMediaDescription } from '../detailsMedia.js'
 import { ratingsRow } from '../modern/hero.js'
 import { PAD_BOTTOM, PAD_TOP, badgeDot, collapse, img, layoutButtons, list, poster, rect, text } from './layout.js'
@@ -15,9 +15,8 @@ import { compactAnimePills, mediaRowFor, scrollRowFor, thumbEntries } from './se
 
 const VIEW_H = 1080
 const BULLET = '•'
-// The person's ring, tabs and buttons keep this blue on every theme.
-// A label on a fill: dark on a bright one and white on a dim one, by the badges' contrast check.
-const labelOn = (fill) => (inkOn('#ff' + fill.slice(1, 7)) === '0, 0, 0' ? '#000000de' : '#ffffffff')
+// The open tab's label stays white on its fill unless white all but vanishes there, as on a white or gold focus color.
+const labelOn = (fill) => (contrastRatio(fill.slice(0, 7), '#ffffff') >= 2 ? '#ffffffff' : '#000000de')
 
 // The facts as one bullet-led line, for the season header.
 const bulletLine = (out, k, items, x0, y, t) => {
@@ -160,14 +159,16 @@ const personHead = (comp, d) => {
   const out = list()
   const st = comp._person
   const left = d.left
-  // The photo: 220 round, with no ring (Core draws none), and 6px under it.
-  const shadow = { color: '#00000080', x: 0, y: 8, blur: 32, spread: 0 }
+  // The photo: 220 round inside a 3px ring in the focus color, with 6px under it. Neon Pulse rings it in
+  // pink and trades the shadow for a pink glow.
+  const shadow = t.neon ? { color: '#ff2e9233', x: 0, y: 0, blur: 14, spread: 0 } : { color: '#00000080', x: 0, y: 8, blur: 32, spread: 0 }
   rect(out, { k: 'photoShadow', x: left, y: PAD_TOP, w: 226, h: 226, r: 113, color: '#00000001', shadow })
   if (it.ImageTags && it.ImageTags.Primary) img(out, { k: 'photo', x: left + 3, y: PAD_TOP + 3, w: 220, h: 220, r: 110, src: getImageUrl(d.server, it.Id, 'Primary', { maxHeight: 450, quality: 90 }) })
   else {
     rect(out, { k: 'photoPh', x: left + 3, y: PAD_TOP + 3, w: 220, h: 220, r: 110, color: t.os(0.08) })
     img(out, { k: 'photoIcon', x: left + 81, y: PAD_TOP + 81, w: 64, h: 64, src: 'icons/cls_person.webp', color: t.os(0.25) })
   }
+  rect(out, { k: 'photoRing', x: left, y: PAD_TOP, w: 226, h: 226, r: 113, color: '#00000001', bw: 3, bc: t.neon ? '#ff2e9273' : t.focus })
 
   const x0 = left + 220 + 40
   const w = d.contentW - 260
