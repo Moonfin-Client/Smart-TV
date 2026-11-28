@@ -19,13 +19,22 @@ export const imageTypeRowId = (row) => (row.isLatestRow ? 'latest-media'
 	: row.isRecentlyReleasedRow ? 'recently-released' : row.id);
 
 // Overrides are a classic rows feature, the modern layout keeps its own arrangement untouched.
-export const rowImageType = (row, settings) => {
+const rowOverride = (row, settings) => {
 	const key = imageTypeRowId(row);
 	const overrides = settings.homeRowsStyle === 'v1' ? (settings.homeRowImageTypes || {}) : {};
 	// Continue Watching merged with Next Up is set under the two rows it's made of, Continue Watching first.
-	const override = key === 'continue-nextup' ? (overrides.resume || overrides.nextup) : overrides[key];
-	return override || settings.homeRowsImageType;
+	return key === 'continue-nextup' ? (overrides.resume || overrides.nextup) : overrides[key];
 };
+
+export const rowImageType = (row, settings) => rowOverride(row, settings) || settings.homeRowsImageType;
+
+const WATCHING_ROWS = ['resume', 'nextup', 'continue-nextup'];
+
+// Continue Watching and Next Up stay wide under the default image type, and only a Poster
+// set on the row itself turns their cards into posters, as Core does.
+export const rowCardType = (row, settings) => (
+	WATCHING_ROWS.indexOf(row.id) >= 0 && rowOverride(row, settings) === 'poster' ? 'portrait' : row.type
+);
 
 // The shape a classic card asks for. Any artwork other than a poster draws wide.
 export const classicShape = (cardType, imageType) => {
@@ -41,7 +50,7 @@ export const rowPeekHeight = (settings, row) => {
 	if (settings.homeRowsStyle !== 'v1') {
 		return MODERN_CARDS_TOP + modernCardMetrics({posterSize: settings.homeRowsPosterSize}).imageHeight / 2;
 	}
-	const {height} = classicCardSize(classicShape(row.type, rowImageType(row, settings)), settings.homeRowsPosterSize);
+	const {height} = classicCardSize(classicShape(rowCardType(row, settings), rowImageType(row, settings)), settings.homeRowsPosterSize);
 	return CLASSIC_CARDS_TOP + height / 2;
 };
 

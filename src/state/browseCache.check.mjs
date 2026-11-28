@@ -89,21 +89,29 @@ fill()
 memoryCache.featuredConfigKey = 'bar-key'
 memoryCache.rowConfigKey = 'merged-recent'
 memoryCache.recentAt = 1234
-const rows = [{ id: 'resume', readHead: () => {}, hasMore: true, items: [{ Id: 'a', Name: 'A', UserData: { PlayedPercentage: 40, Rating: 9 }, MediaSources: [1] }] }]
+const episode = { Id: 'e1', Type: 'Episode', SeriesId: 's1', SeriesPrimaryImageTag: 'tag', ParentPrimaryImageItemId: 'season1', ParentPrimaryImageTag: 'seasonTag' }
+const rows = [{ id: 'resume', readHead: () => {}, hasMore: true, items: [{ Id: 'a', Name: 'A', UserData: { PlayedPercentage: 40, Rating: 9 }, MediaSources: [1] }, episode] }]
 saveBrowseCache(rows, [{ Id: 'lib1' }], [{ Id: 'f' }], { serverUrl: 'http://s', userId: 'u' })
 memoryCache.featuredConfigKey = 'later'
 await timers.shift()()
-const saved = store.browse_cache_v5
+const saved = store.browse_cache_v6
 assert.equal(saved.featuredConfigKey, 'bar-key')
 assert.equal(saved.rowConfigKey, 'merged-recent')
 assert.equal(saved.recentAt, 1234)
 assert.equal(saved.rowData[0].hasMore, false)
 assert.equal(saved.rowData[0].items[0].MediaSources, undefined)
 assert.deepEqual(saved.rowData[0].items[0].UserData, { PlayedPercentage: 40 })
+// A poster row shows an episode's series poster, or its season's, so the cache keeps their fields.
+const kept = saved.rowData[0].items[1]
+assert.deepEqual([kept.SeriesPrimaryImageTag, kept.ParentPrimaryImageItemId, kept.ParentPrimaryImageTag], ['tag', 'season1', 'seasonTag'])
 saveBrowseCache(rows, [{ Id: 'lib1' }], [], { serverUrl: 'http://s', userId: 'u' })
 assert.equal(timers.length, 0)
 globalThis.setTimeout = realSet
 
+// Rows saved before episodes kept their poster fields are dropped on load, so poster rows are fetched again.
+store.browse_cache_v5 = { userId: 'u' }
+await loadBrowseCache('http://s', 'u')
+assert.equal(store.browse_cache_v5, undefined)
 // Another server's or user's copy is no answer, and clearing drops it.
 assert.equal(await loadBrowseCache('http://s', 'other'), null)
 assert.equal((await loadBrowseCache('http://s', 'u')).userId, 'u')
