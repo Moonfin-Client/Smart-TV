@@ -3496,5 +3496,10 @@
     "Valentine's Rom-Coms": "Ystävänpäivän romanttiset komediat",
     "Roku OS Version": "Roku OS versio",
     "Date Added (Newest First)": "Lisäyspäivä (uusimmat ensin)",
-    "Date Added (Oldest First)": "Lisäyspäivä (vanhimmat ensin)"
+    "Date Added (Oldest First)": "Lisäyspäivä (vanhimmat ensin)",
+    "Order in which selected media bar slides are displayed": "Valittujen mediapalkin diojen näyttöjärjestys",
+    "Release Date (Newest First)": "Julkaisupäivä (uusimmat ensin)",
+    "Release Date (Oldest First)": "Julkaisupäivä (vanhimmasta alkaen)",
+    "Source Default": "Lähde Oletus",
+    "Hidden libraries stay hidden on this device only, since Plex doesn't keep this setting.": "Piilotetut kirjastot pysyvät piilossa vain tällä laitteella, sillä Plex ei tallenna tätä asetusta."
 }
