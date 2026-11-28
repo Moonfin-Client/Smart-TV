@@ -776,6 +776,18 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 					audioStreamIndex = altStream.Index;
 					playbackInfo = altInfo;
 				}
+			} else if (mediaSource.TranscodingUrl && isHlsTranscode(mediaSource.TranscodingUrl, mediaSource, serverType)) {
+				// The server already declined direct play for this audio and offered an HLS
+				// transcode (video copied, audio converted). Keep it: the forced re-request
+				// below comes back as a progressive /stream URL, which webOS treats as ended
+				// once it catches up with the growing file (~2s).
+				serverLogger.playback('Audio: default track unplayable, using server-offered HLS transcode', {
+					defaultIndex: defaultAudioStream.Index,
+					defaultCodec
+				});
+				mediaSource.SupportsDirectPlay = false;
+				mediaSource.SupportsDirectStream = false;
+				audioStreamIndex = mediaSource.DefaultAudioStreamIndex;
 			} else {
 				// With no compatible alternate, a forced transcode remuxes just the audio.
 				serverLogger.playback('Audio: default track unplayable, remuxing it on the server', {
