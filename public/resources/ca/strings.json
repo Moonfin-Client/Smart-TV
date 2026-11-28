@@ -3493,5 +3493,7 @@
     "Top {genre}": "El millor de {genre}",
     "Valentine's Favorites": "Preferits de Sant Valentí",
     "Valentine's Rom-Coms": "Comèdies romàntiques de Sant Valentí",
-    "Roku OS Version": "Versió del sistema operatiu de Roku"
+    "Roku OS Version": "Versió del sistema operatiu de Roku",
+    "Date Added (Newest First)": "Data d'addició (més recents primer)",
+    "Date Added (Oldest First)": "Data d'addició (més antigues primer)"
 }
