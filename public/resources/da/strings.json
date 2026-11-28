@@ -1192,5 +1192,7 @@
     "Guest Appearances": "Gæsteoptræden",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "Ikke tilgængelig",
-    "Recently Released Episodes": "Nyligt udgivne afsnit"
+    "Recently Released Episodes": "Nyligt udgivne afsnit",
+    "Date Added (Newest First)": "Tilføjelsesdato (nyeste først)",
+    "Date Added (Oldest First)": "Tilføjelsesdato (ældste først)"
 }
