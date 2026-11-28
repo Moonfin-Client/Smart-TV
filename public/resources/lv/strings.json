@@ -1026,5 +1026,7 @@
     "Text Stroke Color": "Teksta gājiena krāsa",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "Nav pieejams",
-    "Recently Released Episodes": "Nesen iznākušās sērijas"
+    "Recently Released Episodes": "Nesen iznākušās sērijas",
+    "Date Added (Newest First)": "Pievienošanas datums (jaunākie vispirms)",
+    "Date Added (Oldest First)": "Pievienošanas datums (vecākie vispirms)"
 }
