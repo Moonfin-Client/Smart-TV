@@ -2456,5 +2456,7 @@
     "Blocking a rating also blocks everything stronger than it.": "Zablokowanie klasyfikacji blokuje również wszystkie wyższe klasyfikacje.",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "Niedostępne",
-    "Recently Released Episodes": "Ostatnio wyemitowane odcinki"
+    "Recently Released Episodes": "Ostatnio wyemitowane odcinki",
+    "Date Added (Newest First)": "Data dodania (od najnowszych)",
+    "Date Added (Oldest First)": "Data dodania (od najstarszych)"
 }
