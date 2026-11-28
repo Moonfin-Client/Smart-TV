@@ -4,7 +4,6 @@ import { byKey } from '../../../ui/components/details/keyed.js'
 import { cssShift, themeSpacing, uiFont } from '../../../ui/text.js'
 import { hex } from '../../../ui/color.js'
 import { holdPress } from '../../../utils/longPress.js'
-import { actionRadius } from './stageRules.js'
 
 // The `stacked` and `centered` action rows, driven by actionRow(). Stacked is Stage's column under
 // the poster: the first button runs the full 388px and the rest sit under it as 86px circles.
@@ -78,7 +77,9 @@ export default function StyledActions(props) {
       }
       const lit = b.active && !p.lead
       return {
-        k: b.id, i: p.i, x: p.x, y: p.y, w: p.w, h: p.h, r: actionRadius(p, tk.isPixel), lead: p.lead,
+        // As in Core, the labeled first button is a full pill and the rest are circles. Pixel themes
+        // square them off.
+        k: b.id, i: p.i, x: p.x, y: p.y, w: p.w, h: p.h, r: tk.isPixel ? 0 : Math.min(p.w, p.h) / 2, lead: p.lead,
         fill: lit ? tint(b, tk) : '#ffffff0f',
         onFill: lit ? tint(b, tk) : tk.buttonFocused,
         icon: `icons/d/${b.icon}.webp`, iconX, iconY: (p.h - iconSize) / 2,
