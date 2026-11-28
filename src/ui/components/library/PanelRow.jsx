@@ -1,5 +1,6 @@
 import { Show } from 'solid-js'
 import { hex } from '../../color.js'
+import { theme } from '../../theme.js'
 
 // One row of a LibraryPanel dialog, drawn from its laid out model. Optional parts exist only when the
 // row needs them. `neon` draws Neon Pulse: option rows focused and picked in the accent, a picked
@@ -7,19 +8,21 @@ import { hex } from '../../color.js'
 const ON = '#ffffff'
 const OFF = '#ffffffcc'
 const CLEAR = '#00000000'
-const ACCENT_EDGE = { width: 1, color: hex('#00a4dc') }
 const DIM_EDGE = { width: 1, color: hex('#ffffff59') }
-const FIELD_EDGE = { width: 3, color: hex('#ffffff') }
 const OPTION = { check: 1, radio: 1, clear: 1, more: 1 }
 const NEON_EDGE = { width: 1, color: hex('#ff2e92') }
 const NEON_CYAN = '#00e5ff'
 
 export default function PanelRow(props) {
+  // The accent marks what's picked, and the search field's ring is the focus color.
+  const t = theme()
+  const ACCENT_EDGE = { width: 1, color: hex(t.accent) }
+  const FIELD_EDGE = { width: 3, color: hex(t.focus) }
   const r = () => props.r
   const k = () => r().kind
   const on = () => !!props.focused
   const labelX = () => (k() === 'clear' ? 49 : k() === 'more' ? 17 : 55)
-  const labelColor = () => (k() === 'clear' ? '#00a4dc' : r().checked || r().selected || on() ? ON : OFF)
+  const labelColor = () => (k() === 'clear' ? t.accent : r().checked || r().selected || on() ? ON : OFF)
   return (
     <view x={25} y={r().y}>
       <Show when={k() === 'line'}>
@@ -39,8 +42,8 @@ export default function PanelRow(props) {
           when={r().checked}
           fallback={<view x={17} y={15} width={24} height={24} borderRadius={4} color={CLEAR} border={DIM_EDGE} />}
         >
-          <view x={17} y={15} width={24} height={24} borderRadius={4} color="#00a4dc">
-            <view x={4} y={4} width={16} height={16} src="icons/lib_check.webp" color="#ffffff" />
+          <view x={17} y={15} width={24} height={24} borderRadius={4} color={t.accent}>
+            <view x={4} y={4} width={16} height={16} src="icons/lib_check.webp" color={t.onAccent} />
           </view>
         </Show>
       </Show>
@@ -50,12 +53,12 @@ export default function PanelRow(props) {
           fallback={<view x={17} y={15} width={24} height={24} borderRadius={12} color={CLEAR} border={DIM_EDGE} />}
         >
           <view x={17} y={15} width={24} height={24} borderRadius={12} color={CLEAR} border={ACCENT_EDGE}>
-            <view x={6} y={6} width={12} height={12} borderRadius={6} color={props.neon ? '#ff2e92' : '#00a4dc'} />
+            <view x={6} y={6} width={12} height={12} borderRadius={6} color={t.accent} />
           </view>
         </Show>
       </Show>
       <Show when={k() === 'clear'}>
-        <view x={17} y={18} width={18} height={18} src="icons/lib_clear_filters.webp" color="#00a4dc" />
+        <view x={17} y={18} width={18} height={18} src="icons/lib_clear_filters.webp" color={t.accent} />
       </Show>
       <Show when={OPTION[k()]}>
         <text
@@ -72,7 +75,7 @@ export default function PanelRow(props) {
         </text>
       </Show>
       <Show when={k() === 'radio' && r().arrow}>
-        <view x={r().inner - 37} y={17} width={20} height={20} src={'icons/' + r().arrow + '.webp'} color="#00a4dc" />
+        <view x={r().inner - 37} y={17} width={20} height={20} src={'icons/' + r().arrow + '.webp'} color={t.accent} />
       </Show>
       <Show when={k() === 'section'}>
         <text
@@ -96,7 +99,7 @@ export default function PanelRow(props) {
             lineHeight={23}
             maxWidth={r().inner * 0.45 - 24}
             maxLines={1}
-            color="#00a4dc"
+            color={t.accent}
           >
             {r().summaryText}
           </text>

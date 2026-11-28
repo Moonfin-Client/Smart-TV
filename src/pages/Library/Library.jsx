@@ -64,7 +64,6 @@ import {
 const PAGE = 150
 const neonOn = () => activeThemeId(settings.all()) === 'neon_pulse'
 const NEON_TILE = {
-  ring: { width: 3, color: 0xff2e92ff },
   glow: { color: shadowColor('#ff2e9259'), x: 0, y: 0, blur: 12, spread: 0 },
   subColor: '#00e5ff',
 }
