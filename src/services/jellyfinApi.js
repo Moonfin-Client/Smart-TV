@@ -777,7 +777,7 @@ export const api = {
 
 	// With no sort the server hands back the arrangement the collection keeps
 	getCollectionItems: (collectionId, limit = 50, sortBy = null, sortOrder = 'Ascending') =>
-		request(`${userRoutes.items()}ParentId=${collectionId}&Limit=${limit}&Recursive=true&Fields=PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers,OfficialRating,ChildCount&HasBackdrop=true${sortBy ? `&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}` : ''}`),
+		request(`${userRoutes.items()}ParentId=${collectionId}&Limit=${limit}&Recursive=true&Fields=PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers,OfficialRating,ChildCount,DateCreated,DateLastMediaAdded,PremiereDate&HasBackdrop=true${sortBy ? `&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}` : ''}`),
 
 	getCollectionMembers: (collectionId, limit = 500, startIndex = 0) =>
 		request(`${userRoutes.items()}ParentId=${collectionId}&Limit=${limit}${startIndex > 0 ? `&StartIndex=${startIndex}` : ''}`),

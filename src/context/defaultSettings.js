@@ -177,6 +177,7 @@ export const defaultSettings = {
 	mediaBarOverlayColor: 'gray',
 	mediaBarOverlayOpacity: 50,
 	mediaBarSourceType: 'random',
+	mediaBarSortOrder: 'default',
 	mediaBarNewReleaseBanner: true,
 	mediaBarNewReleaseDays: 30,
 	// Which labels the banner puts on, comma separated. The banner switch still turns them all off,

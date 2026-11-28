@@ -10,6 +10,8 @@ export const NEW_RELEASE_KINDS = [NEW_SERIES, NEW_SEASON, NEW_EPISODES, NEW_MOVI
 // The sources that read a library newest first rather than at random.
 export const DATED_SOURCES = ['recentlyAdded', 'recentlyReleased', 'newReleases'];
 export const MEDIA_BAR_SOURCES = ['random', ...DATED_SOURCES];
+// Display order applied to selected media bar slides after the source chooses them.
+export const MEDIA_BAR_SORT_ORDERS = ['default', 'random', 'dateAddedDesc', 'dateAddedAsc', 'releaseDateDesc', 'releaseDateAsc'];
 // The library and collection sources saved before, which draw like random now.
 export const LEGACY_MEDIA_BAR_SOURCES = ['library', 'collection'];
 export const NEW_RELEASE_DAYS = [7, 14, 30, 60, 90];
@@ -105,6 +107,7 @@ export const recentEpisodes = async (api, parentId, days, limit) => {
 		SortOrder: 'Descending',
 		MinPremiereDate: new Date(now.getTime() - days * DAY_MS).toISOString(),
 		Limit: limit,
+		Fields: 'DateCreated',
 		EnableTotalRecordCount: false
 	});
 	return (result?.Items || []).filter((episode) => isRecentlyAiredEpisode(episode, now, days));

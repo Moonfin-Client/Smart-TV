@@ -22,6 +22,7 @@ export const featuredConfigKey = (s = {}) =>
     false,
     s.useMoonfinPlugin === true,
     s.mediaBarSourceType || 'random',
+    s.mediaBarSortOrder || 'default',
     s.featuredContentType == null ? null : s.featuredContentType,
     s.featuredItemCount == null ? null : s.featuredItemCount,
     s.mediaBarNewReleaseDays == null ? null : s.mediaBarNewReleaseDays,
