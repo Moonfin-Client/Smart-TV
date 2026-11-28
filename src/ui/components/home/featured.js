@@ -109,6 +109,7 @@ const readDatedSource = async (sourceType, parentId, { contentType, days, movieD
         Filters: opts.unplayed ? 'IsUnplayed' : null,
         Limit: limit,
         Fields: FIELDS,
+        CollapseBoxSetItems: false,
         EnableTotalRecordCount: false,
       })
     )
