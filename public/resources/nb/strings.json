@@ -1056,5 +1056,7 @@
     "{count} tracks": "{count} spor",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "Utilgjengelig",
-    "Recently Released Episodes": "Nylig utgitte episoder"
+    "Recently Released Episodes": "Nylig utgitte episoder",
+    "Date Added (Newest First)": "Lagt til (nyeste først)",
+    "Date Added (Oldest First)": "Lagt til (eldste først)"
 }
