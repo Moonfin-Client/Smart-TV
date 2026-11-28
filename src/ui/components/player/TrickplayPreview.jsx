@@ -58,11 +58,12 @@ export default function TrickplayPreview(props) {
       zoom: zoomInternalFromSetting(s.playerZoomMode),
     }
   })
-  // The tile border and glow follow the theme's accent and text color.
+  // The active tile's outline takes the focus color, so the Focus Color setting reaches it, and its
+  // glow the accent.
   const look = createMemo(() => {
     const t = theme()
     return {
-      on: { width: 2, color: hex(t.accent) },
+      on: { width: 2, color: hex(t.focus) },
       off: { width: 1, color: hex(t.os(0.2)) },
       glow: { color: shadowColor(t.accentA(0.5)), x: 0, y: 0, blur: 16, spread: 0 },
     }
