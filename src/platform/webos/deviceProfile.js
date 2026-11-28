@@ -183,7 +183,7 @@ const canPlayDts = () => {
 // that have it, as in "TrueHD+dts". Without the key MKV is offered only when the set's engine
 // says it plays DTS, since LG's 2025 sets have none and refuse the key to apps. A non-DTS
 // soundbar makes the TV decode DTS to stereo PCM, and no Luna API reports that.
-const getDtsContainerSupport = (webosVersion, rawEdidType = null) => {
+export const getDtsContainerSupport = (webosVersion, rawEdidType = null) => {
 	if (webosVersion >= 23) {
 		if (rawEdidType == null) {
 			return { mkv: canPlayDts(), mp4: false, ts: false, avi: false };
@@ -196,8 +196,10 @@ const getDtsContainerSupport = (webosVersion, rawEdidType = null) => {
 			avi: false
 		};
 	}
+	// LG's 2020 and 2021 sets (webOS 5 and 6) dropped DTS although the docs still list it in MKV, so
+	// there the engine's answer decides (an LG C1 plays the picture of a DTS MKV with no sound).
 	if (webosVersion >= 5) {
-		return { mkv: true, mp4: false, ts: false, avi: false };
+		return { mkv: webosVersion >= 22 || canPlayDts(), mp4: false, ts: false, avi: false };
 	}
 	return { mkv: true, mp4: false, ts: false, avi: true };
 };
