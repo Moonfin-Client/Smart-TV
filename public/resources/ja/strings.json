@@ -1025,5 +1025,7 @@
     "Text Stroke Color": "テキストのストロークの色",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "利用不可",
-    "Recently Released Episodes": "最近公開されたエピソード"
+    "Recently Released Episodes": "最近公開されたエピソード",
+    "Date Added (Newest First)": "追加日 (新しい順)",
+    "Date Added (Oldest First)": "追加日 (古い順)"
 }
