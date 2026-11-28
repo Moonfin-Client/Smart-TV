@@ -567,7 +567,7 @@ export default function SeerrSheets(props) {
           </view>
           <view>
             <Show when={spin()} keyed>
-              {(sp) => <view ref={spinner} x={sp.x} y={sp.y} width={sp.w} height={sp.h} src="spinner/arc.webp" color="#00a4dcff" />}
+              {(sp) => <view ref={spinner} x={sp.x} y={sp.y} width={sp.w} height={sp.h} src="spinner/arc.webp" color={theme().accent} />}
             </Show>
           </view>
         </view>

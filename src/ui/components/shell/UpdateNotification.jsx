@@ -113,9 +113,9 @@ export default function UpdateNotification(props) {
           <For each={keys()}>
             {(k, i) => (
               <view y={i() * OPTION_H} width={L().bodyW} height={76.8}>
-                <view width={L().bodyW} height={76.8} color={i() === cur() ? '#ffffff1f' : '#00000000'} />
-                <view x={40.07} y={20.03} width={36.73} height={36.73} src={`icons/${options()[k].icon}.webp`} color="#ffffffb3" />
-                <text fontFamily={roboto()} fontSize={25.044} x={103.51} y={26.25} lineHeight={29.301} color="#ffffffff">
+                <view width={L().bodyW} height={76.8} color={i() === cur() ? theme().os(0.12) : '#00000000'} />
+                <view x={40.07} y={20.03} width={36.73} height={36.73} src={`icons/${options()[k].icon}.webp`} color={theme().os(0.7)} />
+                <text fontFamily={roboto()} fontSize={25.044} x={103.51} y={26.25} lineHeight={29.301} color={theme().onSurface}>
                   {options()[k].label}
                 </text>
               </view>

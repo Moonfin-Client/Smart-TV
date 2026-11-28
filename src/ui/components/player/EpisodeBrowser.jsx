@@ -26,7 +26,6 @@ const BAR_MAX_W = EB.LIST_W
 const MARGIN = 300
 const COVER = { resizeMode: { type: 'cover' } }
 const TAB_GLOW = { color: shadowColor('#ffffff40'), x: 0, y: 0, blur: 14, spread: 1 }
-const CURRENT_EDGE = { width: 3, color: hex('#00a4dc80') }
 const BADGE_EDGE = { width: 1.5, color: hex('#ffffff') }
 const BADGE_SHADOW = { color: shadowColor('#00000099'), x: 0, y: 1.5, blur: 4, spread: 0 }
 const TAB_FADE = { duration: 120 }
@@ -385,7 +384,7 @@ export default function EpisodeBrowser(props) {
         </view>
 
         <view x={34.39} y={listY()} width={1200.09} height={listH()} clipping>
-          <text alpha={message() ? 1 : 0} fontFamily={msgFont} fontSize={26} x={8} y={24} color="#ffffffb3">
+          <text alpha={message() ? 1 : 0} fontFamily={msgFont} fontSize={26} x={8} y={24} color={t().os(0.7)}>
             {message() || ' '}
           </text>
           <view y={-scroll()} width={1200.09} height={maxScroll() + listH()}>
@@ -395,8 +394,8 @@ export default function EpisodeBrowser(props) {
                   const focused = () => rowLit(r.idx)
                   return (
                     <view y={r.y} width={1200.09} height={r.h}>
-                      <view width={1200.09} height={r.h} borderRadius={16} color={focused() ? '#00a4dc4d' : r.current ? '#00a4dc2e' : '#ffffff0f'} />
-                      <view width={1200.09} height={r.h} borderRadius={16} color="#00000000" border={CURRENT_EDGE} alpha={!focused() && r.current ? 1 : 0} />
+                      <view width={1200.09} height={r.h} borderRadius={16} color={focused() ? t().accentA(0.3) : r.current ? t().accentA(0.18) : t().os(0.06)} />
+                      <view width={1200.09} height={r.h} borderRadius={16} color="#00000000" border={{ width: 3, color: hex(t().accentA(0.5)) }} alpha={!focused() && r.current ? 1 : 0} />
                       <view
                         width={1200.09}
                         height={r.h}
@@ -405,22 +404,22 @@ export default function EpisodeBrowser(props) {
                         border={{ width: 3, color: hex(t().focus) }}
                         alpha={focused() ? 1 : 0}
                       />
-                      <view x={17} y={17} width={320} height={180} borderRadius={12} color="#ffffff14">
-                        <view alpha={r.thumb ? 0 : 1} x={128} y={58} width={64} height={64} src="icons/episode_placeholder.webp" color="#ffffff4d" />
+                      <view x={17} y={17} width={320} height={180} borderRadius={12} color={t().os(0.08)}>
+                        <view alpha={r.thumb ? 0 : 1} x={128} y={58} width={64} height={64} src="icons/episode_placeholder.webp" color={t().os(0.3)} />
                         <view alpha={r.thumb ? 1 : 0} width={320} height={180} borderRadius={12} src={r.thumb} textureOptions={COVER} />
                         <view alpha={r.pct > 0 ? 1 : 0} x={6} y={162} width={308} height={12} borderRadius={6} color="#0000008a">
-                          <view height={12} borderRadius={6} color="#00a4dcff" width={Math.max(1, 3.08 * r.pct)} />
+                          <view height={12} borderRadius={6} color={t().accent} width={Math.max(1, 3.08 * r.pct)} />
                         </view>
                         <view alpha={r.played ? 1 : 0} x={286} y={8} width={26} height={26}>
                           <view width={26} height={26} borderRadius={13} color="#00000000" shadow={BADGE_SHADOW} />
-                          <view width={26} height={26} borderRadius={13} color="#00a4dce6" border={BADGE_EDGE} />
-                          <view x={5.5} y={5.5} width={15} height={15} src="icons/watched_check.webp" color="#ffffffff" />
+                          <view width={26} height={26} borderRadius={13} color={t().accentA(0.9)} border={BADGE_EDGE} />
+                          <view x={5.5} y={5.5} width={15} height={15} src="icons/watched_check.webp" color={t().onAccent} />
                         </view>
                       </view>
-                      <text fontFamily={lineFont} fontSize={22} x={363} y={23} color="#ffffff99">
+                      <text fontFamily={lineFont} fontSize={22} x={363} y={23} color={t().os(0.6)}>
                         {r.line}
                       </text>
-                      <text fontFamily={r.titleFont} fontSize={30} x={363} y={54.74} maxWidth={820.09} lineHeight={36} color="#ffffffff">
+                      <text fontFamily={r.titleFont} fontSize={30} x={363} y={54.74} maxWidth={820.09} lineHeight={36} color={t().onSurface}>
                         {r.title || ' '}
                       </text>
                       <text
@@ -432,7 +431,7 @@ export default function EpisodeBrowser(props) {
                         maxWidth={820.09}
                         maxLines={3}
                         lineHeight={29.7}
-                        color="#ffffffb8"
+                        color={t().os(0.72)}
                       >
                         {r.overview || ' '}
                       </text>

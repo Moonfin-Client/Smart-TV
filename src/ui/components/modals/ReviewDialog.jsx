@@ -19,7 +19,7 @@ export default function ReviewDialog(props) {
   const [scroll, setScroll] = createSignal(0)
   const title = () => (props.review && props.review.author) || ''
   const subtitle = () => (props.review ? reviewMeta(props.review) : '')
-  const body = createMemo(() => layoutBlocks(parseMarkdown((props.review && props.review.content) || ''), dp(720) - 2 - 2 * PAD_X, theme(), '#00a4dcff'))
+  const body = createMemo(() => layoutBlocks(parseMarkdown((props.review && props.review.content) || ''), dp(720) - 2 - 2 * PAD_X, theme(), theme().accent))
   const fullH = () => PAD_TOP + body().h + PAD_BOTTOM
   const frame = createMemo(() => coreFrame({ title: title(), subtitle: subtitle(), wide: true, bodyH: fullH() }))
   const page = (d) => {

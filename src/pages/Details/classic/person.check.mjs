@@ -29,7 +29,7 @@ registerHooks({
 })
 const { paintPerson, personTabs } = await import('./screens.js')
 
-const tokens = { neon: false, onSurface: '#ffffffff', os: () => '#ffffffe6' }
+const tokens = { neon: false, onSurface: '#ffffffff', os: () => '#ffffffe6', focus: '#00a4dcff', accent: '#00a4dcff', accentA: () => '#00a4dc4d' }
 const film = { movies: [{ Id: 'm1', ImageTags: { Backdrop: 'b' } }, { Id: 'm2' }], series: [{ Id: 's1' }], guestAppearances: [{ Id: 'g1' }], musicVideos: [] }
 const d = {
   item: { Id: 'p', Name: 'A Person With A Long Name', Type: 'Person', Overview: 'Bio text '.repeat(40), PremiereDate: '1970', ImageTags: { Primary: 'x' } },
@@ -51,4 +51,27 @@ for (const tab of [0, 1, 2, 3, 9]) {
   assert.deepEqual(got, want, `tab ${tab}`)
   assert.equal(switched._person.tab, full._person.tab)
 }
+
+// The portrait rings in the focus color, and Neon Pulse rings it in pink with a pink glow.
+const ringOf = (p) => p.out.rects.find((r) => r.k === 'photoRing')
+assert.equal(ringOf(paintPerson({ ...comp(0), tokens: { ...tokens, focus: '#ffcd75ff' } }, d)).bc, '#ffcd75ff')
+const neonHead = paintPerson({ ...comp(0), tokens: { ...tokens, neon: true } }, d)
+assert.equal(ringOf(neonHead).bc, '#ff2e9273')
+assert.ok(neonHead.out.rects.some((r) => r.shadow && /ff2e92/.test(r.shadow.color)), 'pink glow')
+// The open tab fills with the focus color. Its label stays white unless white all but vanishes there,
+// as on Glass's white or 8-Bit Hero's gold. A focused tab writes in the text color.
+const NEON = { neon: true, onSurface: '#00e5ffff', os: (a) => '#00e5ff' + Math.round(a * 255).toString(16).padStart(2, '0'), accent: '#ff2e92ff', accentA: () => '#ff2e924d' }
+for (const [focus, ink] of [['#ffffffff', '#000000de'], ['#ffcd75ff', '#000000de'], ['#00a4dcff', '#ffffffff'], ['#ff2e92ff', '#ffffffff'], ['#7b1fa2ff', '#ffffffff']]) {
+  const tabs = paintPerson({ ...comp(1), tokens: { ...NEON, focus } }, d).pillsB
+  const open = tabs.find((x) => x.idx === 1)
+  assert.equal(open.bg, focus, 'open tab fill')
+  assert.equal(open.ink, ink, `open tab label on ${focus}`)
+  assert.equal(open.inkOn, NEON.onSurface, 'focused open tab')
+  const other = tabs.find((x) => x.idx === 0)
+  assert.equal(other.ink, NEON.os(0.7), 'closed tab label')
+  assert.equal(other.inkOn, NEON.onSurface)
+}
+// The action pills take the accent when focused and the text color for their labels.
+const pills = paintPerson({ ...comp(0), tokens: { ...NEON, focus: '#ffd400ff' } }, d).pillsA
+assert.ok(pills.length && pills.every((x) => x.bdOn === NEON.accent && x.ink === NEON.onSurface && x.inkOn === NEON.onSurface), 'action pills')
 console.log('person ok')

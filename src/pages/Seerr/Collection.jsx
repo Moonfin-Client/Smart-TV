@@ -124,7 +124,7 @@ export default function Collection(props) {
     const s = sheet()
     if (!s || !s.advanced) return null
     const a = { expanded: s.expanded, loading: s.advanced.loading, rows: s.advanced.loading ? [] : advancedRows(s.advanced.servers, resolved()) }
-    return { ...advancedLayout({ a, w: 652.4, focusId: s.picker ? null : s.focusId }), rows: a.rows }
+    return { ...advancedLayout({ t: theme(), a, w: 652.4, focusId: s.picker ? null : s.focusId }), rows: a.rows }
   })
   const advSpin = () => {
     const sp = advanced() && advanced().spinners[0]
