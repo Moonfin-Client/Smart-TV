@@ -200,11 +200,10 @@ export const login = async (server, username, password, options = {}) => {
   return finishSignIn(server, result, options)
 }
 
-// Signs in once the Quick Connect code is approved on another device.
-export const pollQuickConnect = async (server, secret, options = {}) => {
+// Signs in with a Quick Connect code the caller has seen approved. Doesn't ask for the state again: Silo hands an
+// approval out once, so a second poll answers "expired" and the sign-in would never finish.
+export const completeQuickConnect = async (server, secret, options = {}) => {
   jellyfinApi.setServer(server)
-  const state = await jellyfinApi.api.getQuickConnectState(secret)
-  if (!state || !state.Authenticated) return null
   const result = await jellyfinApi.api.authenticateQuickConnect(secret)
   noteProvedSignIn(server, result.User.Id)
   return finishSignIn(server, result, options)
