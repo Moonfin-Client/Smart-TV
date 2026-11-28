@@ -1025,5 +1025,7 @@
     "Text Stroke Color": "Cor do trazo do texto",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "Non dispoñible",
-    "Recently Released Episodes": "Episodios lanzados recentemente"
+    "Recently Released Episodes": "Episodios lanzados recentemente",
+    "Date Added (Newest First)": "Data de engadido (máis recentes primeiro)",
+    "Date Added (Oldest First)": "Data de engadido (máis antigas primeiro)"
 }
