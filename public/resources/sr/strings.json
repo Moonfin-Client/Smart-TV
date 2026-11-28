@@ -1738,5 +1738,7 @@
     "Weekend sessions": "Викенд-сесије",
     "Dolby Vision": "Долби Вижн (Dolby Vision)",
     "Unavailable": "Није доступно",
-    "Recently Released Episodes": "Недавно објављене епизоде"
+    "Recently Released Episodes": "Недавно објављене епизоде",
+    "Date Added (Newest First)": "Датум додавања (од најновијег)",
+    "Date Added (Oldest First)": "Датум додавања (од најстаријег)"
 }
