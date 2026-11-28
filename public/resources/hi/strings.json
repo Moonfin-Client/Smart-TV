@@ -1025,5 +1025,7 @@
     "Text Stroke Color": "टेक्स्ट स्ट्रोक रंग",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "अनुपलब्ध",
-    "Recently Released Episodes": "हाल ही में रिलीज़ हुए एपिसोड"
+    "Recently Released Episodes": "हाल ही में रिलीज़ हुए एपिसोड",
+    "Date Added (Newest First)": "जोड़ने की तिथि (सबसे नया पहले)",
+    "Date Added (Oldest First)": "जोड़ने की तिथि (सबसे पुराना पहले)"
 }
