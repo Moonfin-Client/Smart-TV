@@ -2279,5 +2279,7 @@
     "Three perfect drops in a row grow it a lot wider.": "连续三次完美落位可使其大幅变宽。",
     "Unavailable": "不可用",
     "Not changed on {servers}": "在 {servers} 上未更改",
-    "Recently Released Episodes": "最近发布的剧集"
+    "Recently Released Episodes": "最近发布的剧集",
+    "Date Added (Newest First)": "添加日期（最新优先）",
+    "Date Added (Oldest First)": "添加日期（最旧优先）"
 }
