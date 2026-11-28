@@ -1025,5 +1025,7 @@
     "Text Stroke Color": "خەت گىرۋەك رەڭگى",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "ئىشلەتكىلى بولمايدۇ",
-    "Recently Released Episodes": "يېقىندا تارقىتىلغان بۆلۈملەر"
+    "Recently Released Episodes": "يېقىندا تارقىتىلغان بۆلۈملەر",
+    "Date Added (Newest First)": "قوشۇلغان چېسلا (يېڭىسى ئالدىدا)",
+    "Date Added (Oldest First)": "قوشۇلغان چېسلا (كونىسى ئالدىدا)"
 }
