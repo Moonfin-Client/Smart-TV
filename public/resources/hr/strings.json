@@ -1025,5 +1025,7 @@
     "Text Stroke Color": "Boja poteza teksta",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "Nedostupan",
-    "Recently Released Episodes": "Nedavno objavljene epizode"
+    "Recently Released Episodes": "Nedavno objavljene epizode",
+    "Date Added (Newest First)": "Datum dodavanja (najnovije prvo)",
+    "Date Added (Oldest First)": "Datum dodavanja (najstarije prvo)"
 }
