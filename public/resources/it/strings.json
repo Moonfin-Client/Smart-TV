@@ -3220,5 +3220,7 @@
     "Choose what the Radarr and Sonarr rows show.": "Scegli cosa mostrano le righe di Radarr e Sonarr.",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "Non disponibile",
-    "Recently Released Episodes": "Episodi Usciti di Recente"
+    "Recently Released Episodes": "Episodi Usciti di Recente",
+    "Date Added (Newest First)": "Data di Aggiunta (Prima i Più Recenti)",
+    "Date Added (Oldest First)": "Data di Aggiunta (Prima i Meno Recenti)"
 }
