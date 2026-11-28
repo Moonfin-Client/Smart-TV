@@ -1040,5 +1040,7 @@
     "Video level is not supported.": "Videotaset ei toetata.",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "Pole saadaval",
-    "Recently Released Episodes": "Hiljuti avaldatud episoodid"
+    "Recently Released Episodes": "Hiljuti avaldatud episoodid",
+    "Date Added (Newest First)": "Lisamiskuupäev (uusimad enne)",
+    "Date Added (Oldest First)": "Lisamiskuupäev (vanimad enne)"
 }
