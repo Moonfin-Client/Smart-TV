@@ -763,7 +763,7 @@ export const api = {
 	getRandomItem: (includeTypes = 'Movie,Series') =>
 		request(`${userRoutes.items()}IncludeItemTypes=${includeTypes}&Recursive=true&SortBy=Random&Limit=1&Fields=PrimaryImageAspectRatio,Overview&ExcludeItemTypes=BoxSet`),
 
-	getRandomItems: (contentType = 'both', limit = 10, parentId = null, genreName = null, fields = 'PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers,OfficialRating,ChildCount,DateCreated,DateLastMediaAdded,PremiereDate') => {
+	getRandomItems: (contentType = 'both', limit = 10, parentId = null, genreName = null, fields = 'PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers,OfficialRating,ChildCount') => {
 		const includeTypes = randomItemTypes(contentType);
 		const parentParam = parentId ? `&ParentId=${parentId}` : '';
 		const genreParam = genreName ? `&Genres=${encodeURIComponent(genreName)}` : '';
@@ -1274,7 +1274,7 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 		getCollectionMembers: (collectionId, limit = 500, startIndex = 0) =>
 			serverRequest(`${serverUserRoutes.items()}ParentId=${collectionId}&Limit=${limit}${startIndex > 0 ? `&StartIndex=${startIndex}` : ''}`),
 
-		getRandomItems: (contentType = 'both', limit = 10, parentId = null, genreName = null, fields = 'PrimaryImageAspectRatio,Overview,Genres,ProviderIds,OfficialRating,ChildCount,DateCreated,DateLastMediaAdded,PremiereDate') => {
+		getRandomItems: (contentType = 'both', limit = 10, parentId = null, genreName = null, fields = 'PrimaryImageAspectRatio,Overview,Genres,ProviderIds,OfficialRating,ChildCount') => {
 			const includeTypes = randomItemTypes(contentType);
 			const parentParam = parentId ? `&ParentId=${parentId}` : '';
 			const genreParam = genreName ? `&Genres=${encodeURIComponent(genreName)}` : '';
