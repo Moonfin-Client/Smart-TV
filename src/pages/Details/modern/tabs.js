@@ -21,6 +21,8 @@ import { sortLabel } from '../nouveau/nouveauCollectionSort.js'
 import { collectionPlaylistItems } from '../collectionPlaylist.js'
 import { captionHeight } from './caption.js'
 
+// Cards sit 24px apart across a row, as on Home, and rows 30px apart.
+const GRID_GAP_X = 24
 const GRID_GAP = 30
 export const MEDIA = { portrait: { w: 240, h: 360, labels: 90 }, square: { w: 240, h: 240, labels: 90 }, landscape: { w: 384, h: 216, labels: 90 } }
 
@@ -60,13 +62,13 @@ export const tabsFor = (d) => {
 
 // Equal cells wrapped into rows across the content width.
 const flow = (cells, width, cellW, top, heightOf) => {
-  const perRow = Math.max(1, Math.floor((width + GRID_GAP) / (cellW + GRID_GAP)))
+  const perRow = Math.max(1, Math.floor((width + GRID_GAP_X) / (cellW + GRID_GAP_X)))
   let y = top
   for (let start = 0, row = 0; start < cells.length; start += perRow, row++) {
     const rowCells = cells.slice(start, start + perRow)
     const h = Math.max(...rowCells.map(heightOf))
     rowCells.forEach((c, i) => {
-      c.x = i * (cellW + GRID_GAP)
+      c.x = i * (cellW + GRID_GAP_X)
       c.y = y
       c.row = c.row == null ? row : c.row
     })

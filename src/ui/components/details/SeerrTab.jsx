@@ -1,6 +1,10 @@
 import $L from '../../../services/i18n.js'
 import { For, createMemo, createSelector, createSignal } from 'solid-js'
-import Card from '../Card.jsx'
+import ClassicCard from '../home/ClassicCard.jsx'
+import { classicCard } from '../home/cards.js'
+import { homeLook } from '../home/look.js'
+import * as settings from '../../../state/settings.js'
+import { captionHeight } from '../../../pages/Details/modern/caption.js'
 import { cssShift, fontFor } from '../../text.js'
 import { hex } from '../../color.js'
 import { textWidth, wrapLines } from './measure.js'
@@ -15,36 +19,23 @@ import { buildMediaFacts } from '../../../utils/seerrMediaFacts.js'
 // Props: `tab` ({seerr, w}), `viewTop`, `tokens`, `x`, `y`, `alpha`. Up and Down move between the
 // pieces and the grid rows, Left and Right along a row. Enter calls onSeerrPiece(kind, data) for the
 // chip and the banner, and onSeerrCardSelect(card) for a title. Its node has setCur(i) and entry().
-const CARD = { w: 240, h: 360, labels: 90 }
-const GAP = 30
+// The titles draw as More Like This's cards, 24px apart across a row and 30px between rows.
+const CARD = { w: 240, h: 360 }
+const GAP_X = 24
+const GAP_Y = 30
 const NONE = '#00000000'
 const WINDOW = 400
-const GONE = { k: '', x: 0, y: 0, w: 0, h: 0, r: 0, t: '', size: 14, font: 'roboto', color: NONE, lh: 33, bw: 0, bc: NONE, src: '', card: { type: 'poster' } }
+const GONE = { k: '', x: 0, y: 0, w: 0, h: 0, r: 0, t: '', size: 14, font: 'roboto', color: NONE, lh: 33, bw: 0, bc: NONE, src: '', idx: -2, raw: {} }
 const NO_LAID = { blocks: [], texts: [], imgs: [], cells: [], focusables: [], h: 0, scrim: null }
 
-const toModel = (c, i) => {
-  const year = c.ProductionYear ? String(c.ProductionYear) : ''
-  return {
-    key: `s${i}`,
-    idx: i,
-    type: 'poster',
-    title: c.Name || '',
-    subtitle: year,
-    titleFont: fontFor(c.Name || '', 'medium'),
-    subtitleFont: 'roboto',
-    image: c._externalPosterUrl || '',
-    progress: 0,
-    played: false,
-    raw: c,
-  }
-}
+// The banner's call to action and its chevron take the theme's accent when drawn.
+const ACCENT = 'accent'
+// The cards keep the default poster size, which the grid is laid out for.
+const cardSettings = () => ({ ...settings.all(), homeRowsPosterSize: 'default' })
 
-export default function SeerrTab(props) {
-  const [cur, setCur] = createSignal(0)
-  const [focused, setFocused] = createSignal(false)
-  const t = () => props.tokens || { focus: '#00a4dcff' }
-  const laid = createMemo(() => {
-    const tab = props.tab
+// Everything the tab draws, at its place, and its height `h`, which the page scrolls by. The page
+// lays it out once and hands it over as `tab.laid`.
+export const seerrTabLayout = (tab) => {
     if (!tab || !tab.seerr || !tab.seerr.details) return NO_LAID
     const out = { blocks: [], texts: [], imgs: [], cells: [], focusables: [], h: 0, scrim: null }
     const sr = tab.seerr
@@ -74,8 +65,8 @@ export default function SeerrTab(props) {
       const cta = $L('View Collection')
       const ctaW = textWidth(cta, 20, 'bold')
       text('bannerText', 75, y + 25, $L('Part of {name}').replace('{name}', c.name || ''), 24, 'bold', '#ffffffff')
-      text('bannerCta', 1162 - 31 - 24 - ctaW, y + 25, cta, 20, 'bold', '#00a4dcff')
-      out.imgs.push({ k: 'bannerChevron', x: 1162 - 31 - 24, y: y + 29.5, w: 24, h: 24, src: 'icons/d/chevronRight.webp', r: 0, fit: 'contain', color: '#00a4dcff' })
+      text('bannerCta', 1162 - 31 - 24 - ctaW, y + 25, cta, 20, 'bold', ACCENT)
+      out.imgs.push({ k: 'bannerChevron', x: 1162 - 31 - 24, y: y + 29.5, w: 24, h: 24, src: 'icons/d/chevronRight.webp', r: 0, fit: 'contain', color: ACCENT })
       y += 83
     }
     if (sr.pieces.facts) {
@@ -140,32 +131,41 @@ export default function SeerrTab(props) {
       box.h = py + rowH + 10 + 15 - top
       y = top + box.h
     }
-    const perRow = Math.max(1, Math.floor((width + GAP) / (CARD.w + GAP)))
+    const perRow = Math.max(1, Math.floor((width + GAP_X) / (CARD.w + GAP_X)))
     let idx = 0
     const grid = (title, cards) => {
       if (!cards || !cards.length) return
       next()
       text(`h-${title}`, 0, y, title, 24, 'bold', '#ffffffff', 29)
       y += 29 + 12
-      cards.forEach((c, i) => {
-        const col = i % perRow
-        if (i && col === 0) {
-          y += CARD.h + CARD.labels + GAP
-          row++
-        }
-        const cell = { k: `c${idx}`, id: `c${idx}`, kind: 'card', row, x: col * (CARD.w + GAP), y, w: CARD.w, h: CARD.h, card: toModel(c, idx) }
-        out.cells.push(cell)
-        out.focusables.push(cell)
-        idx++
-      })
-      y += CARD.h + CARD.labels
-      row++
+      for (let start = 0; start < cards.length; start += perRow) {
+        if (start) y += GAP_Y
+        const line = cards.slice(start, start + perRow)
+        // A row is as tall as its tallest card with its caption.
+        const h = Math.max(...line.map((c) => CARD.h + captionHeight(c)))
+        line.forEach((c, col) => {
+          const cell = { k: `c${idx}`, id: `c${idx}`, kind: 'card', row, x: col * (CARD.w + GAP_X), y, w: CARD.w, h, idx, raw: c }
+          out.cells.push(cell)
+          out.focusables.push(cell)
+          idx++
+        })
+        y += h
+        row++
+      }
     }
     if (sr.pieces.recommendations) grid($L('Recommendations'), sr.recommendationCards)
     if (sr.pieces.similar) grid($L('Similar'), sr.similarCards)
     out.h = y
     return out
-  })
+}
+
+export default function SeerrTab(props) {
+  const [cur, setCur] = createSignal(0)
+  const [focused, setFocused] = createSignal(false)
+  const t = () => props.tokens || { focus: '#00a4dcff', accent: '#00a4dcff' }
+  const ink = (c) => (c === ACCENT ? t().accent : c)
+  const look = createMemo(() => ({ ...homeLook({ ...cardSettings(), homeRowsStyle: 'v1' }), plain: true }))
+  const laid = createMemo(() => (props.tab && props.tab.laid) || seerrTabLayout(props.tab))
   const blocks = byKey(() => laid().blocks, GONE)
   const texts = byKey(() => laid().texts, GONE)
   const imgs = byKey(() => laid().imgs, GONE)
@@ -173,7 +173,7 @@ export default function SeerrTab(props) {
   const cells = byKey(() => {
     const top = (props.viewTop || 0) - WINDOW
     const bottom = (props.viewTop || 0) + 1080 + WINDOW
-    return laid().cells.filter((c) => c.y + c.h + CARD.labels >= top && c.y <= bottom)
+    return laid().cells.filter((c) => c.y + c.h >= top && c.y <= bottom)
   }, GONE)
   const focusItem = () => (focused() ? laid().focusables[cur()] || null : null)
   const ring = () => {
@@ -196,7 +196,7 @@ export default function SeerrTab(props) {
     if (!f) return false
     let target = null
     if (dCol) {
-      target = list.find((x) => x.row === f.row && x.kind === 'card' && x.x === f.x + dCol * (CARD.w + GAP)) || null
+      target = list.find((x) => x.row === f.row && x.kind === 'card' && x.x === f.x + dCol * (CARD.w + GAP_X)) || null
     } else {
       list
         .filter((x) => x.row === f.row + dRow)
@@ -247,7 +247,7 @@ export default function SeerrTab(props) {
       onEnter={() => {
         const f = laid().focusables[cur()]
         if (!f) return true
-        if (f.kind === 'card' && props.onSeerrCardSelect) props.onSeerrCardSelect(f.card.raw)
+        if (f.kind === 'card' && props.onSeerrCardSelect) props.onSeerrCardSelect(f.raw)
         else if (props.onSeerrPiece) props.onSeerrPiece(f.kind, f.data)
         return true
       }}
@@ -300,7 +300,7 @@ export default function SeerrTab(props) {
               src={imgs.at(k).src || undefined}
               borderRadius={imgs.at(k).r}
               textureOptions={{ resizeMode: { type: imgs.at(k).fit || 'cover' } }}
-              color={imgs.at(k).color}
+              color={ink(imgs.at(k).color)}
             />
           )}
         </For>
@@ -318,7 +318,7 @@ export default function SeerrTab(props) {
       <view>
         <For each={texts.keys()}>
           {(k) => (
-            <text x={texts.at(k).x} y={texts.at(k).y} fontFamily={texts.at(k).font} fontSize={texts.at(k).size} lineHeight={texts.at(k).lh} color={texts.at(k).color}>
+            <text x={texts.at(k).x} y={texts.at(k).y} fontFamily={texts.at(k).font} fontSize={texts.at(k).size} lineHeight={texts.at(k).lh} color={ink(texts.at(k).color)}>
               {texts.at(k).t}
             </text>
           )}
@@ -326,11 +326,15 @@ export default function SeerrTab(props) {
       </view>
       <view>
         <For each={cells.keys()}>
-          {(k) => (
-            <view x={cells.at(k).x} y={cells.at(k).y}>
-              <Card card={cells.at(k).card} w={CARD.w} h={CARD.h} focused={isCard(cells.at(k).id)} />
-            </view>
-          )}
+          {(k) => {
+            const c = () => cells.at(k)
+            const model = createMemo(() => classicCard(c().raw, c().idx, { s: cardSettings(), cardType: 'portrait', imageType: 'poster', plain: true }))
+            return (
+              <view x={c().x} y={c().y}>
+                <ClassicCard card={model()} focused={isCard(c().id)} look={look()} />
+              </view>
+            )
+          }}
         </For>
       </view>
     </view>

@@ -40,7 +40,7 @@ const COUNT_SHADOW = glowShadow({ color: '#00000099', x: 0, y: 1.5, blur: 4, spr
 const SEASON_SHADOW = glowShadow({ color: '#00000099', x: 0, y: 8, blur: 24, spread: 0 }).shadow
 const DEFAULT_T = {
   focus: '#ffffffff', accent: '#00a4dcff', onSurface: '#ffffffff', recordingActive: '#ff4757ff', badgeWatched: '#00a4dcff', badgeUnplayed: '#00a4dcff', onBadge: '#ffffffff', surface: '#111111ff',
-  os: () => '#ffffff0f', accentA: () => '#00a4dcff',
+  os: () => '#ffffff0f', accentA: () => '#00a4dcff', focusA: () => '#ffffff99',
 }
 const NO_ROW = { k: '', cells: [], title: '', kind: 'none', mode: 'none', cardsY: 0, clipX: 0, clipW: 0, h: 0 }
 const GONE = {
@@ -337,7 +337,7 @@ export default function ClassicRow(props) {
         <text letterSpacing={sp()} x={269} y={170.5} mountX={1} fontFamily={regular()} fontSize={14} lineHeight={33} color="#ffffff66">
           {c().time}
         </text>
-        <view width={282} height={213} borderRadius={sq(8)} color="#00000001" border={{ width: 1, color: hex(t().accentA(0.5)) }} alpha={p.on ? 1 : 0} />
+        <view width={282} height={213} borderRadius={sq(8)} color="#00000001" border={{ width: 1, color: hex(t().focusA(0.5)) }} alpha={p.on ? 1 : 0} />
       </view>
     )
   }
@@ -356,7 +356,7 @@ export default function ClassicRow(props) {
     return (
       <view x={c().x} width={520} height={250}>
         <view width={520} height={250} borderRadius={16} color={p.on ? '#34343cd1' : '#24242ab8'} />
-        <view width={520} height={250} borderRadius={16} color="#00000001" border={{ width: 3, color: hex('#00a4dcff') }} alpha={p.on ? 1 : 0} />
+        <view width={520} height={250} borderRadius={16} color="#00000001" border={{ width: 3, color: hex(t().focus) }} alpha={p.on ? 1 : 0} />
         <view x={27} y={31} width={56} height={56} borderRadius={28} color="#ffffff29">
           <text letterSpacing={sp()} y={13.5} fontFamily={bold()} fontSize={26} lineHeight={34} maxWidth={56} contain="width" textAlign="center" color="#ffffffff">
             {c().initial}
@@ -485,7 +485,7 @@ export default function ClassicRow(props) {
     return (
       <view x={c().x} width={c().w} height={c().h}>
         <view width={c().w} height={c().h} borderRadius={8} color="#ffffff1f" alpha={p.on ? 1 : 0} />
-        <view width={c().w} height={c().h} borderRadius={8} color="#00000001" border={{ width: 2, color: hex('#00a4dc99') }} alpha={p.on ? 1 : 0} />
+        <view width={c().w} height={c().h} borderRadius={8} color="#00000001" border={{ width: 2, color: hex(t().focusA(0.6)) }} alpha={p.on ? 1 : 0} />
         <text letterSpacing={sp()}
           x={16}
           y={(c().h - 33) / 2 + 2}
