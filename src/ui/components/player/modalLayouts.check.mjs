@@ -1,7 +1,10 @@
 // Self-check for modalLayouts.js: node src/ui/components/player/modalLayouts.check.mjs
 // Expected numbers were measured at 1080p for Hunter x Hunter's info, chapters and cast.
 import assert from 'node:assert/strict'
-import { INFO, infoLayout, infoThumb, chapterCards, castCards, rowScroll, rowWidth, CHAPTER, CAST } from './modalLayouts.js'
+import { stubUnloadable } from '../../../../scripts/stubUnloadable.mjs'
+
+stubUnloadable()
+const { INFO, infoLayout, infoThumb, chapterCards, castCards, rowScroll, rowWidth, CHAPTER, CAST } = await import('./modalLayouts.js')
 
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 0.1, `${msg}: ${a} vs ${b}`)
 

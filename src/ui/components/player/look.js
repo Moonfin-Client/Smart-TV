@@ -1,6 +1,10 @@
 // Colors the player overlays draw with under the default Moonfin theme, as #rrggbbaa, plus text
 // measuring for layouts CSS would flow.
 import { alphaHex } from '../../themeColor.js'
+import { textWidth } from '../../text.js'
+
+// Measured in the face the theme draws its text with, as the overlays draw in uiFont and fontFor.
+export { textWidth }
 
 export const ACCENT = '#00a4dc'
 // The anime pills' compact size: 13px with 1 by 9 padding, 23.5 tall.
@@ -17,25 +21,6 @@ export const focusColor = (value) => {
   if (raw.length === 6) return `#${raw}`
   if (raw.length === 8) return `#${raw.slice(2)}${raw.slice(0, 2)}`
   return ACCENT
-}
-
-const FAMILY = { regular: 'roboto-web', medium: 'roboto-medium-web', bold: 'roboto-bold-web' }
-let ctx = null
-const widths = {}
-
-// The width CSS would give a single line, measured with the same Roboto files the renderer draws.
-export const textWidth = (str, size, weight = 'regular') => {
-  const text = String(str || '')
-  const key = `${weight}|${size}|${text}`
-  if (widths[key] != null) return widths[key]
-  if (!ctx && typeof document !== 'undefined') ctx = document.createElement('canvas').getContext('2d')
-  let w = text.length * size * 0.55
-  if (ctx) {
-    ctx.font = `${size}px ${FAMILY[weight] || FAMILY.regular}`
-    w = ctx.measureText(text).width
-  }
-  widths[key] = w
-  return w
 }
 
 const HYPHEN_BREAK = /([^\s-]-)(?=[A-Za-z\u00c0-\u024f\u0370-\u03ff\u0400-\u04ff])/g
