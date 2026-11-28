@@ -1026,5 +1026,7 @@
     "Text Stroke Color": "Колір обведення тексту",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "Недоступний",
-    "Recently Released Episodes": "Нещодавно випущені епізоди"
+    "Recently Released Episodes": "Нещодавно випущені епізоди",
+    "Date Added (Newest First)": "Дата додавання (спочатку нові)",
+    "Date Added (Oldest First)": "Дата додавання (спочатку старі)"
 }
