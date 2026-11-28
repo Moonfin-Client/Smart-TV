@@ -1140,7 +1140,7 @@
     "Additional Parts": "Papildomos dalys",
     "Adjusts animation speed when expanding focused modern cards": "Reguliuoja animacijos greitį išplečiant pažymėtas šiuolaikines korteles",
     "Again!": "Dar kartą!",
-    "Agenda": "Tvarkaraštis",
+    "Agenda": "Tvarkarašti",
     "Album Artist": "Albumo atlikėjas",
     "All Artists": "Visi atlikėjai",
     "All day": "Visą dieną",
@@ -1280,5 +1280,8 @@
     "Sound off": "Garsas išjungtas",
     "Play again": "Žaisti dar kartą",
     "Game over": "Žaidimas baigtas",
-    "Back to the game": "Grįžti į žaidimą"
+    "Back to the game": "Grįžti į žaidimą",
+    "A holiday piece, like Halloween's planchette, follows what you select on Home": "Šventinis akcentas, pavyzdžiui, Helovyno planšetė, juda paskui jūsų pasirinktą elementą pagrindiniame ekrane",
+    "Date Added (Newest First)": "Pridėjimo data (nuo naujausių)",
+    "Date Added (Oldest First)": "Pridėjimo data (nuo seniausių)"
 }
