@@ -2,17 +2,9 @@
 // and an episode on Home's poster card shows its series poster, as Core does.
 //   node --conditions=browser src/ui/components/home/posterRows.check.mjs
 import assert from 'node:assert/strict'
-import { registerHooks } from 'node:module'
+import { stubUnloadable } from '../../../../scripts/stubUnloadable.mjs'
 
-const stub = (src) => `data:text/javascript,${encodeURIComponent(src)}`
-registerHooks({
-  resolve(spec, ctx, next) {
-    if (/services\/i18n(\.js)?$/.test(spec)) return { url: stub("export default (s) => s; export const currentLocale = () => 'en-US'"), shortCircuit: true }
-    if (/package\.json$/.test(spec)) return { url: stub("export default { version: '0.0.0' }"), shortCircuit: true }
-    if (spec.startsWith('.') && !/\.m?js$/.test(spec)) spec += '.js'
-    return next(spec, ctx)
-  },
-})
+stubUnloadable()
 const { rowCardType, rowPeekHeight } = await import('./rowPeek.js')
 const { classicCard, shapeRow } = await import('./cards.js')
 const { episodeArtwork } = await import('./cardArtwork.js')
@@ -36,7 +28,6 @@ const peek = { ...classic, mediaBarRowPeek: true, featuredBarStyle: 'fullscreen'
 assert.equal(rowPeekHeight({ ...peek, homeRowImageTypes: { resume: 'poster' } }, { id: 'resume', type: 'landscape' }), 249)
 assert.equal(rowPeekHeight(peek, { id: 'resume', type: 'landscape' }), 177)
 
-// Home's rows draw poster cards.
 const movie = { _serverUrl: 'http://server', Id: 'm1', Type: 'Movie', Name: 'Film', ImageTags: { Primary: 'p' } }
 const look = { style: 'classic' }
 const cardsOf = (s) => shapeRow({ id: 'resume', key: 'resume', type: 'landscape', items: [movie] }, look, s).cards
