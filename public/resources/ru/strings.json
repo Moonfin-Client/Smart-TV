@@ -1289,5 +1289,7 @@
     "Text Stroke Color": "Цвет обводки текста",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "Недоступно",
-    "Recently Released Episodes": "Недавно вышедшие эпизоды"
+    "Recently Released Episodes": "Недавно вышедшие эпизоды",
+    "Date Added (Newest First)": "Дата добавления (сначала новые)",
+    "Date Added (Oldest First)": "Дата добавления (сначала старые)"
 }
