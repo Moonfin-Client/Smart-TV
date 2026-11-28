@@ -4,32 +4,20 @@ import assert from 'node:assert/strict'
 import { stubUnloadable } from '../../../../scripts/stubUnloadable.mjs'
 
 stubUnloadable()
-const { panelFill, promptColors } = await import('./overlayLook.js')
+const { accentButtonFocus, panelFill } = await import('./overlayLook.js')
 
-const t = (over) => ({
-  surface: '#1a0b2eff', onSurface: '#f0e6ffff', os: (a) => `os${a}`, accent: '#ff2a6dff', accentA: (a) => `accent${a}`,
-  onAccentInk: '#000000eb', focus: '#05d9e8ff', ...over,
-})
+const hero = { surface: '#333c57ff', accent: '#ef7d57ff', onAccent: '#1a1c2cff', focus: '#ffcd75ff' }
+const glass = { surface: '#0e1117d9', accent: '#0a84ffff', onAccent: '#ffffffff', focus: '#ffffffff' }
 
 // The panel is the theme's surface, more opaque on the tiers that strip the blur.
-assert.equal(panelFill(t(), 'high'), '#1a0b2ee0')
-assert.equal(panelFill(t(), 'low'), '#1a0b2ef7')
-assert.equal(panelFill(t(), 'mid'), '#1a0b2ef7')
+assert.equal(panelFill(hero, 'high'), '#333c57e0')
+assert.equal(panelFill(glass, 'low'), '#0e1117f7')
 
-const c = promptColors(t())
-assert.equal(c.text, '#f0e6ffff')
-assert.equal(c.accent, '#ff2a6dff')
-assert.equal(c.onAccent, '#000000eb')
-assert.equal(c.onAccentA(0.24), '#0000003d')
-assert.equal(c.focus, '#05d9e8ff')
-// A focus color unlike the accent rings the accent buttons as it rings everything else.
-assert.equal(c.accentButtonFocus, '#05d9e8ff')
-// Where the focus color is the accent itself, the accent buttons ring in their ink, so focus shows.
-assert.equal(promptColors(t({ focus: '#ff2a6dff' })).accentButtonFocus, '#000000eb')
-
-// onAccentInk keeps a readable onAccent and swaps an unreadable one for black or white.
-const { theme } = await import('../../theme.js')
-const live = theme()
-assert.match(live.onAccentInk, /^#[0-9a-f]{8}$/)
+// Play Next and Continue ring in the focus color where it shows on the accent, and in their ink where it
+// barely does, like 8-Bit Hero's gold on its orange or the Moonfin cyan Focus Color on Glass's blue.
+assert.equal(accentButtonFocus({ ...hero, focus: '#000080ff' }), '#000080ff')
+assert.equal(accentButtonFocus(hero), '#1a1c2cff')
+assert.equal(accentButtonFocus({ ...glass, focus: '#00a4dcff' }), '#ffffffff')
+assert.equal(accentButtonFocus({ ...glass, accent: '#00a4dcff', focus: '#00a4dcff' }), '#ffffffff')
 
 console.log('overlayLook ok')

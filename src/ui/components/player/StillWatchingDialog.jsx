@@ -2,8 +2,9 @@ import $L from '../../../services/i18n.js'
 import { createMemo, createSignal } from 'solid-js'
 import { uiFont } from '../../text.js'
 import { hex } from '../../color.js'
+import { theme } from '../../theme.js'
 import { lineCount } from './look.js'
-import { panelFill, panelShadow, promptColors } from './overlayLook.js'
+import { accentButtonFocus, panelFill, panelShadow } from './overlayLook.js'
 
 const W = 522
 const INNER = W - 70
@@ -22,7 +23,7 @@ export default function StillWatchingDialog(props) {
   const bold = uiFont('bold')
   const regular = uiFont()
   const fill = panelFill()
-  const c = promptColors()
+  const t = theme()
   const shadow = panelShadow(0.5)
   const look = createMemo(() => {
     const lines = Math.max(1, lineCount(body, 20, 'regular', INNER))
@@ -64,10 +65,10 @@ export default function StillWatchingDialog(props) {
       <view x={look().x} y={look().y}>
         <view width={W} height={look().h} borderRadius={35} color="#00000000" shadow={shadow} />
         <view width={W} height={look().h} borderRadius={35} color={fill} />
-        <view x={221} y={38} width={80} height={80} borderRadius={40} color={c.accentA(0.16)} border={{ width: 1, color: hex(c.accentA(0.4)) }}>
-          <view x={21} y={21} width={38} height={38} src="icons/player_still_watching.webp" color={c.accent} />
+        <view x={221} y={38} width={80} height={80} borderRadius={40} color={t.accentA(0.16)} border={{ width: 1, color: hex(t.accentA(0.4)) }}>
+          <view x={21} y={21} width={38} height={38} src="icons/player_still_watching.webp" color={t.accent} />
         </view>
-        <text fontFamily={bold} fontSize={28} x={261} y={143} lineHeight={33} mountX={0.5} color={c.text}>
+        <text fontFamily={bold} fontSize={28} x={261} y={143} lineHeight={33} mountX={0.5} color={t.onSurface}>
           {title}
         </text>
         <text
@@ -80,20 +81,20 @@ export default function StillWatchingDialog(props) {
           maxLines={look().lines}
           contain="width"
           textAlign="center"
-          color={c.os(0.62)}
+          color={t.os(0.62)}
         >
           {body}
         </text>
         <view x={35} y={look().continueY} width={INNER} height={65}>
-          <view width={INNER} height={65} borderRadius={20} color={c.accent} />
-          <view width={INNER} height={65} borderRadius={20} color="#00000000" border={{ width: 1, color: hex(c.accentButtonFocus) }} alpha={onContinue() ? 1 : 0} />
-          <text fontFamily={bold} fontSize={22} x={226} y={22} lineHeight={25} mountX={0.5} color={c.onAccent}>
+          <view width={INNER} height={65} borderRadius={20} color={t.accent} />
+          <view width={INNER} height={65} borderRadius={20} color="#00000000" border={{ width: 1, color: hex(accentButtonFocus(t)) }} alpha={onContinue() ? 1 : 0} />
+          <text fontFamily={bold} fontSize={22} x={226} y={22} lineHeight={25} mountX={0.5} color={t.onAccent}>
             {continueLabel}
           </text>
         </view>
         <view x={35} y={look().stopY} width={INNER} height={59}>
-          <view width={INNER} height={59} borderRadius={20} color="#00000000" border={{ width: 1, color: hex(c.focus) }} alpha={onStop() ? 1 : 0} />
-          <text fontFamily={regular} fontSize={22} x={226} y={19} lineHeight={25} mountX={0.5} color={onStop() ? c.text : c.os(0.6)}>
+          <view width={INNER} height={59} borderRadius={20} color="#00000000" border={{ width: 1, color: hex(t.focus) }} alpha={onStop() ? 1 : 0} />
+          <text fontFamily={regular} fontSize={22} x={226} y={19} lineHeight={25} mountX={0.5} color={onStop() ? t.onSurface : t.os(0.6)}>
             {stopLabel}
           </text>
         </view>
