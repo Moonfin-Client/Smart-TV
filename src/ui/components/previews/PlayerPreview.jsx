@@ -88,9 +88,8 @@ export default function PlayerPreview(props) {
   const buttons = createMemo(() => osdButtons({ ...SAMPLE_OSD, isPaused: m().paused, subtitleOn: m().subtitles, zoomMode: zoomInternalFromSetting(props.s.playerZoomMode) }, props.s))
   // What holds the remote, which nothing in the preview really does: the play button or the bar.
   const osdFocus = () => (controlsOn() ? m().focus || '' : '')
-  // The bar keeps the player's own colors under every theme, and its thumb turns white without the
-  // focus scale while the bar holds the remote.
-  // The seek bar in the previewed theme's range colors, as the player draws it.
+  // The bar takes the previewed theme's range colors, as the player draws it, and its thumb turns
+  // white without the focus scale while the bar holds the remote.
   const barColors = createMemo(() => ({ track: props.t.rangeTrack, fill: props.t.rangeProgress, thumb: osdFocus() === 'progress' ? '#ffffffff' : props.t.rangeThumb }))
   const head = createMemo(
     () => {

@@ -57,7 +57,8 @@ export default function TrickplayPreview(props) {
       zoom: s.playerZoomMode || 'fit',
     }
   })
-  // The active tile's outline takes the focus color, so the Focus Color setting reaches it, and its glow the accent.
+  // The active tile's outline takes the focus color, so the Focus Color setting reaches it, and its
+  // glow the accent.
   const look = createMemo(() => {
     const t = theme()
     return {
