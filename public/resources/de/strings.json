@@ -3300,5 +3300,7 @@
     "Browse all": "Alle durchsuchen",
     "Continue in {section}": "Weiter in {section}",
     "Featured: {title}": "Hervorgehoben: {title}",
-    "Recently Released Episodes": "Kürzlich veröffentlichte Episoden"
+    "Recently Released Episodes": "Kürzlich veröffentlichte Episoden",
+    "Date Added (Newest First)": "Hinzugefügt am (neueste zuerst)",
+    "Date Added (Oldest First)": "Hinzugefügt am (älteste zuerst)"
 }
