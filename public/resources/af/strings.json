@@ -1026,5 +1026,7 @@
     "Transcode Reasons": "Transkodeerredes",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "Onbeskikbaar",
-    "Recently Released Episodes": "Onlangs vrygestelde episodes"
+    "Recently Released Episodes": "Onlangs vrygestelde episodes",
+    "Date Added (Newest First)": "Datum bygevoeg (nuutste eerste)",
+    "Date Added (Oldest First)": "Datum bygevoeg (oudste eerste)"
 }
