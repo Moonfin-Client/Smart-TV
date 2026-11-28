@@ -57,8 +57,6 @@ export default function StyledActions(props) {
   const placed = createMemo(() => {
     const tk = t()
     const st = stacked()
-    // Pixel themes square off the 38px radius.
-    const r = tk.isPixel ? 0 : 38
     return layoutActions(buttons(), props.variant, props.w).map((p) => {
       const b = p.b
       const iconSize = 40
@@ -79,7 +77,9 @@ export default function StyledActions(props) {
       }
       const lit = b.active && !p.lead
       return {
-        k: b.id, i: p.i, x: p.x, y: p.y, w: p.w, h: p.h, r, lead: p.lead,
+        // As in Core, the labeled first button is a full pill and the rest are circles. Pixel themes
+        // square them off.
+        k: b.id, i: p.i, x: p.x, y: p.y, w: p.w, h: p.h, r: tk.isPixel ? 0 : Math.min(p.w, p.h) / 2, lead: p.lead,
         fill: lit ? tint(b, tk) : '#ffffff0f',
         onFill: lit ? tint(b, tk) : tk.buttonFocused,
         icon: `icons/d/${b.icon}.webp`, iconX, iconY: (p.h - iconSize) / 2,
