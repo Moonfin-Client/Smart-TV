@@ -1040,5 +1040,7 @@
     "Moonfin Recommends": "Moonfin doporučuje",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "Není k dispozici",
-    "Recently Released Episodes": "Nedávno vydané epizody"
+    "Recently Released Episodes": "Nedávno vydané epizody",
+    "Date Added (Newest First)": "Datum přidání (od nejnovějších)",
+    "Date Added (Oldest First)": "Datum přidání (od nejstarších)"
 }
