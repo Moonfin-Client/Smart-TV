@@ -1025,5 +1025,7 @@
     "Text Stroke Color": "පෙළ පහර වර්ණය",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "ලබා ගත නොහැක",
-    "Recently Released Episodes": "මෑතකදී නිකුත් වූ කථාංග"
+    "Recently Released Episodes": "මෑතකදී නිකුත් වූ කථාංග",
+    "Date Added (Newest First)": "එක් කළ දිනය (නවතම පළමුව)",
+    "Date Added (Oldest First)": "එක් කළ දිනය (පැරණිතම පළමුව)"
 }
