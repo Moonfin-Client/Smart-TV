@@ -262,6 +262,20 @@ export const toggleShuffle = () => {
   buildOrder()
 }
 
+// A remote's SetShuffleQueue asks for a state rather than a toggle, so answering it twice leaves
+// things as they were.
+export const setShuffle = (on) => {
+  const next = !!on
+  if (audio.shuffle === next) return
+  audio.shuffle = next
+  buildOrder()
+}
+
+export const setRepeat = (mode) => {
+  const next = mode === 'all' || mode === 'one' ? mode : 'off'
+  if (audio.repeat !== next) audio.repeat = next
+}
+
 export const cycleRepeat = () => {
   audio.repeat = audio.repeat === 'off' ? 'all' : audio.repeat === 'all' ? 'one' : 'off'
 }

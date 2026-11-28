@@ -52,6 +52,7 @@ import { hasMergedCopies, mergesLibraries } from './utils/mergedCopies.js'
 import { findEveryCopy } from './services/mergedTitleReads.js'
 import { hasMultipleServers } from './services/multiServerManager.js'
 import * as remoteControl from './services/remoteControl.js'
+import * as remotePlayback from './services/remotePlayback.js'
 import { offerRemoteSearch } from './pages/Search/remoteSearch.js'
 
 if (import.meta.env.VITE_LAB) import('./ui/components/shell/lab/Lab.jsx')
@@ -462,9 +463,9 @@ const Shell = (props) => {
           store.navSection = 'search'
           router.to('/search')
         },
-        // shortcut: playing and queueing sent from another client do nothing. Wire these to the
-        // player and audioPlayer to support remote play.
-        playItems() {},
+        // shortcut: playing and queueing sent from another client. Audio starts here; queueing stays
+        // a no-op until audioPlayer can append to its queue.
+        playItems: (itemIds, options) => remotePlayback.playItems(itemIds, options),
         queueItems() {},
       },
     })

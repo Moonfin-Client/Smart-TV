@@ -31,30 +31,33 @@ const VOLUME_STEP = 10;
 
 const REPEAT_MODES = {repeatall: 'all', repeatone: 'one'};
 
-// What the app and the running player hand over, each as a ref so a command always reaches the
-// latest version of them.
-let appRef = null;
-let playerRef = null;
+// What the app and the running player hand over, each as a stack: the most recent registration wins
+// (a video player over the music player) and unregistering hands control back to the one below, so
+// the music player is still reachable after a video ends.
+const appRefs = [];
+const playerRefs = [];
 let unbindSocket = null;
 let remoteSearch = null;
 let navigationGeneration = 0;
 
 export const setAppControls = (ref) => {
-	appRef = ref;
+	appRefs.push(ref);
 	return () => {
-		if (appRef === ref) appRef = null;
+		const at = appRefs.lastIndexOf(ref);
+		if (at >= 0) appRefs.splice(at, 1);
 	};
 };
 
 export const setPlayerControls = (ref) => {
-	playerRef = ref;
+	playerRefs.push(ref);
 	return () => {
-		if (playerRef === ref) playerRef = null;
+		const at = playerRefs.lastIndexOf(ref);
+		if (at >= 0) playerRefs.splice(at, 1);
 	};
 };
 
-const app = () => appRef?.current || null;
-const player = () => playerRef?.current || null;
+const app = () => appRefs.length ? appRefs[appRefs.length - 1].current : null;
+const player = () => playerRefs.length ? playerRefs[playerRefs.length - 1].current : null;
 
 // The mini player's buttons drive the running player through the same controls a remote gets.
 export const runPlayerCommand = (name) => player()?.[name]?.();
