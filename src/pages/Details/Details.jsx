@@ -16,7 +16,7 @@ import { hex } from '../../ui/color.js'
 import { textWidth, whenReady, wrapLines } from '../../ui/components/details/measure.js'
 import { getServerType, getServerUrl, getApiKey } from '../../services/jellyfinApi.js'
 import * as userDataSync from '../../services/userDataSync.js'
-import { withoutBlockedItems } from '../../services/parentalControls.js'
+import { loadParentalControls, withoutBlockedItems } from '../../services/parentalControls.js'
 import { startServerShuffle } from '../../services/serverShuffle.js'
 import { buildDisplayRatings, fetchEpisodeRatings, fetchRatings, getContentType, getTmdbId, isMdblistEnabled, isRatingSourceEnabled } from '../../services/mdblistApi.js'
 import { searchesForTrailer } from '../../services/youtubeTrailer.js'
@@ -48,6 +48,7 @@ import { collectionTitles, mergeCollectionWithMissing } from './seerrMissingColl
 import { studioLogoIndex, studioCardsFor } from './studioLogos.js'
 import {
   apiFor,
+  cardToShow,
   chooseCollectionSort,
   emptyLists,
   initialTracks,
@@ -154,7 +155,7 @@ export default function Details(props) {
   // the player, so Back lands here. It plays once per page.
   let autoPlay = Boolean(props.autoPlay)
   // The record is asked for before the page builds, which takes a TV a few hundred ms of its own.
-  let early = props.mediatype ? null : { id: props.id, rec: loadRecord(props.id, null, props.server) }
+  let early = props.mediatype ? null : { id: props.id, rec: loadRecord(props.id, props.card, props.server) }
   const modal = (name, ...args) => (modals && modals[name] ? modals[name](...args) : undefined)
   const settings = () => kidsModeSettings(all())
 
@@ -185,6 +186,7 @@ export default function Details(props) {
     const gen = ++m.gen
     const alive = () => gen === m.gen
     m.item = null
+    m.card = null
     // An item from another server is read, drawn and acted on through that server.
     m.api = apiFor(props.server)
     m.srv = (props.server && props.server._serverUrl) || getServerUrl()
@@ -241,6 +243,19 @@ export default function Details(props) {
     const s = settings()
     const pre = early && early.id === props.id ? early.rec : null
     early = null
+    // The card draws first, with nothing on it to focus or press until the record replaces it.
+    if (pre && !props.autoPlay) await loadParentalControls()
+    const card = pre && !props.autoPlay ? cardToShow(props.card, props.id) : null
+    if (card) {
+      await whenReady()
+      if (!ctx.alive()) return
+      m.card = card
+      batch(() => {
+        setLoading(false)
+        setSkeleton([])
+        paint()
+      })
+    }
     const rec = props.mediatype ? await loadSeerrOnlyRecord(props.mediatype, props.id) : await (pre || loadRecord(props.id, null, props.server))
     if (!ctx.alive()) return
     if (!rec || rec.blocked) {
@@ -249,6 +264,12 @@ export default function Details(props) {
         setBlocked(!!rec)
         setLoading(false)
         setSkeleton([])
+        // A card drawn while the record loaded comes down behind the lock.
+        if (rec) {
+          m.card = null
+          setBackdrop('')
+          setScrim('')
+        }
       })
       return
     }
@@ -448,7 +469,7 @@ export default function Details(props) {
     if (paintTimer === null) paintTimer = setTimeout(paint, 0)
   }
   const paintNow = () => {
-    const it = m.item
+    const it = m.item || m.card
     if (!it) return
     const s = settings()
     const t = it.Type
@@ -687,7 +708,7 @@ export default function Details(props) {
   }
   const tabContent = (id, d) => {
     if (id === 'details') {
-      return { kind: 'details', info: { item: m.item, mediaSource: d.mediaSource, audio: m.tracks.audio, subtitle: m.tracks.subtitle, w: d.contentW }, height: 600 }
+      return { kind: 'details', info: { item: d.item, mediaSource: d.mediaSource, audio: m.tracks.audio, subtitle: m.tracks.subtitle, w: d.contentW }, height: 600 }
     }
     if (id === 'seerr') return { kind: 'seerr', seerr: { seerr: m.seerr, w: d.contentW }, height: 600 }
     const laid = layoutTab(id, d)
@@ -736,6 +757,7 @@ export default function Details(props) {
     return kind === 'details' ? 'fileinfo' : kind === 'seerr' ? 'seerrtab' : 'cells'
   }
   const focusZone = (z) => {
+    if (!m.item) return
     setZone(z)
     if (untrack(style) !== 'v2') {
       if (styled && styled.setFocus) styled.setFocus()
@@ -1330,7 +1352,7 @@ export default function Details(props) {
         return upFromTop()
       }}
       onDown={() => {
-        if (!v2()) return true
+        if (!v2() || !m.item) return true
         const z = zone()
         if (z === 'overview') {
           focusZone('actions')
@@ -1554,7 +1576,7 @@ export default function Details(props) {
         </view>
       </view>
 
-      <view>
+      <view alpha={blocked() ? 0 : 1}>
         <Show when={!v2() && STYLES[style()]} keyed>
           {(Style) => (
             <Dynamic
@@ -1564,7 +1586,7 @@ export default function Details(props) {
                 // start() picks the style inside an effect, so the style mounts after start() drew
                 // Modern's placeholders, and its own replace them here.
                 if (untrack(loading) && !m.item && h && h.skeletonBoxes) setSkeleton(h.skeletonBoxes())
-                else if (m.item) paintSoon()
+                else if (m.item || m.card) paintSoon()
               }}
               page={dt}
               tokens={tokens()}

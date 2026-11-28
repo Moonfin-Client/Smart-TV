@@ -21,15 +21,17 @@ assert.deepEqual(serverOf({ Id: 'a', Name: 'A', ...tags }), tags)
 assert.deepEqual(detailsData({ Id: 'a' }), {})
 assert.deepEqual(detailsData({ Id: 'a', ...tags }), { server: tags })
 
-// Details gets the server for a remote title, and nothing for a local one.
-assert.deepEqual(routeForItem({ Id: 'm1', Type: 'Movie', ...tags }), ['/details/m1', { server: tags }])
-assert.deepEqual(routeForItem({ Id: 'm1', Type: 'Movie' }), ['/details/m1', {}])
+// Details gets the card to draw first, and the server for a remote title.
+const remote = { Id: 'm1', Type: 'Movie', ...tags }
+assert.deepEqual(routeForItem(remote), ['/details/m1', { server: tags, card: remote }])
+assert.deepEqual(routeForItem({ Id: 'm1', Type: 'Movie' }), ['/details/m1', { card: { Id: 'm1', Type: 'Movie' } }])
 assert.deepEqual(routeForItem({ Id: 'p1', Type: 'Playlist', MediaType: 'Video', ...tags }), ['/details/p1', { server: tags }])
 
 // Playing opens the title's page with autoPlay, a song goes straight to the player, and what has no
 // page of its own opens as a pick would.
-assert.deepEqual(playRoute({ Id: 'e1', Type: 'Episode' }), ['/details/e1', { autoPlay: true }])
-assert.deepEqual(playRoute({ Id: 's1', Type: 'Series', ...tags }), ['/details/s1', { server: tags, autoPlay: true }])
+assert.deepEqual(playRoute({ Id: 'e1', Type: 'Episode' }), ['/details/e1', { card: { Id: 'e1', Type: 'Episode' }, autoPlay: true }])
+const series = { Id: 's1', Type: 'Series', ...tags }
+assert.deepEqual(playRoute(series), ['/details/s1', { server: tags, card: series, autoPlay: true }])
 assert.deepEqual(playRoute({ Id: 'a1', Type: 'MusicAlbum' }), ['/album/a1', { autoPlay: true }])
 assert.deepEqual(playRoute({ Id: 't1', Type: 'Audio' }), ['/player/t1', {}])
 assert.deepEqual(playRoute({ Id: 'c1', Type: 'TvChannel' }), ['/player/c1', { live: true }])
