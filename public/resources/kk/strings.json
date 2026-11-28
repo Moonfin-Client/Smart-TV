@@ -1025,5 +1025,7 @@
     "Text Stroke Color": "Мәтін штрих түсі",
     "Dolby Vision": "Dolby Vision",
     "Unavailable": "Қолжетімсіз",
-    "Recently Released Episodes": "Жақында шыққан эпизодтар"
+    "Recently Released Episodes": "Жақында шыққан эпизодтар",
+    "Date Added (Newest First)": "Қосылған күні (алдымен жаңалары)",
+    "Date Added (Oldest First)": "Қосылған күні (алдымен ескілері)"
 }
