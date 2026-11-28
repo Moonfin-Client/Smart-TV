@@ -174,6 +174,18 @@ const firstAnswering = (uris, answers, graceMs = 1000) => new Promise((resolve) 
 export const findReachableUri = (uris, machineId) =>
 	firstAnswering(uris, async (uri) => (await machineIdAt(uri)) === machineId);
 
+// The addresses found for a server go ahead of what plex.tv lists, each after plex.tv's https address for the same
+// IP and port, whose plex.direct name spells the IP. That one wins when it answers, and the plain address is next.
+export const withAddressesFirst = (connections, first) => {
+	const ordered = [];
+	first.forEach((uri) => {
+		const lan = /^http:\/\/(\d+\.\d+\.\d+\.\d+)(:\d+)$/.exec(uri);
+		const host = lan && `https://${lan[1].replace(/\./g, '-')}.`;
+		ordered.push(...connections.filter((c) => lan && c.startsWith(host) && c.endsWith(`.plex.direct${lan[2]}`)), uri);
+	});
+	return [...ordered, ...connections].filter((uri, i, all) => all.indexOf(uri) === i);
+};
+
 // The addresses to look for a Plex server at for a typed one. Plex's own port goes first when none was typed,
 // and a bare address means http, since a LAN IP has no certificate to match.
 const plexAddressCandidates = (address) => {

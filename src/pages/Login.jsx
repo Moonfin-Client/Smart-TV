@@ -94,6 +94,10 @@ const tokenSignIn = async (url, result, options) => {
   const saved = await multiServerManager.addServer(
     url, name, result.User.Id, result.User.Name, result.AccessToken, result.User.PrimaryImageTag, options.serverType || 'jellyfin', options.serverVersion || null,
   )
+  // A Plex server keeps its machine id and addresses, and its user the plex.tv token Plex Home switches with.
+  if (options.serverFields || options.userFields) {
+    await multiServerManager.updateServer(saved.serverId, options.serverFields, result.User.Id, options.userFields)
+  }
   await saveToStorage('auth', { serverUrl: url, userId: result.User.Id, token: result.AccessToken, user: result.User })
   if (!(await auth.switchUser(saved.serverId, result.User.Id))) throw new Error('sign-in failed')
   return result
@@ -562,13 +566,17 @@ export default function Login(props) {
     const saved = s.uniqueServers.map((e) => normalizeServerBaseUrl(e.url).toLowerCase())
     cancelDiscovery = discoverLocalServers({
       onFound: (f) => {
-        if (saved.indexOf(normalizeServerBaseUrl(f.address).toLowerCase()) >= 0) return
-        // A saved Plex server may have been reached through the relay, so the next start tries this address first.
+        // A saved Plex server may have been reached through the relay, so the next start tries this address first,
+        // after plex.tv's https address for the same host. One already saved at that https address keeps it.
         const savedPlex = f.serverType === 'plex' && s.uniqueServers.find((e) => e.machineId === f.id)
         if (savedPlex) {
-          const others = (savedPlex.candidateAddresses || [savedPlex.url]).filter((uri) => uri !== f.address)
-          multiServerManager.updateServer(savedPlex.serverId, { url: f.address, candidateAddresses: [f.address].concat(others) }).catch(() => {})
+          const candidateAddresses = plexTv.withAddressesFirst(savedPlex.candidateAddresses || [savedPlex.url], [f.address])
+          const url = candidateAddresses[0] === savedPlex.url ? savedPlex.url : f.address
+          if (url !== savedPlex.url || String(candidateAddresses) !== String(savedPlex.candidateAddresses)) {
+            multiServerManager.updateServer(savedPlex.serverId, { url, candidateAddresses }).catch(() => {})
+          }
         }
+        if (saved.indexOf(normalizeServerBaseUrl(f.address).toLowerCase()) >= 0) return
         s.discovered = s.discovered.concat([f])
       },
       onDone: () => {
@@ -930,7 +938,7 @@ export default function Login(props) {
       await tokenSignIn(
         s.server.url,
         { User: { Id: user.id, Name: user.name, PrimaryImageTag: 'plex' }, AccessToken: match.accessToken },
-        { serverName: s.server.name, serverType: 'plex', serverVersion: s.server.version },
+        { serverName: s.server.name, serverType: 'plex', serverVersion: s.server.version, userFields: { plexToken: memberToken } },
       )
       await finishLogin()
       return true
@@ -1253,7 +1261,10 @@ export default function Login(props) {
       await tokenSignIn(
         uri,
         { User: { Id: account.id, Name: account.name, PrimaryImageTag: 'plex' }, AccessToken: target.accessToken },
-        { serverName: target.name, serverType: 'plex', serverVersion: target.version },
+        {
+          serverName: target.name, serverType: 'plex', serverVersion: target.version,
+          serverFields: { machineId: target.id, candidateAddresses: target.connections }, userFields: { plexToken: token },
+        },
       )
       await finishLogin()
     } catch (err) {
@@ -1282,7 +1293,7 @@ export default function Login(props) {
         const known = s.uniqueServers.find((k) => k.machineId === entry.id)
         const lan = s.discovered.filter((f) => f.serverType === 'plex' && f.id === entry.id).map((f) => f.address)
         const first = [typed].concat(lan, [known && known.url]).filter(Boolean)
-        return { ...entry, connections: first.concat(entry.connections.filter((uri) => first.indexOf(uri) < 0)) }
+        return { ...entry, connections: plexTv.withAddressesFirst(entry.connections, first) }
       })
     } catch (err) {
       batch(() => {
